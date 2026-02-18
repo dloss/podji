@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/app"
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/resources"
 	"github.com/dloss/kubira/internal/ui/eventview"
 	"github.com/dloss/kubira/internal/ui/logview"
 	"github.com/dloss/kubira/internal/ui/style"
+	"github.com/dloss/kubira/internal/ui/viewstate"
 	"github.com/dloss/kubira/internal/ui/yamlview"
 )
 
@@ -24,18 +24,18 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 
 func (v *View) Init() bubbletea.Cmd { return nil }
 
-func (v *View) Update(msg bubbletea.Msg) app.ViewUpdate {
+func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
 		case "l":
-			return app.ViewUpdate{Action: app.ViewPush, Next: logview.New(v.item, v.resource)}
+			return viewstate.Update{Action: viewstate.Push, Next: logview.New(v.item, v.resource)}
 		case "e":
-			return app.ViewUpdate{Action: app.ViewPush, Next: eventview.New(v.item, v.resource)}
+			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
-			return app.ViewUpdate{Action: app.ViewPush, Next: yamlview.New(v.item, v.resource)}
+			return viewstate.Update{Action: viewstate.Push, Next: yamlview.New(v.item, v.resource)}
 		}
 	}
-	return app.ViewUpdate{Action: app.ViewNone, Next: v}
+	return viewstate.Update{Action: viewstate.None, Next: v}
 }
 
 func (v *View) View() string {

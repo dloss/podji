@@ -4,9 +4,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/app"
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/resources"
+	"github.com/dloss/kubira/internal/ui/viewstate"
 )
 
 type View struct {
@@ -34,7 +34,7 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 
 func (v *View) Init() bubbletea.Cmd { return nil }
 
-func (v *View) Update(msg bubbletea.Msg) app.ViewUpdate {
+func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	switch msg := msg.(type) {
 	case bubbletea.KeyMsg:
 		switch msg.String() {
@@ -53,7 +53,7 @@ func (v *View) Update(msg bubbletea.Msg) app.ViewUpdate {
 
 	updated, cmd := v.viewport.Update(msg)
 	v.viewport = updated
-	return app.ViewUpdate{Action: app.ViewNone, Next: v, Cmd: cmd}
+	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 }
 
 func (v *View) View() string {

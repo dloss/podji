@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/app"
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/resources"
 	"github.com/dloss/kubira/internal/ui/detailview"
 	"github.com/dloss/kubira/internal/ui/style"
+	"github.com/dloss/kubira/internal/ui/viewstate"
 )
 
 type item struct {
@@ -66,13 +66,13 @@ func (v *View) Init() bubbletea.Cmd {
 	return nil
 }
 
-func (v *View) Update(msg bubbletea.Msg) app.ViewUpdate {
+func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
 		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(item); ok {
-				return app.ViewUpdate{
-					Action: app.ViewPush,
+				return viewstate.Update{
+					Action: viewstate.Push,
 					Next:   detailview.New(selected.data, v.resource),
 				}
 			}
@@ -81,7 +81,7 @@ func (v *View) Update(msg bubbletea.Msg) app.ViewUpdate {
 
 	updated, cmd := v.list.Update(msg)
 	v.list = updated
-	return app.ViewUpdate{Action: app.ViewNone, Next: v, Cmd: cmd}
+	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 }
 
 func (v *View) View() string {

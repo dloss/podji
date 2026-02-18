@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/charmbracelet/bubbletea"
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/app"
 )
 

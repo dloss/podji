@@ -3,39 +3,16 @@ package app
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/resources"
 	"github.com/dloss/kubira/internal/ui/listview"
 	"github.com/dloss/kubira/internal/ui/style"
+	"github.com/dloss/kubira/internal/ui/viewstate"
 )
-
-type ViewAction int
-
-const (
-	ViewNone ViewAction = iota
-	ViewPush
-	ViewPop
-	ViewReplace
-)
-
-type ViewUpdate struct {
-	Action ViewAction
-	Next   View
-	Cmd    bubbletea.Cmd
-}
-
-type View interface {
-	Init() bubbletea.Cmd
-	Update(msg bubbletea.Msg) ViewUpdate
-	View() string
-	Breadcrumb() string
-	Footer() string
-	SetSize(width, height int)
-}
 
 type Model struct {
 	registry  *resources.Registry
-	stack     []View
+	stack     []viewstate.View
 	context   string
 	namespace string
 	errorMsg  string
@@ -50,7 +27,7 @@ func New() Model {
 
 	return Model{
 		registry:  registry,
-		stack:     []View{root},
+		stack:     []viewstate.View{root},
 		context:   "default",
 		namespace: "default",
 	}
@@ -89,7 +66,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				if res := m.registry.ResourceByKey(key); res != nil {
 					view := listview.New(res, m.registry)
 					view.SetSize(m.width, m.availableHeight())
-					m.stack = []View{view}
+					m.stack = []viewstate.View{view}
 					return m, nil
 				}
 			}
@@ -98,14 +75,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 
 	update := m.top().Update(msg)
 	switch update.Action {
-	case ViewPush:
+	case viewstate.Push:
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, update.Next)
-	case ViewPop:
+	case viewstate.Pop:
 		if len(m.stack) > 1 {
 			m.stack = m.stack[:len(m.stack)-1]
 		}
-	case ViewReplace:
+	case viewstate.Replace:
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack[len(m.stack)-1] = update.Next
 	default:
@@ -129,7 +106,7 @@ func (m Model) View() string {
 	return strings.Join(sections, "\n\n")
 }
 
-func (m Model) top() View {
+func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
@@ -147,7 +124,7 @@ func (m Model) availableHeight() int {
 	}
 
 	extra := 4
-	if m.errorMsg != \"\" {
+	if m.errorMsg != "" {
 		extra = 6
 	}
 
