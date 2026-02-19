@@ -111,7 +111,7 @@ func (m Model) View() string {
 		sections = append([]string{style.ErrorBanner.Render(m.errorMsg)}, sections...)
 	}
 
-	return strings.Join(sections, "\n\n")
+	return strings.Join(sections, "\n")
 }
 
 func (m Model) resourceHotkeys() string {
@@ -139,9 +139,9 @@ func (m Model) availableHeight() int {
 		return 0
 	}
 
-	extra := 4
+	extra := 2
 	if m.errorMsg != "" {
-		extra = 6
+		extra = 3
 	}
 
 	height := m.height - extra

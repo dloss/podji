@@ -18,7 +18,12 @@ type item struct {
 }
 
 func (i item) Title() string {
-	return i.data.Name
+	name := padCell(i.data.Name, 48)
+	status := statusStyle(padCell(i.data.Status, 12))
+	ready := padCell(i.data.Ready, 7)
+	restarts := padCell(i.data.Restarts, 14)
+	age := padCell(i.data.Age, 6)
+	return name + " " + status + " " + ready + " " + restarts + " " + age
 }
 
 func (i item) Description() string {
@@ -55,9 +60,15 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		listItems = append(listItems, item{data: res})
 	}
 
-	model := list.New(listItems, list.NewDefaultDelegate(), 0, 0)
+	delegate := list.NewDefaultDelegate()
+	delegate.SetHeight(1)
+	delegate.SetSpacing(0)
+	delegate.ShowDescription = false
+
+	model := list.New(listItems, delegate, 0, 0)
 	model.Title = strings.ToUpper(resource.Name())
 	model.SetShowHelp(false)
+	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	model.Paginator.Type = paginator.Arabic
@@ -92,7 +103,32 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 }
 
 func (v *View) View() string {
-	return v.list.View()
+	base := v.list.View()
+	lines := strings.Split(base, "\n")
+	if len(lines) < 2 {
+		return base
+	}
+
+	insertAt := 1
+	if len(lines) > 1 && lines[1] == "" {
+		insertAt = 2
+	}
+
+	header := "  " + headerRow()
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, lines[:insertAt]...)
+	out = append(out, header)
+	out = append(out, lines[insertAt:]...)
+
+	// Keep dense layout: remove the first empty spacer line after the header.
+	for i := insertAt + 1; i < len(out); i++ {
+		if strings.TrimSpace(out[i]) == "" {
+			out = append(out[:i], out[i+1:]...)
+			break
+		}
+	}
+
+	return strings.Join(out, "\n")
 }
 
 func (v *View) Breadcrumb() string {
@@ -149,4 +185,26 @@ func statusStyle(status string) string {
 	default:
 		return style.Healthy.Render(status)
 	}
+}
+
+func headerRow() string {
+	return padCell("NAME", 48) + " " + padCell("STATUS", 12) + " " + padCell("READY", 7) + " " + padCell("RESTARTS", 14) + " " + padCell("AGE", 6)
+}
+
+func padCell(value string, width int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) > width {
+		if width <= 1 {
+			return "…"
+		}
+		value = string(runes[:width-1]) + "…"
+	} else {
+		value = string(runes)
+	}
+
+	padding := width - len([]rune(value))
+	if padding > 0 {
+		return value + strings.Repeat(" ", padding)
+	}
+	return value
 }
