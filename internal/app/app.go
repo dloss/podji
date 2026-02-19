@@ -127,7 +127,7 @@ func (m Model) top() viewstate.View {
 }
 
 func (m Model) breadcrumb() string {
-	parts := []string{m.context, m.namespace}
+	parts := []string{"ctx:" + m.context, "ns:" + m.namespace}
 	for _, view := range m.stack {
 		parts = append(parts, view.Breadcrumb())
 	}
