@@ -1,9 +1,11 @@
 package listview
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/kubira/internal/resources"
 	"github.com/dloss/kubira/internal/ui/detailview"
@@ -58,6 +60,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model.SetShowHelp(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	model.Paginator.Type = paginator.Arabic
 	return &View{resource: resource, registry: registry, list: model}
 }
 
@@ -97,7 +100,12 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "L logs  / filter  esc clear  ? help  q quit"
+	parts := []string{v.paginationStatus()}
+	if v.list.Paginator.TotalPages > 1 {
+		parts = append(parts, "pgup prev-page  pgdn next-page")
+	}
+	parts = append(parts, "L logs", "/ filter", "esc clear", "? help", "q quit")
+	return strings.Join(parts, "  ")
 }
 
 func (v *View) SetSize(width, height int) {
@@ -109,6 +117,27 @@ func (v *View) SetSize(width, height int) {
 
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter()
+}
+
+func (v *View) paginationStatus() string {
+	totalVisible := len(v.list.VisibleItems())
+	if totalVisible == 0 {
+		return "Showing 0 of 0"
+	}
+
+	start, end := v.list.Paginator.GetSliceBounds(totalVisible)
+
+	if v.list.IsFiltered() {
+		return fmt.Sprintf(
+			"Showing %d-%d of %d filtered (%d total)",
+			start+1,
+			end,
+			totalVisible,
+			len(v.list.Items()),
+		)
+	}
+
+	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
 }
 
 func statusStyle(status string) string {
