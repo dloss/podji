@@ -1,7 +1,6 @@
 package listview
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -69,6 +68,11 @@ func (v *View) Init() bubbletea.Cmd {
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
+		case "esc":
+			if v.list.SettingFilter() || v.list.IsFiltered() {
+				v.list.ResetFilter()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
 		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
@@ -93,7 +97,7 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return fmt.Sprintf("j/k navigate  enter detail  l logs  / filter  ? help  q quit  %c", v.resource.Key())
+	return "L logs  / filter  esc clear  ? help  q quit"
 }
 
 func (v *View) SetSize(width, height int) {
@@ -101,6 +105,10 @@ func (v *View) SetSize(width, height int) {
 		return
 	}
 	v.list.SetSize(width, height)
+}
+
+func (v *View) SuppressGlobalKeys() bool {
+	return v.list.SettingFilter()
 }
 
 func statusStyle(status string) string {

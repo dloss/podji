@@ -20,6 +20,10 @@ type Model struct {
 	height    int
 }
 
+type globalKeySuppresser interface {
+	SuppressGlobalKeys() bool
+}
+
 func New() Model {
 	registry := resources.DefaultRegistry()
 	pods := registry.ResourceByKey('P')
@@ -45,6 +49,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.top().SetSize(m.width, m.availableHeight())
 		return m, nil
 	case bubbletea.KeyMsg:
+		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
+			break
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
@@ -96,7 +104,7 @@ func (m Model) View() string {
 	breadcrumb := m.breadcrumb()
 	head := style.Header.Render(breadcrumb)
 	body := m.top().View()
-	footer := style.Footer.Render(m.top().Footer())
+	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  " + m.resourceHotkeys()))
 
 	sections := []string{head, body, footer}
 	if m.errorMsg != "" {
@@ -104,6 +112,14 @@ func (m Model) View() string {
 	}
 
 	return strings.Join(sections, "\n\n")
+}
+
+func (m Model) resourceHotkeys() string {
+	keys := make([]string, 0, len(m.registry.Resources()))
+	for _, res := range m.registry.Resources() {
+		keys = append(keys, string(res.Key()))
+	}
+	return strings.Join(keys, " ") + " jump"
 }
 
 func (m Model) top() viewstate.View {
