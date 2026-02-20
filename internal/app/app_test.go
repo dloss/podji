@@ -48,3 +48,26 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 		t.Fatalf("expected breadcrumb line to be preserved, got %q", lines[1])
 	}
 }
+
+func TestTabCyclesLensForward(t *testing.T) {
+	m := New()
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyTab})
+	got := updated.(Model)
+
+	if got.lens != 1 {
+		t.Fatalf("expected lens 1 after tab, got %d", got.lens)
+	}
+}
+
+func TestShiftTabCyclesLensBackwardFromFirst(t *testing.T) {
+	m := New()
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyShiftTab})
+	got := updated.(Model)
+
+	want := len(lenses) - 1
+	if got.lens != want {
+		t.Fatalf("expected lens %d after shift+tab from first, got %d", want, got.lens)
+	}
+}

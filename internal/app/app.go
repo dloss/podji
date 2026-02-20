@@ -77,6 +77,11 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
 			break
 		}
+		if msg.Type == bubbletea.KeyShiftTab || msg.String() == "shift+tab" || msg.String() == "backtab" {
+			m.lens = (m.lens - 1 + len(lenses)) % len(lenses)
+			m.switchToLensRoot()
+			return m, nil
+		}
 
 		switch msg.String() {
 		case "q", "ctrl+c":
