@@ -5,8 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/resources"
-	"github.com/dloss/kubira/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
 type View struct {

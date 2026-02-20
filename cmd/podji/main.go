@@ -4,7 +4,7 @@ import (
 	"os"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/app"
+	"github.com/dloss/podji/internal/app"
 )
 
 func main() {

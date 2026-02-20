@@ -7,10 +7,10 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/resources"
-	"github.com/dloss/kubira/internal/ui/detailview"
-	"github.com/dloss/kubira/internal/ui/style"
-	"github.com/dloss/kubira/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/style"
+	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
 type item struct {

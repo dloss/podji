@@ -1,4 +1,4 @@
-module github.com/dloss/kubira
+module github.com/dloss/podji
 
 go 1.24.2
 

@@ -6,12 +6,12 @@ import (
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/dloss/kubira/internal/resources"
-	"github.com/dloss/kubira/internal/ui/eventview"
-	"github.com/dloss/kubira/internal/ui/logview"
-	"github.com/dloss/kubira/internal/ui/style"
-	"github.com/dloss/kubira/internal/ui/viewstate"
-	"github.com/dloss/kubira/internal/ui/yamlview"
+	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/eventview"
+	"github.com/dloss/podji/internal/ui/logview"
+	"github.com/dloss/podji/internal/ui/style"
+	"github.com/dloss/podji/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/ui/yamlview"
 )
 
 type View struct {

@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/dloss/kubira/internal/resources"
-	"github.com/dloss/kubira/internal/ui/listview"
-	"github.com/dloss/kubira/internal/ui/style"
-	"github.com/dloss/kubira/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/listview"
+	"github.com/dloss/podji/internal/ui/style"
+	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
 type Model struct {
