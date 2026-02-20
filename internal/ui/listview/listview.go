@@ -55,7 +55,7 @@ func (i item) Description() string {
 }
 
 func (i item) FilterValue() string {
-	return i.data.Name + " " + i.data.Status + " " + i.data.Ready
+	return i.data.Name
 }
 
 type View struct {

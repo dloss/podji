@@ -92,6 +92,20 @@ func TestFilterDownAppliesFilterWithoutOpeningSelection(t *testing.T) {
 	}
 }
 
+func TestItemFilterValueUsesNameOnly(t *testing.T) {
+	it := item{
+		data: resources.ResourceItem{
+			Name:   "api",
+			Status: "Degraded",
+			Ready:  "2/3",
+		},
+	}
+
+	if got := it.FilterValue(); got != "api" {
+		t.Fatalf("expected name-only filter value, got %q", got)
+	}
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }
