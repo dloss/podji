@@ -413,9 +413,13 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 	resourceName := strings.ToLower(v.resource.Name())
 
 	if resourceName == "workloads" {
-		// Deterministic path: workloads always drill into owned pods.
 		if key == "L" {
-			return podpickerview.New(selected)
+			pods := resources.NewWorkloadPods(selected)
+			items := pods.Items()
+			if len(items) == 0 {
+				return podpickerview.New(selected)
+			}
+			return logview.New(preferredLogPod(items), pods)
 		}
 		return New(resources.NewWorkloadPods(selected), v.registry)
 	}
@@ -434,4 +438,14 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 	}
 
 	return nil
+}
+
+func preferredLogPod(items []resources.ResourceItem) resources.ResourceItem {
+	for _, item := range items {
+		switch strings.ToLower(item.Status) {
+		case "crashloop", "error", "failed", "pending", "unknown":
+			return item
+		}
+	}
+	return items[0]
 }

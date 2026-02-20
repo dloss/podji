@@ -32,3 +32,28 @@ func TestWorkloadsViewShowsForbiddenBanner(t *testing.T) {
 		t.Fatalf("expected forbidden banner, got: %s", rendered)
 	}
 }
+
+func TestPreferredLogPodSelectsProblemPodFirst(t *testing.T) {
+	items := []resources.ResourceItem{
+		{Name: "web-a", Status: "Running"},
+		{Name: "web-b", Status: "CrashLoop"},
+		{Name: "web-c", Status: "Running"},
+	}
+
+	selected := preferredLogPod(items)
+	if selected.Name != "web-b" {
+		t.Fatalf("expected crashloop pod, got %q", selected.Name)
+	}
+}
+
+func TestPreferredLogPodFallsBackToFirst(t *testing.T) {
+	items := []resources.ResourceItem{
+		{Name: "web-a", Status: "Running"},
+		{Name: "web-b", Status: "Running"},
+	}
+
+	selected := preferredLogPod(items)
+	if selected.Name != "web-a" {
+		t.Fatalf("expected first pod fallback, got %q", selected.Name)
+	}
+}
