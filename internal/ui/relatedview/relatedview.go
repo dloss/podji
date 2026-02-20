@@ -222,41 +222,39 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	}
 }
 
-type resourceItem struct {
-	data resources.ResourceItem
-}
-
-func (i resourceItem) Title() string {
-	return i.data.Name + "  " + style.Status(i.data.Status) + "  " + i.data.Age
-}
-func (i resourceItem) Description() string { return "enter -> open" }
-func (i resourceItem) FilterValue() string {
-	return i.data.Name + " " + i.data.Status + " " + i.data.Ready
-}
-
 type relationList struct {
 	resource resources.ResourceType
 	registry *resources.Registry
 	list     list.Model
+	columns  []resources.TableColumn
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
+	columns := relationTableColumns(resource)
+	widths := relationColumnWidths(columns)
 	items := resource.Items()
 	listItems := make([]list.Item, 0, len(items))
-	for _, item := range items {
-		listItems = append(listItems, resourceItem{data: item})
+	for _, res := range items {
+		listItems = append(listItems, relationItem{
+			data:   res,
+			row:    relationTableRow(resource, res),
+			status: res.Status,
+			widths: widths,
+		})
 	}
 
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
+	delegate.SetSpacing(0)
 	delegate.ShowDescription = false
 	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
+	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
-	return &relationList{resource: resource, registry: registry, list: model}
+	return &relationList{resource: resource, registry: registry, list: model, columns: columns}
 }
 
 func (v *relationList) Init() bubbletea.Cmd { return nil }
@@ -276,7 +274,7 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
 		case "enter", "l", "L", "right":
-			if selected, ok := v.list.SelectedItem().(resourceItem); ok {
+			if selected, ok := v.list.SelectedItem().(relationItem); ok {
 				return viewstate.Update{
 					Action: viewstate.Push,
 					Next:   logview.New(selected.data, v.resource),
@@ -291,7 +289,31 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 }
 
 func (v *relationList) View() string {
-	view := v.list.View()
+	base := v.list.View()
+	lines := strings.Split(base, "\n")
+	if len(lines) < 2 {
+		return base
+	}
+
+	insertAt := 1
+	if len(lines) > 1 && lines[1] == "" {
+		insertAt = 2
+	}
+
+	header := "  " + relationHeaderRow(v.columns, relationBreadcrumbLabel(v.resource.Name()))
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, lines[:insertAt]...)
+	out = append(out, header)
+	out = append(out, lines[insertAt:]...)
+
+	for i := insertAt + 1; i < len(out); i++ {
+		if strings.TrimSpace(out[i]) == "" {
+			out = append(out[:i], out[i+1:]...)
+			break
+		}
+	}
+
+	view := strings.Join(out, "\n")
 	if len(v.list.VisibleItems()) == 0 {
 		if provider, ok := v.resource.(resources.EmptyStateProvider); ok {
 			return view + "\n\n" + style.Muted.Render(provider.EmptyMessage(v.list.IsFiltered(), strings.TrimSpace(v.list.FilterValue())))
@@ -319,8 +341,99 @@ func (v *relationList) SuppressGlobalKeys() bool {
 }
 
 func (v *relationList) NextBreadcrumb() string {
-	if _, ok := v.list.SelectedItem().(resourceItem); !ok {
+	if _, ok := v.list.SelectedItem().(relationItem); !ok {
 		return ""
 	}
 	return "logs"
+}
+
+type relationItem struct {
+	data   resources.ResourceItem
+	row    []string
+	status string
+	widths []int
+}
+
+func (i relationItem) Title() string {
+	cells := make([]string, 0, len(i.row))
+	for idx, value := range i.row {
+		width := i.widths[idx]
+		cellValue := relationPadCell(value, width)
+		if idx > 0 && i.status != "" && i.row[idx] == i.status {
+			cellValue = style.Status(cellValue)
+		}
+		cells = append(cells, cellValue)
+	}
+	return strings.Join(cells, " ")
+}
+
+func (i relationItem) Description() string { return "" }
+func (i relationItem) FilterValue() string {
+	return i.data.Name + " " + i.data.Status + " " + i.data.Ready
+}
+
+func relationTableColumns(resource resources.ResourceType) []resources.TableColumn {
+	if table, ok := resource.(resources.TableResource); ok {
+		return table.TableColumns()
+	}
+	return []resources.TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "STATUS", Width: 12},
+		{Name: "READY", Width: 7},
+		{Name: "RESTARTS", Width: 14},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func relationTableRow(resource resources.ResourceType, res resources.ResourceItem) []string {
+	if table, ok := resource.(resources.TableResource); ok {
+		return table.TableRow(res)
+	}
+	return []string{res.Name, res.Status, res.Ready, res.Restarts, res.Age}
+}
+
+func relationColumnWidths(columns []resources.TableColumn) []int {
+	widths := make([]int, 0, len(columns))
+	for _, col := range columns {
+		widths = append(widths, col.Width)
+	}
+	return widths
+}
+
+func relationHeaderRow(columns []resources.TableColumn, firstLabel string) string {
+	headers := make([]string, 0, len(columns))
+	for idx, col := range columns {
+		name := col.Name
+		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+			name = strings.ToUpper(firstLabel)
+		}
+		headers = append(headers, relationPadCell(name, col.Width))
+	}
+	return strings.Join(headers, " ")
+}
+
+func relationPadCell(value string, width int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) > width {
+		if width <= 1 {
+			return "…"
+		}
+		value = string(runes[:width-1]) + "…"
+	} else {
+		value = string(runes)
+	}
+
+	padding := width - len([]rune(value))
+	if padding > 0 {
+		return value + strings.Repeat(" ", padding)
+	}
+	return value
+}
+
+func relationBreadcrumbLabel(resourceName string) string {
+	label := strings.TrimSpace(resourceName)
+	if open := strings.Index(label, "("); open > 0 {
+		label = strings.TrimSpace(label[:open])
+	}
+	return label
 }
