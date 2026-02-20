@@ -9,6 +9,9 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/logview"
+	"github.com/dloss/podji/internal/ui/podpickerview"
+	"github.com/dloss/podji/internal/ui/relatedview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -111,9 +114,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(item); ok {
+				if next := v.forwardView(selected.data, key.String()); next != nil {
+					return viewstate.Update{
+						Action: viewstate.Push,
+						Next:   next,
+					}
+				}
 				return viewstate.Update{
 					Action: viewstate.Push,
-					Next:   detailview.New(selected.data, v.resource),
+					Next:   detailview.New(selected.data, v.resource, v.registry),
 				}
 			}
 		case "s":
@@ -122,6 +131,19 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.refreshItems()
 				v.sortLabel = sortable.SortMode()
 				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+		case "v":
+			if cycler, ok := v.resource.(resources.ScenarioCycler); ok {
+				cycler.CycleScenario()
+				v.refreshItems()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+		case "r":
+			if selected, ok := v.list.SelectedItem().(item); ok {
+				return viewstate.Update{
+					Action: viewstate.Push,
+					Next:   relatedview.New(selected.data, v.resource, v.registry),
+				}
 			}
 		}
 	}
@@ -158,6 +180,9 @@ func (v *View) View() string {
 	}
 
 	view := strings.Join(out, "\n")
+	if banner := v.bannerMessage(); banner != "" {
+		view = style.Warning.Render(banner) + "\n" + view
+	}
 	if len(v.list.VisibleItems()) == 0 {
 		return view + "\n\n" + style.Muted.Render(v.emptyMessage())
 	}
@@ -178,9 +203,12 @@ func (v *View) Footer() string {
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
 			parts = append(parts, "s sort:"+v.sortLabel)
 		}
+		if cycler, ok := v.resource.(resources.ScenarioCycler); ok {
+			parts = append(parts, "v state:"+cycler.Scenario())
+		}
 		return strings.Join(parts, "  ")
 	}
-	parts = append(parts, "L logs", "/ filter", "esc clear", "? help", "q quit")
+	parts = append(parts, "L logs", "r related", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
 }
 
@@ -306,9 +334,14 @@ func (v *View) refreshItems() {
 }
 
 func (v *View) emptyMessage() string {
+	filter := strings.TrimSpace(v.list.FilterValue())
+	if provider, ok := v.resource.(resources.EmptyStateProvider); ok {
+		return provider.EmptyMessage(v.list.IsFiltered(), filter)
+	}
+
 	if strings.EqualFold(v.resource.Name(), "workloads") {
 		if v.list.IsFiltered() {
-			return "No workloads match the active filter. Press esc to clear."
+			return "No workloads match `" + filter + "`. Press esc to clear."
 		}
 		return "No workloads found in this namespace. Switch namespace or adjust filters."
 	}
@@ -317,4 +350,38 @@ func (v *View) emptyMessage() string {
 		return "No items match the active filter. Press esc to clear."
 	}
 	return "No items found."
+}
+
+func (v *View) bannerMessage() string {
+	if provider, ok := v.resource.(resources.BannerProvider); ok {
+		return provider.Banner()
+	}
+	return ""
+}
+
+func (v *View) forwardView(selected resources.ResourceItem, key string) viewstate.View {
+	resourceName := strings.ToLower(v.resource.Name())
+
+	if resourceName == "workloads" {
+		// Deterministic path: workloads always drill into owned pods.
+		if key == "l" {
+			return podpickerview.New(selected)
+		}
+		return New(resources.NewWorkloadPods(selected), v.registry)
+	}
+
+	if strings.HasPrefix(resourceName, "pods") || resourceName == "pods" {
+		containers := v.resource.Detail(selected).Containers
+		if len(containers) <= 1 {
+			return logview.New(selected, v.resource)
+		}
+		return detailview.NewContainerPicker(selected, v.resource)
+	}
+
+	if strings.HasPrefix(resourceName, "backends") {
+		podContext := resources.NewWorkloadPods(resources.ResourceItem{Name: "backend", Kind: "DEP"})
+		return detailview.New(selected, podContext, v.registry)
+	}
+
+	return nil
 }

@@ -79,9 +79,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 			}
 			return m, nil
-		case "r":
-			m.errorMsg = "related panel not wired yet"
-			return m, nil
 		case "n":
 			m.errorMsg = "namespace picker not wired yet"
 			return m, nil

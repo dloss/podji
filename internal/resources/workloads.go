@@ -7,16 +7,21 @@ import (
 
 type Workloads struct {
 	sortMode string
+	scenario string
 }
 
 func NewWorkloads() *Workloads {
-	return &Workloads{sortMode: "problem"}
+	return &Workloads{sortMode: "problem", scenario: "normal"}
 }
 
 func (w *Workloads) Name() string { return "workloads" }
 func (w *Workloads) Key() rune    { return 'W' }
 
 func (w *Workloads) Items() []ResourceItem {
+	if w.scenario == "forbidden" {
+		return nil
+	}
+
 	items := []ResourceItem{
 		{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
 		{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
@@ -28,6 +33,18 @@ func (w *Workloads) Items() []ResourceItem {
 		{Name: "cleanup-tmp", Kind: "CJ", Ready: "Last: 22m", Status: "Degraded", Restarts: "—", Age: "15d"},
 		{Name: "old-data-prune", Kind: "CJ", Ready: "Last: 3d", Status: "Suspended", Restarts: "—", Age: "220d"},
 	}
+	switch w.scenario {
+	case "partial":
+		items = []ResourceItem{
+			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
+			{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
+			{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h"},
+			{Name: "node-exporter", Kind: "DS", Ready: "5/6", Status: "Degraded", Restarts: "0", Age: "30d"},
+		}
+	case "empty":
+		items = nil
+	}
+
 	w.Sort(items)
 	return items
 }
@@ -99,6 +116,53 @@ func (w *Workloads) ToggleSort() {
 
 func (w *Workloads) SortMode() string {
 	return w.sortMode
+}
+
+func (w *Workloads) CycleScenario() {
+	switch w.scenario {
+	case "normal":
+		w.scenario = "empty"
+	case "empty":
+		w.scenario = "forbidden"
+	case "forbidden":
+		w.scenario = "partial"
+	case "partial":
+		w.scenario = "offline"
+	default:
+		w.scenario = "normal"
+	}
+}
+
+func (w *Workloads) Scenario() string {
+	return w.scenario
+}
+
+func (w *Workloads) Banner() string {
+	switch w.scenario {
+	case "forbidden":
+		return "Access denied: cannot list workloads in namespace `default` (need get/list on deployments,statefulsets,daemonsets,jobs,cronjobs)."
+	case "partial":
+		return "Partial access: Jobs and CronJobs are hidden by RBAC."
+	case "offline":
+		return "Cluster unreachable. Showing stale data from last sync: 2m ago."
+	default:
+		return ""
+	}
+}
+
+func (w *Workloads) EmptyMessage(filtered bool, filter string) string {
+	if filtered {
+		return "No workloads match `" + filter + "`. Press esc to clear."
+	}
+
+	switch w.scenario {
+	case "forbidden":
+		return "No workloads visible due to RBAC restrictions."
+	case "empty":
+		return "No workloads found in namespace `default`. Switch namespace or clear filter."
+	default:
+		return "No workloads found in namespace `default`."
+	}
 }
 
 func (w *Workloads) Detail(item ResourceItem) DetailData {

@@ -52,3 +52,19 @@ type ToggleSortable interface {
 	ToggleSort()
 	SortMode() string
 }
+
+// EmptyStateProvider customizes empty-state text for list pages.
+type EmptyStateProvider interface {
+	EmptyMessage(filtered bool, filter string) string
+}
+
+// BannerProvider returns a contextual banner message for list pages.
+type BannerProvider interface {
+	Banner() string
+}
+
+// ScenarioCycler allows mock resources to expose switchable demo states.
+type ScenarioCycler interface {
+	CycleScenario()
+	Scenario() string
+}

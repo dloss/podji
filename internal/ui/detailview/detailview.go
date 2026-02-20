@@ -9,6 +9,7 @@ import (
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/logview"
+	"github.com/dloss/podji/internal/ui/relatedview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 	"github.com/dloss/podji/internal/ui/yamlview"
@@ -17,12 +18,13 @@ import (
 type View struct {
 	item     resources.ResourceItem
 	resource resources.ResourceType
+	registry *resources.Registry
 	width    int
 	height   int
 }
 
-func New(item resources.ResourceItem, resource resources.ResourceType) *View {
-	return &View{item: item, resource: resource}
+func New(item resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
+	return &View{item: item, resource: resource, registry: registry}
 }
 
 func (v *View) Init() bubbletea.Cmd { return nil }
@@ -31,11 +33,17 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
 		case "l":
+			containers := v.resource.Detail(v.item).Containers
+			if len(containers) > 1 {
+				return viewstate.Update{Action: viewstate.Push, Next: NewContainerPicker(v.item, v.resource)}
+			}
 			return viewstate.Update{Action: viewstate.Push, Next: logview.New(v.item, v.resource)}
 		case "e":
 			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
 			return viewstate.Update{Action: viewstate.Push, Next: yamlview.New(v.item, v.resource)}
+		case "r":
+			return viewstate.Update{Action: viewstate.Push, Next: relatedview.New(v.item, v.resource, v.registry)}
 		}
 	}
 	return viewstate.Update{Action: viewstate.None, Next: v}
@@ -74,7 +82,7 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  l logs  e events  y yaml  ? help"
+	return "backspace back  l logs  r related  e events  y yaml  ? help"
 }
 
 func (v *View) SetSize(width, height int) {
