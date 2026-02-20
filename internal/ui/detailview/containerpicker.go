@@ -5,8 +5,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/logview"
+	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -39,6 +41,9 @@ func NewContainerPicker(item resources.ResourceItem, resource resources.Resource
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	model.Title = "Containers"
+	model.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 0, 2)
+	model.Styles.Title = style.Header
 
 	return &ContainerPicker{item: item, resource: resource, list: model}
 }
@@ -68,6 +73,14 @@ func (v *ContainerPicker) Update(msg bubbletea.Msg) viewstate.Update {
 func (v *ContainerPicker) View() string { return v.list.View() }
 
 func (v *ContainerPicker) Breadcrumb() string { return "containers" }
+
+func (v *ContainerPicker) SelectedBreadcrumb() string {
+	selected, ok := v.list.SelectedItem().(containerItem)
+	if !ok || selected.name == "" {
+		return "containers"
+	}
+	return "containers: " + selected.name
+}
 
 func (v *ContainerPicker) Footer() string {
 	return "-> logs  / filter  esc clear  backspace back"

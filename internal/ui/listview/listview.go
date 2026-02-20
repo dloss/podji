@@ -3,10 +3,12 @@ package listview
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/detailview"
 	"github.com/dloss/podji/internal/ui/logview"
@@ -90,6 +92,9 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	model.Paginator.Type = paginator.Arabic
+	model.Title = titleCase(breadcrumbLabel(resource.Name()))
+	model.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 0, 2)
+	model.Styles.Title = style.Header
 	return &View{
 		resource:  resource,
 		registry:  registry,
@@ -189,7 +194,16 @@ func (v *View) View() string {
 }
 
 func (v *View) Breadcrumb() string {
-	return v.resource.Name()
+	return breadcrumbLabel(v.resource.Name())
+}
+
+func (v *View) SelectedBreadcrumb() string {
+	label := breadcrumbLabel(v.resource.Name())
+	selected, ok := v.list.SelectedItem().(item)
+	if !ok || selected.data.Name == "" {
+		return label
+	}
+	return label + ": " + selected.data.Name
 }
 
 func (v *View) Footer() string {
@@ -350,6 +364,23 @@ func (v *View) refreshItems() {
 		})
 	}
 	v.list.SetItems(listItems)
+}
+
+func breadcrumbLabel(resourceName string) string {
+	label := strings.TrimSpace(resourceName)
+	if open := strings.Index(label, "("); open > 0 {
+		label = strings.TrimSpace(label[:open])
+	}
+	return label
+}
+
+func titleCase(value string) string {
+	if value == "" {
+		return value
+	}
+	runes := []rune(value)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }
 
 func (v *View) emptyMessage() string {

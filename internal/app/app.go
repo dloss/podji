@@ -14,6 +14,7 @@ import (
 type Model struct {
 	registry  *resources.Registry
 	stack     []viewstate.View
+	crumbs    []string
 	lens      int
 	context   string
 	namespace string
@@ -37,18 +38,20 @@ type globalKeySuppresser interface {
 	SuppressGlobalKeys() bool
 }
 
-type nextBreadcrumbPreviewer interface {
-	NextBreadcrumb() string
+type selectedBreadcrumbProvider interface {
+	SelectedBreadcrumb() string
 }
 
 func New() Model {
 	registry := resources.DefaultRegistry()
 	workloads := registry.ResourceByKey('W')
 	root := listview.New(workloads, registry)
+	rootCrumb := normalizeBreadcrumbPart(root.Breadcrumb())
 
 	return Model{
 		registry:  registry,
 		stack:     []viewstate.View{root},
+		crumbs:    []string{rootCrumb},
 		lens:      0,
 		context:   "default",
 		namespace: "default",
@@ -88,6 +91,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		case "backspace", "h", "left":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
+				m.crumbs = m.crumbs[:len(m.crumbs)-1]
+				if len(m.stack) == 1 {
+					m.crumbs[0] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+				}
 			}
 			return m, nil
 		case "n":
@@ -107,6 +114,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 					view := listview.New(res, m.registry)
 					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
+					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 					return m, nil
 				}
 			}
@@ -116,15 +124,30 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	update := m.top().Update(msg)
 	switch update.Action {
 	case viewstate.Push:
+		if len(m.crumbs) > 0 {
+			committed := m.crumbs[len(m.crumbs)-1]
+			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
+				if value := normalizeBreadcrumbPart(selected.SelectedBreadcrumb()); value != "" {
+					committed = value
+				}
+			}
+			m.crumbs[len(m.crumbs)-1] = committed
+		}
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, update.Next)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
 	case viewstate.Pop:
 		if len(m.stack) > 1 {
 			m.stack = m.stack[:len(m.stack)-1]
+			m.crumbs = m.crumbs[:len(m.crumbs)-1]
+			if len(m.stack) == 1 {
+				m.crumbs[0] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+			}
 		}
 	case viewstate.Replace:
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack[len(m.stack)-1] = update.Next
+		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
 	default:
 		m.stack[len(m.stack)-1] = update.Next
 	}
@@ -153,32 +176,24 @@ func (m Model) top() viewstate.View {
 }
 
 func (m Model) breadcrumb() string {
-	parts := make([]string, 0, len(m.stack))
-	for _, view := range m.stack {
-		parts = append(parts, titleCase(view.Breadcrumb()))
-	}
-
-	if len(parts) == 0 {
+	if len(m.crumbs) == 0 {
 		return ""
 	}
+	if len(m.stack) == 1 {
+		return style.Active.Render(titleCase(normalizeBreadcrumbPart(m.top().Breadcrumb())))
+	}
 
-	segments := make([]string, 0, len(parts))
-	for idx, part := range parts {
-		if idx == len(parts)-1 {
-			segments = append(segments, style.Active.Render(part))
+	segments := make([]string, 0, len(m.crumbs))
+	for idx, part := range m.crumbs {
+		rendered := titleCase(part)
+		if idx == len(m.crumbs)-1 {
+			segments = append(segments, style.Active.Render(rendered))
 			continue
 		}
-		segments = append(segments, style.Crumb.Render(part))
+		segments = append(segments, style.Crumb.Render(rendered))
 	}
 
-	hierarchy := strings.Join(segments, style.Crumb.Render(" > "))
-	if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
-		next := strings.TrimSpace(previewer.NextBreadcrumb())
-		if next != "" {
-			hierarchy += style.Muted.Render(" > " + titleCase(next))
-		}
-	}
-	return hierarchy
+	return strings.Join(segments, style.Crumb.Render(" > "))
 }
 
 func (m Model) scope() string {
@@ -215,6 +230,7 @@ func (m *Model) switchToLensRoot() {
 	view := listview.New(res, m.registry)
 	view.SetSize(m.width, m.availableHeight())
 	m.stack = []viewstate.View{view}
+	m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 }
 
 func (m Model) lensByLandingKey(key rune) (int, bool) {
@@ -233,4 +249,23 @@ func titleCase(value string) string {
 	runes := []rune(value)
 	runes[0] = unicode.ToUpper(runes[0])
 	return string(runes)
+}
+
+func normalizeBreadcrumbPart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+
+	open := strings.Index(value, "(")
+	if open <= 0 || !strings.HasSuffix(value, ")") {
+		return value
+	}
+
+	label := strings.TrimSpace(value[:open])
+	context := strings.TrimSpace(value[open+1 : len(value)-1])
+	if label == "" || context == "" {
+		return value
+	}
+	return label + ": " + context
 }

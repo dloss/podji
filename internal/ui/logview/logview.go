@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -62,13 +63,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 }
 
 func (v *View) View() string {
-	return v.viewport.View()
+	return style.Header.Render("  Logs") + "\n" + v.viewport.View()
 }
 
 func (v *View) Breadcrumb() string {
-	if v.container != "" {
-		return "logs(" + v.container + ")"
-	}
 	return "logs"
 }
 
