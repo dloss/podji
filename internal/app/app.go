@@ -70,6 +70,13 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
+		case "home", "pos1":
+			m.switchToLensRoot()
+			return m, nil
+		case "shift+home", "shift+pos1":
+			m.lens = 0
+			m.switchToLensRoot()
+			return m, nil
 		case "tab":
 			m.lens = (m.lens + 1) % len(lenses)
 			m.switchToLensRoot()
@@ -125,7 +132,7 @@ func (m Model) View() string {
 	breadcrumb := m.breadcrumb()
 	head := style.Header.Render(breadcrumb)
 	body := m.top().View()
-	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer()))
+	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
 
 	sections := []string{head, body, footer}
 	if m.errorMsg != "" {
