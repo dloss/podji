@@ -81,9 +81,6 @@ func NewWorkloadPods(workload ResourceItem) *WorkloadPods {
 }
 
 func (w *WorkloadPods) Name() string {
-	if w.workload.Kind == "CJ" {
-		return "pods (CronJob: " + w.workload.Name + ", newest job: " + w.NewestJobName() + ")"
-	}
 	return "pods (" + w.workload.Name + ")"
 }
 

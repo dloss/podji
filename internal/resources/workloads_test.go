@@ -57,8 +57,8 @@ func TestWorkloadsScenarioCycleAndBanner(t *testing.T) {
 func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 	pods := NewWorkloadPods(ResourceItem{Name: "sync-reports", Kind: "CJ"})
 
-	if got := pods.Name(); !strings.Contains(got, "newest job: —") {
-		t.Fatalf("expected newest job marker in name, got %q", got)
+	if got := pods.Name(); got != "pods (sync-reports)" {
+		t.Fatalf("expected concise pods name, got %q", got)
 	}
 
 	msg := pods.EmptyMessage(false, "")
