@@ -67,7 +67,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "right":
+		case "enter", "l", "L", "right":
 			if selected, ok := v.list.SelectedItem().(podItem); ok {
 				return viewstate.Update{Action: viewstate.Push, Next: logview.New(selected.data, v.resource)}
 			}

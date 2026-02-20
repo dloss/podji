@@ -112,7 +112,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "right":
+		case "enter", "l", "L", "right":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				if next := v.forwardView(selected.data, key.String()); next != nil {
 					return viewstate.Update{
@@ -208,7 +208,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "pgup prev-page  pgdn next-page")
 	}
 	if strings.EqualFold(v.resource.Name(), "workloads") {
-		parts = append(parts, "-> pods", "l logs", "r related", "/ filter", "tab view")
+		parts = append(parts, "-> pods", "L logs", "r related", "/ filter", "tab view")
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
 			parts = append(parts, "s sort:"+v.sortLabel)
 		}
@@ -414,7 +414,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 
 	if resourceName == "workloads" {
 		// Deterministic path: workloads always drill into owned pods.
-		if key == "l" {
+		if key == "L" {
 			return podpickerview.New(selected)
 		}
 		return New(resources.NewWorkloadPods(selected), v.registry)

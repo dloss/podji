@@ -56,7 +56,7 @@ func (v *ContainerPicker) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "right":
+		case "enter", "l", "L", "right":
 			if selected, ok := v.list.SelectedItem().(containerItem); ok {
 				return viewstate.Update{Action: viewstate.Push, Next: logview.NewWithContainer(v.item, v.resource, selected.name)}
 			}

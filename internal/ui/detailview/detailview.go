@@ -32,7 +32,7 @@ func (v *View) Init() bubbletea.Cmd { return nil }
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
-		case "l":
+		case "L":
 			containers := v.resource.Detail(v.item).Containers
 			if len(containers) > 1 {
 				return viewstate.Update{Action: viewstate.Push, Next: NewContainerPicker(v.item, v.resource)}
@@ -82,7 +82,7 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  l logs  r related  e events  y yaml  ? help"
+	return "backspace back  L logs  r related  e events  y yaml  ? help"
 }
 
 func (v *View) SetSize(width, height int) {
