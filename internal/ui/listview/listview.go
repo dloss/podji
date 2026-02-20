@@ -195,7 +195,7 @@ func (v *View) View() string {
 		}
 	}
 	if len(v.list.VisibleItems()) == 0 {
-		return view + "\n\n" + style.Muted.Render(v.emptyMessage())
+		return view + "\n\n" + style.Muted.Render("  "+v.emptyMessage())
 	}
 	return view
 }

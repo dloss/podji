@@ -116,6 +116,16 @@ func TestItemFilterValueUsesNameOnly(t *testing.T) {
 	}
 }
 
+func TestEmptyStateMessageAlignedWithTable(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloadPods(resources.ResourceItem{Name: "sync-reports", Kind: "CJ"}), registry)
+
+	rendered := view.View()
+	if !strings.Contains(rendered, "  No pods found for workload `sync-reports`.") {
+		t.Fatalf("expected indented empty-state message, got: %s", rendered)
+	}
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }
