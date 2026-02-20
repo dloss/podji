@@ -35,6 +35,7 @@ func NewContainerPicker(item resources.ResourceItem, resource resources.Resource
 	delegate.SetHeight(1)
 	delegate.SetSpacing(0)
 	delegate.ShowDescription = false
+	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(items, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)

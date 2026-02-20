@@ -40,6 +40,7 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.ShowDescription = true
+	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -197,6 +198,7 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.ShowDescription = false
+	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)

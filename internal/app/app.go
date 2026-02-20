@@ -163,7 +163,15 @@ func (m Model) View() string {
 	body := m.top().View()
 	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
 
-	sections := []string{head, body, footer}
+	if m.height > 0 {
+		body = clampViewLines(body, m.bodyHeightLimit())
+	}
+
+	sections := []string{head}
+	if body != "" {
+		sections = append(sections, body)
+	}
+	sections = append(sections, footer)
 	if m.errorMsg != "" {
 		sections = append([]string{style.ErrorBanner.Render(m.errorMsg)}, sections...)
 	}
@@ -233,6 +241,35 @@ func (m Model) availableHeight() int {
 		return 1
 	}
 	return height
+}
+
+func (m Model) bodyHeightLimit() int {
+	if m.height <= 0 {
+		return 0
+	}
+
+	reserved := 3 // 2 header lines + 1 footer line
+	if m.errorMsg != "" {
+		reserved++
+	}
+
+	limit := m.height - reserved
+	if limit < 0 {
+		return 0
+	}
+	return limit
+}
+
+func clampViewLines(view string, maxLines int) string {
+	if maxLines <= 0 || view == "" {
+		return ""
+	}
+
+	lines := strings.Split(view, "\n")
+	if len(lines) <= maxLines {
+		return view
+	}
+	return strings.Join(lines[:maxLines], "\n")
 }
 
 func (m *Model) switchToLensRoot() {

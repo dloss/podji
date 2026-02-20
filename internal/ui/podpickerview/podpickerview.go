@@ -38,6 +38,7 @@ func New(workload resources.ResourceItem) *View {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.ShowDescription = false
+	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
