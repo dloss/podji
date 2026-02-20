@@ -37,6 +37,10 @@ type globalKeySuppresser interface {
 	SuppressGlobalKeys() bool
 }
 
+type nextBreadcrumbPreviewer interface {
+	NextBreadcrumb() string
+}
+
 func New() Model {
 	registry := resources.DefaultRegistry()
 	workloads := registry.ResourceByKey('W')
@@ -129,8 +133,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 }
 
 func (m Model) View() string {
-	breadcrumb := m.breadcrumb()
-	head := style.Header.Render(breadcrumb)
+	head := strings.Join([]string{
+		style.Scope.Render(m.scope()),
+		m.breadcrumb(),
+	}, "\n")
 	body := m.top().View()
 	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
 
@@ -147,11 +153,40 @@ func (m Model) top() viewstate.View {
 }
 
 func (m Model) breadcrumb() string {
-	parts := []string{lenses[m.lens].name, "ctx:" + m.context, "ns:" + m.namespace}
+	parts := make([]string, 0, len(m.stack))
 	for _, view := range m.stack {
 		parts = append(parts, titleCase(view.Breadcrumb()))
 	}
-	return strings.Join(parts, " > ")
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	segments := make([]string, 0, len(parts))
+	for idx, part := range parts {
+		if idx == len(parts)-1 {
+			segments = append(segments, style.Active.Render(part))
+			continue
+		}
+		segments = append(segments, style.Crumb.Render(part))
+	}
+
+	hierarchy := strings.Join(segments, style.Crumb.Render(" > "))
+	if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
+		next := strings.TrimSpace(previewer.NextBreadcrumb())
+		if next != "" {
+			hierarchy += style.Muted.Render(" > " + titleCase(next))
+		}
+	}
+	return hierarchy
+}
+
+func (m Model) scope() string {
+	return strings.Join([]string{
+		lenses[m.lens].name,
+		"ctx:" + m.context,
+		"ns:" + m.namespace,
+	}, "   ")
 }
 
 func (m Model) availableHeight() int {
@@ -159,9 +194,9 @@ func (m Model) availableHeight() int {
 		return 0
 	}
 
-	extra := 2
+	extra := 3
 	if m.errorMsg != "" {
-		extra = 3
+		extra = 4
 	}
 
 	height := m.height - extra

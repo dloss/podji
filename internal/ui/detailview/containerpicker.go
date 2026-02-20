@@ -35,7 +35,6 @@ func NewContainerPicker(item resources.ResourceItem, resource resources.Resource
 	delegate.SetHeight(1)
 	delegate.ShowDescription = false
 	model := list.New(items, delegate, 0, 0)
-	model.Title = "CONTAINERS"
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
@@ -83,6 +82,13 @@ func (v *ContainerPicker) SetSize(width, height int) {
 
 func (v *ContainerPicker) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter()
+}
+
+func (v *ContainerPicker) NextBreadcrumb() string {
+	if _, ok := v.list.SelectedItem().(containerItem); !ok {
+		return ""
+	}
+	return "logs"
 }
 
 func ContainerLabel(item resources.ResourceItem, resource resources.ResourceType) string {

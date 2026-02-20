@@ -39,7 +39,6 @@ func New(workload resources.ResourceItem) *View {
 	delegate.SetHeight(1)
 	delegate.ShowDescription = false
 	model := list.New(listItems, delegate, 0, 0)
-	model.Title = strings.ToUpper(resource.Name())
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
@@ -104,4 +103,11 @@ func (v *View) SetSize(width, height int) {
 
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter()
+}
+
+func (v *View) NextBreadcrumb() string {
+	if _, ok := v.list.SelectedItem().(podItem); !ok {
+		return ""
+	}
+	return "logs"
 }

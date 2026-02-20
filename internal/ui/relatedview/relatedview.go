@@ -41,7 +41,6 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	delegate.SetHeight(1)
 	delegate.ShowDescription = true
 	model := list.New(listItems, delegate, 0, 0)
-	model.Title = "RELATED"
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
@@ -89,6 +88,14 @@ func (v *View) SetSize(width, height int) {
 
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter()
+}
+
+func (v *View) NextBreadcrumb() string {
+	selected, ok := v.list.SelectedItem().(entry)
+	if !ok {
+		return ""
+	}
+	return selected.title
 }
 
 func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
@@ -191,7 +198,6 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 	delegate.SetHeight(1)
 	delegate.ShowDescription = false
 	model := list.New(listItems, delegate, 0, 0)
-	model.Title = strings.ToUpper(resource.Name())
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
@@ -250,4 +256,11 @@ func (v *relationList) SetSize(width, height int) {
 
 func (v *relationList) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter()
+}
+
+func (v *relationList) NextBreadcrumb() string {
+	if _, ok := v.list.SelectedItem().(resourceItem); !ok {
+		return ""
+	}
+	return "logs"
 }
