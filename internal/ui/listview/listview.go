@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/detailview"
 	"github.com/dloss/podji/internal/ui/logview"
@@ -89,12 +88,10 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
+	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	model.Paginator.Type = paginator.Arabic
-	model.Title = titleCase(breadcrumbLabel(resource.Name()))
-	model.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 0, 2)
-	model.Styles.Title = style.Header
 	return &View{
 		resource:  resource,
 		registry:  registry,
@@ -169,7 +166,7 @@ func (v *View) View() string {
 		insertAt = 2
 	}
 
-	header := "  " + headerRow(v.columns)
+	header := "  " + headerRow(v.columns, breadcrumbLabel(v.resource.Name()))
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:insertAt]...)
 	out = append(out, header)
@@ -291,10 +288,14 @@ func statusStyle(status string) string {
 	}
 }
 
-func headerRow(columns []resources.TableColumn) string {
+func headerRow(columns []resources.TableColumn, firstLabel string) string {
 	headers := make([]string, 0, len(columns))
-	for _, col := range columns {
-		headers = append(headers, padCell(col.Name, col.Width))
+	for idx, col := range columns {
+		name := col.Name
+		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+			name = strings.ToUpper(firstLabel)
+		}
+		headers = append(headers, padCell(name, col.Width))
 	}
 	return strings.Join(headers, " ")
 }

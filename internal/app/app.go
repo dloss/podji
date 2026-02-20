@@ -42,6 +42,10 @@ type selectedBreadcrumbProvider interface {
 	SelectedBreadcrumb() string
 }
 
+type nextBreadcrumbPreviewer interface {
+	NextBreadcrumb() string
+}
+
 func New() Model {
 	registry := resources.DefaultRegistry()
 	workloads := registry.ResourceByKey('W')
@@ -180,7 +184,14 @@ func (m Model) breadcrumb() string {
 		return ""
 	}
 	if len(m.stack) == 1 {
-		return style.Active.Render(titleCase(normalizeBreadcrumbPart(m.top().Breadcrumb())))
+		base := style.Active.Render(titleCase(normalizeBreadcrumbPart(m.top().Breadcrumb())))
+		if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
+			next := strings.TrimSpace(previewer.NextBreadcrumb())
+			if next != "" {
+				base += style.Muted.Render(" > " + titleCase(normalizeBreadcrumbPart(next)))
+			}
+		}
+		return base
 	}
 
 	segments := make([]string, 0, len(m.crumbs))
@@ -193,7 +204,14 @@ func (m Model) breadcrumb() string {
 		segments = append(segments, style.Crumb.Render(rendered))
 	}
 
-	return strings.Join(segments, style.Crumb.Render(" > "))
+	hierarchy := strings.Join(segments, style.Crumb.Render(" > "))
+	if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
+		next := strings.TrimSpace(previewer.NextBreadcrumb())
+		if next != "" {
+			hierarchy += style.Muted.Render(" > " + titleCase(normalizeBreadcrumbPart(next)))
+		}
+	}
+	return hierarchy
 }
 
 func (m Model) scope() string {

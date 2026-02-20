@@ -5,10 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/logview"
-	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -35,15 +33,14 @@ func NewContainerPicker(item resources.ResourceItem, resource resources.Resource
 
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
+	delegate.SetSpacing(0)
 	delegate.ShowDescription = false
 	model := list.New(items, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
+	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
-	model.Title = "Containers"
-	model.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 0, 2)
-	model.Styles.Title = style.Header
 
 	return &ContainerPicker{item: item, resource: resource, list: model}
 }
@@ -70,7 +67,33 @@ func (v *ContainerPicker) Update(msg bubbletea.Msg) viewstate.Update {
 	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 }
 
-func (v *ContainerPicker) View() string { return v.list.View() }
+func (v *ContainerPicker) View() string {
+	base := v.list.View()
+	lines := strings.Split(base, "\n")
+	if len(lines) < 2 {
+		return base
+	}
+
+	insertAt := 1
+	if len(lines) > 1 && lines[1] == "" {
+		insertAt = 2
+	}
+
+	header := "  CONTAINERS"
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, lines[:insertAt]...)
+	out = append(out, header)
+	out = append(out, lines[insertAt:]...)
+
+	for i := insertAt + 1; i < len(out); i++ {
+		if strings.TrimSpace(out[i]) == "" {
+			out = append(out[:i], out[i+1:]...)
+			break
+		}
+	}
+
+	return strings.Join(out, "\n")
+}
 
 func (v *ContainerPicker) Breadcrumb() string { return "containers" }
 
