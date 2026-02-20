@@ -1,10 +1,10 @@
-# Kubira
+# Podji
 
 A Kubernetes TUI for people who find k9s frustrating. Same scope — browse resources, read logs, understand your cluster — but with calm visuals, instant navigation, a log viewer worth using, and detail views that show you what matters instead of dumping YAML. Go, single binary, fast.
 
 ## Why not k9s
 
-| Problem | Kubira's answer |
+| Problem | Podji's answer |
 |---|---|
 | Noisy UI — decorative colors, dense tables, box-drawing clutter | Color means status, nothing else. Whitespace over borders. |
 | `:command` palette — typing `:pod`, `:deploy` is opaque and hard to discover | Uppercase hotkeys: `P` pods, `D` deployments, `S` services. Instant. |
