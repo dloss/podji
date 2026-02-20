@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
 func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
@@ -56,4 +58,48 @@ func TestPreferredLogPodFallsBackToFirst(t *testing.T) {
 	if selected.Name != "web-a" {
 		t.Fatalf("expected first pod fallback, got %q", selected.Name)
 	}
+}
+
+func TestFilterEnterAppliesFilterWithoutOpeningSelection(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+
+	view.Update(keyRunes('/'))
+	view.Update(keyRunes('a'))
+	result := view.Update(keyEnter())
+
+	if result.Action != viewstate.None {
+		t.Fatalf("expected no navigation on enter while filtering, got %v", result.Action)
+	}
+	if !view.list.IsFiltered() {
+		t.Fatalf("expected filter to be applied after enter")
+	}
+}
+
+func TestFilterDownAppliesFilterWithoutOpeningSelection(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+
+	view.Update(keyRunes('/'))
+	view.Update(keyRunes('a'))
+	result := view.Update(keyDown())
+
+	if result.Action != viewstate.None {
+		t.Fatalf("expected no navigation on down while filtering, got %v", result.Action)
+	}
+	if !view.list.IsFiltered() {
+		t.Fatalf("expected filter to be applied after down")
+	}
+}
+
+func keyRunes(r ...rune) bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
+}
+
+func keyEnter() bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyEnter}
+}
+
+func keyDown() bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyDown}
 }

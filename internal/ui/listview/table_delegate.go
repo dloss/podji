@@ -22,21 +22,38 @@ func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 		return
 	}
 
+	isSelected := index == m.Index()
+	isFiltered := m.FilterState() == list.Filtering || m.FilterState() == list.FilterApplied
 	titleStyle := d.Styles.NormalTitle
 	switch {
 	case m.FilterState() == list.Filtering && m.FilterValue() == "":
 		titleStyle = d.Styles.DimmedTitle
-	case index == m.Index() && m.FilterState() != list.Filtering:
+	case isSelected && m.FilterState() != list.Filtering:
 		titleStyle = d.Styles.SelectedTitle
 	}
 
-	row := renderRowWithNameMatch(it, m.MatchesForItem(index), d.Styles.FilterMatch)
+	var matches []int
+	if isFiltered {
+		matches = m.MatchesForItem(index)
+	}
+	matchBase := d.Styles.NormalTitle.Inline(true)
+	if isSelected {
+		matchBase = d.Styles.SelectedTitle.Inline(true)
+	}
+	matchStyle := matchBase.Inherit(d.Styles.FilterMatch)
+
+	row := renderRowWithNameMatch(it, matches, matchStyle, matchBase)
 	textWidth := m.Width() - titleStyle.GetPaddingLeft() - titleStyle.GetPaddingRight()
 	row = ansi.Truncate(row, textWidth, "…")
 	fmt.Fprint(w, titleStyle.Render(row)) //nolint:errcheck
 }
 
-func renderRowWithNameMatch(it item, matches []int, matchStyle lipgloss.Style) string {
+func renderRowWithNameMatch(
+	it item,
+	matches []int,
+	matchStyle lipgloss.Style,
+	unmatchedStyle lipgloss.Style,
+) string {
 	cells := make([]string, 0, len(it.row))
 
 	for idx, value := range it.row {
@@ -51,9 +68,7 @@ func renderRowWithNameMatch(it item, matches []int, matchStyle lipgloss.Style) s
 				}
 			}
 			if len(nameMatches) > 0 {
-				unmatched := lipgloss.NewStyle().Inline(true)
-				matched := unmatched.Inherit(matchStyle)
-				cellValue = lipgloss.StyleRunes(cellValue, nameMatches, matched, unmatched)
+				cellValue = lipgloss.StyleRunes(cellValue, nameMatches, matchStyle, unmatchedStyle)
 			}
 		}
 

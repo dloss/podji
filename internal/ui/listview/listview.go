@@ -106,6 +106,12 @@ func (v *View) Init() bubbletea.Cmd {
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
+		if v.list.SettingFilter() && key.String() != "esc" {
+			updated, cmd := v.list.Update(msg)
+			v.list = updated
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+		}
+
 		switch key.String() {
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
