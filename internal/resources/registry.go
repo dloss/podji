@@ -9,6 +9,7 @@ type Registry struct {
 
 func DefaultRegistry() *Registry {
 	resources := []ResourceType{
+		NewWorkloads(),
 		NewPods(),
 		NewDeployments(),
 		NewServices(),

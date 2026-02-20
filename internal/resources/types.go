@@ -2,6 +2,7 @@ package resources
 
 type ResourceItem struct {
 	Name     string
+	Kind     string
 	Status   string
 	Ready    string
 	Restarts string
@@ -33,4 +34,21 @@ type ResourceType interface {
 	Logs(item ResourceItem) []string
 	Events(item ResourceItem) []string
 	YAML(item ResourceItem) string
+}
+
+// TableResource lets a resource define custom table columns and row rendering.
+type TableResource interface {
+	TableColumns() []TableColumn
+	TableRow(item ResourceItem) []string
+}
+
+type TableColumn struct {
+	Name  string
+	Width int
+}
+
+// ToggleSortable lets a resource switch sort mode (for example, problem/name).
+type ToggleSortable interface {
+	ToggleSort()
+	SortMode() string
 }

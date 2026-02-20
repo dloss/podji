@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"unicode"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
@@ -13,11 +14,23 @@ import (
 type Model struct {
 	registry  *resources.Registry
 	stack     []viewstate.View
+	lens      int
 	context   string
 	namespace string
 	errorMsg  string
 	width     int
 	height    int
+}
+
+type lens struct {
+	name       string
+	landingKey rune
+}
+
+var lenses = []lens{
+	{name: "Apps", landingKey: 'W'},
+	{name: "Network", landingKey: 'S'},
+	{name: "Infrastructure", landingKey: 'O'},
 }
 
 type globalKeySuppresser interface {
@@ -26,12 +39,13 @@ type globalKeySuppresser interface {
 
 func New() Model {
 	registry := resources.DefaultRegistry()
-	pods := registry.ResourceByKey('P')
-	root := listview.New(pods, registry)
+	workloads := registry.ResourceByKey('W')
+	root := listview.New(workloads, registry)
 
 	return Model{
 		registry:  registry,
 		stack:     []viewstate.View{root},
+		lens:      0,
 		context:   "default",
 		namespace: "default",
 	}
@@ -56,10 +70,17 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
+		case "tab":
+			m.lens = (m.lens + 1) % len(lenses)
+			m.switchToLensRoot()
+			return m, nil
 		case "backspace", "h", "left":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 			}
+			return m, nil
+		case "r":
+			m.errorMsg = "related panel not wired yet"
 			return m, nil
 		case "n":
 			m.errorMsg = "namespace picker not wired yet"
@@ -72,6 +93,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if len(runes) == 1 {
 				key := runes[0]
 				if res := m.registry.ResourceByKey(key); res != nil {
+					if lensIndex, ok := m.lensByLandingKey(key); ok {
+						m.lens = lensIndex
+					}
 					view := listview.New(res, m.registry)
 					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
@@ -104,7 +128,7 @@ func (m Model) View() string {
 	breadcrumb := m.breadcrumb()
 	head := style.Header.Render(breadcrumb)
 	body := m.top().View()
-	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  " + m.resourceHotkeys()))
+	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer()))
 
 	sections := []string{head, body, footer}
 	if m.errorMsg != "" {
@@ -114,22 +138,14 @@ func (m Model) View() string {
 	return strings.Join(sections, "\n")
 }
 
-func (m Model) resourceHotkeys() string {
-	keys := make([]string, 0, len(m.registry.Resources()))
-	for _, res := range m.registry.Resources() {
-		keys = append(keys, string(res.Key()))
-	}
-	return strings.Join(keys, " ") + " jump"
-}
-
 func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
 func (m Model) breadcrumb() string {
-	parts := []string{"ctx:" + m.context, "ns:" + m.namespace}
+	parts := []string{lenses[m.lens].name, "ctx:" + m.context, "ns:" + m.namespace}
 	for _, view := range m.stack {
-		parts = append(parts, view.Breadcrumb())
+		parts = append(parts, titleCase(view.Breadcrumb()))
 	}
 	return strings.Join(parts, " > ")
 }
@@ -149,4 +165,33 @@ func (m Model) availableHeight() int {
 		return 1
 	}
 	return height
+}
+
+func (m *Model) switchToLensRoot() {
+	l := lenses[m.lens]
+	res := m.registry.ResourceByKey(l.landingKey)
+	if res == nil {
+		return
+	}
+	view := listview.New(res, m.registry)
+	view.SetSize(m.width, m.availableHeight())
+	m.stack = []viewstate.View{view}
+}
+
+func (m Model) lensByLandingKey(key rune) (int, bool) {
+	for idx, l := range lenses {
+		if l.landingKey == key {
+			return idx, true
+		}
+	}
+	return 0, false
+}
+
+func titleCase(value string) string {
+	if value == "" {
+		return value
+	}
+	runes := []rune(value)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }

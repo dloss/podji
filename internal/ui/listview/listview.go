@@ -14,16 +14,23 @@ import (
 )
 
 type item struct {
-	data resources.ResourceItem
+	data   resources.ResourceItem
+	row    []string
+	status string
+	widths []int
 }
 
 func (i item) Title() string {
-	name := padCell(i.data.Name, 48)
-	status := statusStyle(padCell(i.data.Status, 12))
-	ready := padCell(i.data.Ready, 7)
-	restarts := padCell(i.data.Restarts, 14)
-	age := padCell(i.data.Age, 6)
-	return name + " " + status + " " + ready + " " + restarts + " " + age
+	cells := make([]string, 0, len(i.row))
+	for idx, value := range i.row {
+		width := i.widths[idx]
+		cellValue := padCell(value, width)
+		if idx > 0 && i.status != "" && i.row[idx] == i.status {
+			cellValue = statusStyle(cellValue)
+		}
+		cells = append(cells, cellValue)
+	}
+	return strings.Join(cells, " ")
 }
 
 func (i item) Description() string {
@@ -48,16 +55,25 @@ func (i item) FilterValue() string {
 }
 
 type View struct {
-	resource resources.ResourceType
-	registry *resources.Registry
-	list     list.Model
+	resource  resources.ResourceType
+	registry  *resources.Registry
+	list      list.Model
+	columns   []resources.TableColumn
+	sortLabel string
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
+	columns := tableColumns(resource)
 	items := resource.Items()
 	listItems := make([]list.Item, 0, len(items))
 	for _, res := range items {
-		listItems = append(listItems, item{data: res})
+		row := tableRow(resource, res)
+		listItems = append(listItems, item{
+			data:   res,
+			row:    row,
+			status: res.Status,
+			widths: columnWidths(columns),
+		})
 	}
 
 	delegate := list.NewDefaultDelegate()
@@ -72,7 +88,13 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	model.Paginator.Type = paginator.Arabic
-	return &View{resource: resource, registry: registry, list: model}
+	return &View{
+		resource:  resource,
+		registry:  registry,
+		list:      model,
+		columns:   columns,
+		sortLabel: sortMode(resource),
+	}
 }
 
 func (v *View) Init() bubbletea.Cmd {
@@ -94,6 +116,13 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   detailview.New(selected.data, v.resource),
 				}
 			}
+		case "s":
+			if sortable, ok := v.resource.(resources.ToggleSortable); ok {
+				sortable.ToggleSort()
+				v.refreshItems()
+				v.sortLabel = sortable.SortMode()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
 		}
 	}
 
@@ -114,7 +143,7 @@ func (v *View) View() string {
 		insertAt = 2
 	}
 
-	header := "  " + headerRow()
+	header := "  " + headerRow(v.columns)
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:insertAt]...)
 	out = append(out, header)
@@ -128,7 +157,11 @@ func (v *View) View() string {
 		}
 	}
 
-	return strings.Join(out, "\n")
+	view := strings.Join(out, "\n")
+	if len(v.list.VisibleItems()) == 0 {
+		return view + "\n\n" + style.Muted.Render(v.emptyMessage())
+	}
+	return view
 }
 
 func (v *View) Breadcrumb() string {
@@ -137,8 +170,15 @@ func (v *View) Breadcrumb() string {
 
 func (v *View) Footer() string {
 	parts := []string{v.paginationStatus()}
-	if v.list.Paginator.TotalPages > 1 {
+	if v.list.Paginator.TotalPages > 1 && len(v.list.VisibleItems()) > 0 {
 		parts = append(parts, "pgup prev-page  pgdn next-page")
+	}
+	if strings.EqualFold(v.resource.Name(), "workloads") {
+		parts = append(parts, "-> pods", "l logs", "r related", "/ filter", "tab view")
+		if _, ok := v.resource.(resources.ToggleSortable); ok {
+			parts = append(parts, "s sort:"+v.sortLabel)
+		}
+		return strings.Join(parts, "  ")
 	}
 	parts = append(parts, "L logs", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
@@ -158,6 +198,9 @@ func (v *View) SuppressGlobalKeys() bool {
 func (v *View) paginationStatus() string {
 	totalVisible := len(v.list.VisibleItems())
 	if totalVisible == 0 {
+		if v.list.IsFiltered() {
+			return fmt.Sprintf("Showing 0 of 0 filtered (%d total)", len(v.list.Items()))
+		}
 		return "Showing 0 of 0"
 	}
 
@@ -180,15 +223,19 @@ func statusStyle(status string) string {
 	switch status {
 	case "CrashLoop", "Error", "Failed":
 		return style.Error.Render(status)
-	case "Pending", "Warning":
+	case "Pending", "Warning", "Degraded", "Progressing", "Suspended":
 		return style.Warning.Render(status)
 	default:
 		return style.Healthy.Render(status)
 	}
 }
 
-func headerRow() string {
-	return padCell("NAME", 48) + " " + padCell("STATUS", 12) + " " + padCell("READY", 7) + " " + padCell("RESTARTS", 14) + " " + padCell("AGE", 6)
+func headerRow(columns []resources.TableColumn) string {
+	headers := make([]string, 0, len(columns))
+	for _, col := range columns {
+		headers = append(headers, padCell(col.Name, col.Width))
+	}
+	return strings.Join(headers, " ")
 }
 
 func padCell(value string, width int) string {
@@ -207,4 +254,67 @@ func padCell(value string, width int) string {
 		return value + strings.Repeat(" ", padding)
 	}
 	return value
+}
+
+func tableColumns(resource resources.ResourceType) []resources.TableColumn {
+	if table, ok := resource.(resources.TableResource); ok {
+		return table.TableColumns()
+	}
+	return []resources.TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "STATUS", Width: 12},
+		{Name: "READY", Width: 7},
+		{Name: "RESTARTS", Width: 14},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func tableRow(resource resources.ResourceType, res resources.ResourceItem) []string {
+	if table, ok := resource.(resources.TableResource); ok {
+		return table.TableRow(res)
+	}
+	return []string{res.Name, res.Status, res.Ready, res.Restarts, res.Age}
+}
+
+func columnWidths(columns []resources.TableColumn) []int {
+	widths := make([]int, 0, len(columns))
+	for _, col := range columns {
+		widths = append(widths, col.Width)
+	}
+	return widths
+}
+
+func sortMode(resource resources.ResourceType) string {
+	if sortable, ok := resource.(resources.ToggleSortable); ok {
+		return sortable.SortMode()
+	}
+	return ""
+}
+
+func (v *View) refreshItems() {
+	items := v.resource.Items()
+	listItems := make([]list.Item, 0, len(items))
+	for _, res := range items {
+		listItems = append(listItems, item{
+			data:   res,
+			row:    tableRow(v.resource, res),
+			status: res.Status,
+			widths: columnWidths(v.columns),
+		})
+	}
+	v.list.SetItems(listItems)
+}
+
+func (v *View) emptyMessage() string {
+	if strings.EqualFold(v.resource.Name(), "workloads") {
+		if v.list.IsFiltered() {
+			return "No workloads match the active filter. Press esc to clear."
+		}
+		return "No workloads found in this namespace. Switch namespace or adjust filters."
+	}
+
+	if v.list.IsFiltered() {
+		return "No items match the active filter. Press esc to clear."
+	}
+	return "No items found."
 }
