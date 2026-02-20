@@ -277,14 +277,7 @@ func (v *View) paginationStatus() string {
 }
 
 func statusStyle(status string) string {
-	switch status {
-	case "CrashLoop", "Error", "Failed":
-		return style.Error.Render(status)
-	case "Pending", "Warning", "Degraded", "Progressing", "Suspended":
-		return style.Warning.Render(status)
-	default:
-		return style.Healthy.Render(status)
-	}
+	return style.Status(status)
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {

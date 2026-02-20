@@ -175,7 +175,7 @@ type resourceItem struct {
 }
 
 func (i resourceItem) Title() string {
-	return i.data.Name + "  " + i.data.Status + "  " + i.data.Age
+	return i.data.Name + "  " + style.Status(i.data.Status) + "  " + i.data.Age
 }
 func (i resourceItem) Description() string { return "enter -> open" }
 func (i resourceItem) FilterValue() string {

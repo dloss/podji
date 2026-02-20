@@ -16,7 +16,7 @@ type podItem struct {
 }
 
 func (p podItem) Title() string {
-	return p.data.Name + "  " + p.data.Status + "  " + p.data.Age
+	return p.data.Name + "  " + style.Status(p.data.Status) + "  " + p.data.Age
 }
 func (p podItem) Description() string { return "enter -> logs" }
 func (p podItem) FilterValue() string { return p.data.Name + " " + p.data.Status }
