@@ -96,9 +96,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
-				if len(m.stack) == 1 {
-					m.crumbs[0] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-				}
+				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 			}
 			return m, nil
 		case "n":
@@ -144,9 +142,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if len(m.stack) > 1 {
 			m.stack = m.stack[:len(m.stack)-1]
 			m.crumbs = m.crumbs[:len(m.crumbs)-1]
-			if len(m.stack) == 1 {
-				m.crumbs[0] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			}
+			m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 		}
 	case viewstate.Replace:
 		update.Next.SetSize(m.width, m.availableHeight())

@@ -6,7 +6,7 @@ var (
 	Header = lipgloss.NewStyle().Bold(true)
 	Scope  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	Crumb  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	Active = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
+	Active = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 	Footer = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	ErrorBanner = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
 	Muted = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
