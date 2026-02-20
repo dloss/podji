@@ -189,6 +189,11 @@ func (v *View) View() string {
 	if banner := v.bannerMessage(); banner != "" {
 		view = style.Warning.Render(banner) + "\n" + view
 	}
+	if selected, ok := v.list.SelectedItem().(item); ok {
+		if summary := relatedview.RelatedSummary(selected.data, v.resource, v.registry); summary != "" {
+			view = style.Muted.Render(summary) + "\n" + view
+		}
+	}
 	if len(v.list.VisibleItems()) == 0 {
 		return view + "\n\n" + style.Muted.Render(v.emptyMessage())
 	}

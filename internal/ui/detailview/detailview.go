@@ -52,6 +52,9 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 func (v *View) View() string {
 	detail := v.resource.Detail(v.item)
 	sections := []string{style.Header.Render(detail.StatusLine)}
+	if summary := relatedview.RelatedSummary(v.item, v.resource, v.registry); summary != "" {
+		sections = append(sections, style.Muted.Render(summary))
+	}
 
 	if v.width >= 120 {
 		leftWidth, rightWidth := splitWidths(v.width, 2)

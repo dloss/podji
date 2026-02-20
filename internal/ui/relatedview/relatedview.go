@@ -30,6 +30,28 @@ type View struct {
 	list     list.Model
 }
 
+func RelatedSummary(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) string {
+	entries := relatedEntries(source, resource, registry)
+	if len(entries) == 0 {
+		return ""
+	}
+
+	max := 4
+	if len(entries) < max {
+		max = len(entries)
+	}
+
+	parts := make([]string, 0, max+1)
+	for _, entry := range entries[:max] {
+		parts = append(parts, entry.title)
+	}
+	if len(entries) > max {
+		parts = append(parts, fmt.Sprintf("+%d more", len(entries)-max))
+	}
+
+	return "Related: " + strings.Join(parts, "  ")
+}
+
 func New(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
 	items := relatedEntries(source, resource, registry)
 	listItems := make([]list.Item, 0, len(items))
@@ -39,11 +61,13 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
-	delegate.ShowDescription = true
+	delegate.SetSpacing(0)
+	delegate.ShowDescription = false
 	delegate.Styles.FilterMatch = delegate.Styles.FilterMatch.Underline(false)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
+	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 
@@ -78,7 +102,33 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 }
 
-func (v *View) View() string { return v.list.View() }
+func (v *View) View() string {
+	base := v.list.View()
+	lines := strings.Split(base, "\n")
+	if len(lines) < 2 {
+		return base
+	}
+
+	insertAt := 1
+	if len(lines) > 1 && lines[1] == "" {
+		insertAt = 2
+	}
+
+	header := "  RELATED"
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, lines[:insertAt]...)
+	out = append(out, header)
+	out = append(out, lines[insertAt:]...)
+
+	for i := insertAt + 1; i < len(out); i++ {
+		if strings.TrimSpace(out[i]) == "" {
+			out = append(out[:i], out[i+1:]...)
+			break
+		}
+	}
+
+	return strings.Join(out, "\n")
+}
 
 func (v *View) Breadcrumb() string { return "related" }
 
@@ -98,11 +148,7 @@ func (v *View) SuppressGlobalKeys() bool {
 }
 
 func (v *View) NextBreadcrumb() string {
-	selected, ok := v.list.SelectedItem().(entry)
-	if !ok {
-		return ""
-	}
-	return selected.title
+	return ""
 }
 
 func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {

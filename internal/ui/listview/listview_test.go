@@ -35,6 +35,16 @@ func TestWorkloadsViewShowsForbiddenBanner(t *testing.T) {
 	}
 }
 
+func TestWorkloadsViewShowsRelatedSummary(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+
+	rendered := view.View()
+	if !strings.Contains(rendered, "Related:") {
+		t.Fatalf("expected related summary, got: %s", rendered)
+	}
+}
+
 func TestPreferredLogPodSelectsProblemPodFirst(t *testing.T) {
 	items := []resources.ResourceItem{
 		{Name: "web-a", Status: "Running"},
