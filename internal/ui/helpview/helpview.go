@@ -31,7 +31,8 @@ LIST VIEWS
   esc                  Clear filter
   s                    Toggle sort (workloads)
   v                    Cycle scenario (workloads)
-  r                    Related resources
+  y                    YAML
+  R                    Related resources
   L                    Logs (direct)
   pgup / pgdn          Page up / down
 
@@ -39,7 +40,7 @@ DETAIL VIEW
   L                    Logs
   e                    Events
   y                    YAML
-  r                    Related
+  R                    Related
 
 LOG VIEW
   f                    Toggle follow
