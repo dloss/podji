@@ -11,11 +11,18 @@ import (
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
+type snapshot struct {
+	stack  []viewstate.View
+	crumbs []string
+	lens   int
+}
+
 type Model struct {
 	registry  *resources.Registry
 	stack     []viewstate.View
 	crumbs    []string
 	lens      int
+	history   []snapshot
 	context   string
 	namespace string
 	errorMsg  string
@@ -75,6 +82,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			break
 		}
 		if msg.Type == bubbletea.KeyShiftTab || msg.String() == "shift+tab" || msg.String() == "backtab" {
+			m.saveHistory()
 			m.lens = (m.lens - 1 + len(lenses)) % len(lenses)
 			m.switchToLensRoot()
 			return m, nil
@@ -84,13 +92,16 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
 		case "home", "pos1":
+			m.saveHistory()
 			m.switchToLensRoot()
 			return m, nil
 		case "shift+home", "shift+pos1":
+			m.saveHistory()
 			m.lens = 0
 			m.switchToLensRoot()
 			return m, nil
 		case "tab":
+			m.saveHistory()
 			m.lens = (m.lens + 1) % len(lenses)
 			m.switchToLensRoot()
 			return m, nil
@@ -99,6 +110,8 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+			} else {
+				m.restoreHistory()
 			}
 			return m, nil
 		case "n":
@@ -112,6 +125,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if len(runes) == 1 {
 				key := runes[0]
 				if res := m.registry.ResourceByKey(key); res != nil {
+					m.saveHistory()
 					if lensIndex, ok := m.lensByLandingKey(key); ok {
 						m.lens = lensIndex
 					}
@@ -180,6 +194,27 @@ func (m Model) View() string {
 
 func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
+}
+
+func (m *Model) saveHistory() {
+	s := make([]viewstate.View, len(m.stack))
+	copy(s, m.stack)
+	c := make([]string, len(m.crumbs))
+	copy(c, m.crumbs)
+	m.history = append(m.history, snapshot{stack: s, crumbs: c, lens: m.lens})
+}
+
+func (m *Model) restoreHistory() bool {
+	if len(m.history) == 0 {
+		return false
+	}
+	last := m.history[len(m.history)-1]
+	m.history = m.history[:len(m.history)-1]
+	m.stack = last.stack
+	m.crumbs = last.crumbs
+	m.lens = last.lens
+	m.top().SetSize(m.width, m.availableHeight())
+	return true
 }
 
 func (m Model) scopeLine() string {
