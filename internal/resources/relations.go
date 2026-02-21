@@ -224,3 +224,74 @@ func NewJobsForCronJob(name string) ResourceType {
 		empty: "No jobs found for this CronJob.",
 	}
 }
+
+func NewPodOwner(pod string) ResourceType {
+	// Derive workload name by stripping the pod hash suffix.
+	workload := pod
+	if idx := strings.LastIndex(pod, "-"); idx > 0 {
+		prefix := pod[:idx]
+		if idx2 := strings.LastIndex(prefix, "-"); idx2 > 0 {
+			workload = prefix[:idx2]
+		} else {
+			workload = prefix
+		}
+	}
+	return &relatedResource{
+		name:        "owner (" + pod + ")",
+		items:       []ResourceItem{{Name: workload, Kind: "DEP", Status: "Available", Ready: "2/2", Restarts: "-", Age: "14d"}},
+		description: "Owning workload for this pod",
+		empty:       "No owner workload found (standalone pod).",
+	}
+}
+
+func NewPodServices(pod string) ResourceType {
+	workload := pod
+	if idx := strings.LastIndex(pod, "-"); idx > 0 {
+		prefix := pod[:idx]
+		if idx2 := strings.LastIndex(prefix, "-"); idx2 > 0 {
+			workload = prefix[:idx2]
+		} else {
+			workload = prefix
+		}
+	}
+	return &relatedResource{
+		name:        "services (" + pod + ")",
+		items:       []ResourceItem{{Name: workload + "-svc", Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
+		description: "Services selecting this pod via label match",
+		empty:       "No services select this pod.",
+	}
+}
+
+func NewPodConfig(pod string) ResourceType {
+	workload := pod
+	if idx := strings.LastIndex(pod, "-"); idx > 0 {
+		prefix := pod[:idx]
+		if idx2 := strings.LastIndex(prefix, "-"); idx2 > 0 {
+			workload = prefix[:idx2]
+		} else {
+			workload = prefix
+		}
+	}
+	return &relatedResource{
+		name:  "config (" + pod + ")",
+		items: []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
+		empty: "No ConfigMaps or Secrets mounted by this pod.",
+	}
+}
+
+func NewPodStorage(pod string) ResourceType {
+	workload := pod
+	if idx := strings.LastIndex(pod, "-"); idx > 0 {
+		prefix := pod[:idx]
+		if idx2 := strings.LastIndex(prefix, "-"); idx2 > 0 {
+			workload = prefix[:idx2]
+		} else {
+			workload = prefix
+		}
+	}
+	return &relatedResource{
+		name:  "storage (" + pod + ")",
+		items: []ResourceItem{{Name: workload + "-data", Status: "Bound", Ready: "PVC", Restarts: "-", Age: "90d"}},
+		empty: "No PVCs mounted by this pod.",
+	}
+}

@@ -159,6 +159,35 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 		return func() viewstate.View { return newRelationList(r, registry) }
 	}
 
+	if isPodResource(resource) {
+		entries = append(entries, entry{
+			title:       "Events (3)",
+			description: "Recent warnings and lifecycle events",
+			open:        func() viewstate.View { return eventview.New(source, resource) },
+		})
+		entries = append(entries, entry{
+			title:       "Owner (1)",
+			description: "Owning workload (Deployment, StatefulSet, etc.)",
+			open:        openResource(resources.NewPodOwner(source.Name)),
+		})
+		entries = append(entries, entry{
+			title:       "Services (1)",
+			description: "Services selecting this pod",
+			open:        openResource(resources.NewPodServices(source.Name)),
+		})
+		entries = append(entries, entry{
+			title:       "Config (2)",
+			description: "ConfigMaps and Secrets mounted by this pod",
+			open:        openResource(resources.NewPodConfig(source.Name)),
+		})
+		entries = append(entries, entry{
+			title:       "Storage (1)",
+			description: "PVCs mounted by this pod",
+			open:        openResource(resources.NewPodStorage(source.Name)),
+		})
+		return entries
+	}
+
 	if name == "workloads" {
 		// Workload tweak: promote Events near top for debugging.
 		entries = append(entries, entry{
@@ -461,4 +490,12 @@ func relationBreadcrumbLabel(resourceName string) string {
 		label = strings.TrimSpace(label[:open])
 	}
 	return label
+}
+
+func isPodResource(r resources.ResourceType) bool {
+	switch r.(type) {
+	case *resources.Pods, *resources.WorkloadPods:
+		return true
+	}
+	return false
 }
