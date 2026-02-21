@@ -56,7 +56,7 @@ func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 	}
 	matchStyle := matchBase.Inherit(d.Styles.FilterMatch)
 
-	row := renderRowWithNameMatch(it, matches, matchStyle, matchBase)
+	row := renderRowWithNameMatch(it, isSelected, matches, matchStyle, matchBase)
 	textWidth := m.Width() - titleStyle.GetPaddingLeft() - titleStyle.GetPaddingRight()
 	row = ansi.Truncate(row, textWidth, "…")
 	fmt.Fprint(w, titleStyle.Render(row)) //nolint:errcheck
@@ -64,6 +64,7 @@ func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 
 func renderRowWithNameMatch(
 	it item,
+	isSelected bool,
 	matches []int,
 	matchStyle lipgloss.Style,
 	unmatchedStyle lipgloss.Style,
@@ -87,10 +88,52 @@ func renderRowWithNameMatch(
 		}
 
 		if idx > 0 && it.status != "" && it.row[idx] == it.status {
-			cellValue = statusStyle(cellValue)
+			cellValue = inlineStatusStyle(cellValue, isSelected)
 		}
+
 		cells = append(cells, cellValue)
 	}
 
 	return strings.Join(cells, " ")
+}
+
+// inlineStatusStyle applies status coloring. When preserveBg is true it uses
+// raw ANSI foreground+bold sequences so the selected-row background is not
+// cleared by a full SGR reset.
+func inlineStatusStyle(value string, preserveBg bool) string {
+	if !preserveBg {
+		return statusStyle(value)
+	}
+	code := statusANSI(value)
+	if code == "" {
+		return value
+	}
+	// Use SGR foreground + bold, then restore with just a foreground reset
+	// and bold-off so the background set by the row style is preserved.
+	return code + value + "\x1b[22;39m"
+}
+
+// statusANSI returns raw ANSI SGR sequences for the status foreground color
+// (with bold). Returns "" for unrecognised statuses.
+func statusANSI(value string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.Contains(trimmed, "crashloop"),
+		strings.Contains(trimmed, "error"),
+		strings.Contains(trimmed, "fail"),
+		strings.Contains(trimmed, "oom"),
+		strings.Contains(trimmed, "backoff"):
+		return "\x1b[1;31m" // bold red
+	case strings.Contains(trimmed, "pending"),
+		strings.Contains(trimmed, "warning"),
+		strings.Contains(trimmed, "degraded"),
+		strings.Contains(trimmed, "progress"),
+		strings.Contains(trimmed, "terminat"),
+		strings.Contains(trimmed, "unknown"):
+		return "\x1b[1;33m" // bold yellow
+	case strings.Contains(trimmed, "suspend"):
+		return "\x1b[38;5;241m" // muted (no bold)
+	default:
+		return "\x1b[92m" // bright green
+	}
 }

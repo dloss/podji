@@ -141,7 +141,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.refreshItems()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "r":
+		case "R":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
 					Action: viewstate.Push,
@@ -188,11 +188,6 @@ func (v *View) View() string {
 	if banner := v.bannerMessage(); banner != "" {
 		view = style.Warning.Render(banner) + "\n" + view
 	}
-	if selected, ok := v.list.SelectedItem().(item); ok {
-		if summary := relatedview.RelatedSummary(selected.data, v.resource, v.registry); summary != "" {
-			view = style.Muted.Render(summary) + "\n" + view
-		}
-	}
 	if len(v.list.VisibleItems()) == 0 {
 		return view + "\n\n" + style.Muted.Render("  "+v.emptyMessage())
 	}
@@ -218,7 +213,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "pgup prev-page  pgdn next-page")
 	}
 	if strings.EqualFold(v.resource.Name(), "workloads") {
-		parts = append(parts, "-> pods", "L logs", "r related", "/ filter", "tab view")
+		parts = append(parts, "-> pods", "L logs", "R related", "/ filter", "tab view")
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
 			parts = append(parts, "s sort:"+v.sortLabel)
 		}
@@ -227,7 +222,7 @@ func (v *View) Footer() string {
 		}
 		return strings.Join(parts, "  ")
 	}
-	parts = append(parts, "L logs", "r related", "/ filter", "esc clear", "? help", "q quit")
+	parts = append(parts, "L logs", "R related", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
 }
 

@@ -31,26 +31,10 @@ type View struct {
 	list     list.Model
 }
 
-func RelatedSummary(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) string {
-	entries := relatedEntries(source, resource, registry)
-	if len(entries) == 0 {
-		return ""
-	}
-
-	max := 4
-	if len(entries) < max {
-		max = len(entries)
-	}
-
-	parts := make([]string, 0, max+1)
-	for _, entry := range entries[:max] {
-		parts = append(parts, entry.title)
-	}
-	if len(entries) > max {
-		parts = append(parts, fmt.Sprintf("+%d more", len(entries)-max))
-	}
-
-	return "Related: " + strings.Join(parts, "  ")
+// RelatedCount returns the number of related-resource categories available for
+// the given item.  It is intentionally cheap (no UI objects allocated).
+func RelatedCount(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) int {
+	return len(relatedEntries(source, resource, registry))
 }
 
 func New(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {

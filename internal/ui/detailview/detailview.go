@@ -42,7 +42,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
 			return viewstate.Update{Action: viewstate.Push, Next: yamlview.New(v.item, v.resource)}
-		case "r":
+		case "R":
 			return viewstate.Update{Action: viewstate.Push, Next: relatedview.New(v.item, v.resource, v.registry)}
 		}
 	}
@@ -52,8 +52,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 func (v *View) View() string {
 	detail := v.resource.Detail(v.item)
 	sections := []string{style.Header.Render(detail.StatusLine)}
-	if summary := relatedview.RelatedSummary(v.item, v.resource, v.registry); summary != "" {
-		sections = append(sections, style.Muted.Render(summary))
+	if n := relatedview.RelatedCount(v.item, v.resource, v.registry); n > 0 {
+		sections = append(sections, style.Muted.Render(fmt.Sprintf("R: %d related", n)))
 	}
 
 	if v.width >= 120 {
@@ -85,7 +85,7 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  L logs  r related  e events  y yaml  ? help"
+	return "backspace back  L logs  R related  e events  y yaml  ? help"
 }
 
 func (v *View) SetSize(width, height int) {

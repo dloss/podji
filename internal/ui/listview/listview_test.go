@@ -14,7 +14,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := view.Footer()
-	wants := []string{"-> pods", "L logs", "r related", "tab view", "s sort"}
+	wants := []string{"-> pods", "L logs", "R related", "tab view", "s sort"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)
@@ -35,13 +35,14 @@ func TestWorkloadsViewShowsForbiddenBanner(t *testing.T) {
 	}
 }
 
-func TestWorkloadsViewShowsRelatedSummary(t *testing.T) {
+func TestWorkloadsViewNoRelatedBanner(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
 
 	rendered := view.View()
-	if !strings.Contains(rendered, "Related:") {
-		t.Fatalf("expected related summary, got: %s", rendered)
+	if strings.Contains(rendered, "Related:") {
+		t.Fatalf("old Related: banner should be removed, got: %s", rendered)
 	}
 }
 
