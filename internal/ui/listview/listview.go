@@ -80,11 +80,8 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		})
 	}
 
-	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(1)
-	delegate.SetSpacing(0)
-	delegate.ShowDescription = false
-	model := list.New(listItems, tableDelegate{DefaultDelegate: delegate}, 0, 0)
+	delegate := newTableDelegate()
+	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
 	model.SetShowTitle(false)

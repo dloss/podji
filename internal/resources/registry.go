@@ -2,6 +2,10 @@ package resources
 
 import "sort"
 
+// ActiveNamespace is the currently selected namespace. Resources can use this
+// to vary their stub data so namespace switching is visible.
+var ActiveNamespace = "default"
+
 type Registry struct {
 	resources []ResourceType
 	byKey     map[rune]ResourceType

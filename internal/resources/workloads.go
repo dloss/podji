@@ -22,24 +22,11 @@ func (w *Workloads) Items() []ResourceItem {
 		return nil
 	}
 
-	items := []ResourceItem{
-		{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
-		{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
-		{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h"},
-		{Name: "node-exporter", Kind: "DS", Ready: "5/6", Status: "Degraded", Restarts: "0", Age: "30d"},
-		{Name: "seed-users", Kind: "JOB", Ready: "0/1", Status: "Failed", Restarts: "3", Age: "18m"},
-		{Name: "nightly-backup", Kind: "CJ", Ready: "Last: 6h", Status: "Healthy", Restarts: "—", Age: "90d"},
-		{Name: "sync-reports", Kind: "CJ", Ready: "Last: —", Status: "Healthy", Restarts: "—", Age: "2d"},
-		{Name: "cleanup-tmp", Kind: "CJ", Ready: "Last: 22m", Status: "Degraded", Restarts: "—", Age: "15d"},
-		{Name: "old-data-prune", Kind: "CJ", Ready: "Last: 3d", Status: "Suspended", Restarts: "—", Age: "220d"},
-	}
+	items := workloadItemsForNamespace(ActiveNamespace)
 	switch w.scenario {
 	case "partial":
-		items = []ResourceItem{
-			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
-			{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
-			{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h"},
-			{Name: "node-exporter", Kind: "DS", Ready: "5/6", Status: "Degraded", Restarts: "0", Age: "30d"},
+		if len(items) > 4 {
+			items = items[:4]
 		}
 	case "empty":
 		items = nil
@@ -47,6 +34,55 @@ func (w *Workloads) Items() []ResourceItem {
 
 	w.Sort(items)
 	return items
+}
+
+func workloadItemsForNamespace(ns string) []ResourceItem {
+	switch ns {
+	case "production":
+		return []ResourceItem{
+			{Name: "api", Kind: "DEP", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "14d"},
+			{Name: "frontend", Kind: "DEP", Ready: "4/4", Status: "Healthy", Restarts: "0", Age: "7d"},
+			{Name: "worker", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "12d"},
+			{Name: "db", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "cache", Kind: "STS", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "nightly-backup", Kind: "CJ", Ready: "Last: 6h", Status: "Healthy", Restarts: "—", Age: "90d"},
+		}
+	case "staging":
+		return []ResourceItem{
+			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "2", Age: "1d"},
+			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3h"},
+			{Name: "worker", Kind: "DEP", Ready: "0/1", Status: "CrashLoop", Restarts: "47", Age: "6h"},
+			{Name: "db", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "5d"},
+			{Name: "seed-data", Kind: "JOB", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "2d"},
+		}
+	case "monitoring":
+		return []ResourceItem{
+			{Name: "prometheus", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "grafana", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "15d"},
+			{Name: "alertmanager", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "node-exporter", Kind: "DS", Ready: "6/6", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "kube-state-metrics", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "20d"},
+		}
+	case "kube-system":
+		return []ResourceItem{
+			{Name: "coredns", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "etcd", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "kube-proxy", Kind: "DS", Ready: "6/6", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "kube-apiserver", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d"},
+		}
+	default:
+		return []ResourceItem{
+			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
+			{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
+			{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h"},
+			{Name: "node-exporter", Kind: "DS", Ready: "5/6", Status: "Degraded", Restarts: "0", Age: "30d"},
+			{Name: "seed-users", Kind: "JOB", Ready: "0/1", Status: "Failed", Restarts: "3", Age: "18m"},
+			{Name: "nightly-backup", Kind: "CJ", Ready: "Last: 6h", Status: "Healthy", Restarts: "—", Age: "90d"},
+			{Name: "sync-reports", Kind: "CJ", Ready: "Last: —", Status: "Healthy", Restarts: "—", Age: "2d"},
+			{Name: "cleanup-tmp", Kind: "CJ", Ready: "Last: 22m", Status: "Degraded", Restarts: "—", Age: "15d"},
+			{Name: "old-data-prune", Kind: "CJ", Ready: "Last: 3d", Status: "Suspended", Restarts: "—", Age: "220d"},
+		}
+	}
 }
 
 func (w *Workloads) Sort(items []ResourceItem) {

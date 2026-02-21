@@ -10,6 +10,20 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func newTableDelegate() tableDelegate {
+	delegate := list.NewDefaultDelegate()
+	delegate.SetHeight(1)
+	delegate.SetSpacing(0)
+	delegate.ShowDescription = false
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Bold(true).
+		Foreground(lipgloss.Color("15")).
+		Background(lipgloss.Color("236")).
+		BorderLeft(true).
+		BorderStyle(lipgloss.Border{Left: "▌"})
+	return tableDelegate{DefaultDelegate: delegate}
+}
+
 // tableDelegate keeps Bubble's default list behavior but scopes filter-match
 // highlighting to the first (name) column in table rows.
 type tableDelegate struct {

@@ -5,7 +5,9 @@ import (
 	"unicode"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
@@ -114,7 +116,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.lens = (m.lens + 1) % len(lenses)
 			m.switchToLensRoot()
 			return m, nil
-		case "backspace", "h", "left":
+		case "backspace", "h", "left", "esc":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
@@ -136,6 +138,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if m.scope != scopeContext {
 				m.saveHistory()
 				m.switchToScope(scopeContext)
+			}
+			return m, nil
+		case "?":
+			if _, isHelp := m.top().(*helpview.View); !isHelp {
+				help := helpview.New()
+				help.SetSize(m.width, m.availableHeight())
+				m.stack = append(m.stack, help)
+				m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
 			}
 			return m, nil
 		default:
@@ -167,6 +177,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						name := value[idx+2:]
 						if m.scope == scopeNamespace {
 							m.namespace = name
+							resources.ActiveNamespace = name
 						} else {
 							m.context = name
 						}
@@ -214,7 +225,11 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 func (m Model) View() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	body := m.top().View()
-	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
+	footerText := strings.TrimSpace(m.top().Footer() + "  ? help  home top  shift+home default  q quit")
+	if m.width > 0 {
+		footerText = ansi.Truncate(footerText, m.width-2, "…")
+	}
+	footer := style.Footer.Render(footerText)
 
 	if m.height > 0 {
 		body = clampViewLines(body, m.bodyHeightLimit())

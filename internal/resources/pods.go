@@ -17,16 +17,48 @@ func (p *Pods) Key() rune {
 }
 
 func (p *Pods) Items() []ResourceItem {
-	items := []ResourceItem{
-		{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d"},
-		{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m"},
-		{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d"},
-		{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d"},
-		{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
-		{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
-	}
+	items := podItemsForNamespace(ActiveNamespace)
 	p.Sort(items)
 	return items
+}
+
+func podItemsForNamespace(ns string) []ResourceItem {
+	switch ns {
+	case "production":
+		return []ResourceItem{
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d"},
+			{Name: "api-7c6c8d5f7d-m3n9p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d"},
+			{Name: "api-7c6c8d5f7d-q5r2s", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d"},
+			{Name: "frontend-8b4d9e2f-k1l3m", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d"},
+			{Name: "frontend-8b4d9e2f-n4o6p", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d"},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+			{Name: "db-1", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+			{Name: "db-2", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+		}
+	case "staging":
+		return []ResourceItem{
+			{Name: "api-6d4e2c1a-h7j9k", Status: "Running", Ready: "1/1", Restarts: "2", Age: "1d"},
+			{Name: "frontend-3a5b7c9d-p2q4r", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3h"},
+			{Name: "worker-55c6c6f9f-t6u8v", Status: "CrashLoop", Ready: "0/1", Restarts: "47", Age: "6h"},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "5d"},
+		}
+	case "monitoring":
+		return []ResourceItem{
+			{Name: "prometheus-0", Status: "Running", Ready: "2/2", Restarts: "0", Age: "30d"},
+			{Name: "grafana-5c8d7e9f-w1x3y", Status: "Running", Ready: "1/1", Restarts: "0", Age: "15d"},
+			{Name: "alertmanager-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+		}
+	default:
+		return []ResourceItem{
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d"},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m"},
+			{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d"},
+			{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d"},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
+			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
+		}
+	}
 }
 
 func (p *Pods) Sort(items []ResourceItem) {

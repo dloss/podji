@@ -12,17 +12,43 @@ func (d *Deployments) Name() string { return "deployments" }
 func (d *Deployments) Key() rune   { return 'D' }
 
 func (d *Deployments) Items() []ResourceItem {
-	items := []ResourceItem{
-		{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d"},
-		{Name: "frontend", Status: "Healthy", Ready: "2/2", Age: "7d"},
-		{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d"},
-		{Name: "payment-service", Status: "Degraded", Ready: "1/2", Age: "5d"},
-		{Name: "notification-worker", Status: "Healthy", Ready: "1/1", Age: "10d"},
-		{Name: "search-indexer", Status: "Progressing", Ready: "2/3", Age: "45m"},
-		{Name: "user-service", Status: "Healthy", Ready: "2/2", Age: "3d"},
-	}
+	items := deploymentItemsForNamespace(ActiveNamespace)
 	d.Sort(items)
 	return items
+}
+
+func deploymentItemsForNamespace(ns string) []ResourceItem {
+	switch ns {
+	case "production":
+		return []ResourceItem{
+			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d"},
+			{Name: "frontend", Status: "Healthy", Ready: "4/4", Age: "7d"},
+			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d"},
+			{Name: "notification-worker", Status: "Healthy", Ready: "2/2", Age: "10d"},
+			{Name: "user-service", Status: "Healthy", Ready: "3/3", Age: "3d"},
+		}
+	case "staging":
+		return []ResourceItem{
+			{Name: "api-gateway", Status: "Healthy", Ready: "1/1", Age: "5d"},
+			{Name: "frontend", Status: "Healthy", Ready: "1/1", Age: "3h"},
+			{Name: "search-indexer", Status: "Progressing", Ready: "0/1", Age: "10m"},
+		}
+	case "monitoring":
+		return []ResourceItem{
+			{Name: "grafana", Status: "Healthy", Ready: "1/1", Age: "15d"},
+			{Name: "kube-state-metrics", Status: "Healthy", Ready: "1/1", Age: "20d"},
+		}
+	default:
+		return []ResourceItem{
+			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d"},
+			{Name: "frontend", Status: "Healthy", Ready: "2/2", Age: "7d"},
+			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d"},
+			{Name: "payment-service", Status: "Degraded", Ready: "1/2", Age: "5d"},
+			{Name: "notification-worker", Status: "Healthy", Ready: "1/1", Age: "10d"},
+			{Name: "search-indexer", Status: "Progressing", Ready: "2/3", Age: "45m"},
+			{Name: "user-service", Status: "Healthy", Ready: "2/2", Age: "3d"},
+		}
+	}
 }
 
 func (d *Deployments) Sort(items []ResourceItem) {
