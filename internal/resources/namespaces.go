@@ -4,6 +4,18 @@ import "strings"
 
 type Namespaces struct{}
 
+func (n *Namespaces) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "STATUS", Width: 14},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (n *Namespaces) TableRow(item ResourceItem) []string {
+	return []string{item.Name, item.Status, item.Age}
+}
+
 func NewNamespaces() *Namespaces {
 	return &Namespaces{}
 }

@@ -1,8 +1,41 @@
 package resources
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type Services struct{}
+
+func (s *Services) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 30},
+		{Name: "TYPE", Width: 14},
+		{Name: "CLUSTER-IP", Width: 16},
+		{Name: "ENDPOINTS", Width: 14},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (s *Services) TableRow(item ResourceItem) []string {
+	svcType := item.Kind
+	if svcType == "" {
+		svcType = "ClusterIP"
+	}
+	return []string{item.Name, svcType, serviceClusterIP(item.Name, svcType), item.Ready, item.Age}
+}
+
+func serviceClusterIP(name string, svcType string) string {
+	if svcType == "LoadBalancer" {
+		return "10.96.0.10"
+	}
+	// Simple hash to generate a stable, realistic-looking cluster IP.
+	var h byte
+	for i := 0; i < len(name); i++ {
+		h = h*31 + name[i]
+	}
+	return fmt.Sprintf("10.96.%d.%d", int(h)%256, int(h)%200+1)
+}
 
 func NewServices() *Services {
 	return &Services{}
@@ -63,7 +96,7 @@ func (s *Services) Detail(item ResourceItem) DetailData {
 	if svcType == "" {
 		svcType = "ClusterIP"
 	}
-	clusterIP := "10.96." + item.Name[:1] + ".1"
+	clusterIP := serviceClusterIP(item.Name, svcType)
 
 	return DetailData{
 		StatusLine: item.Status + "    type: " + svcType + "    clusterIP: " + clusterIP + "    ports: 80/TCP",

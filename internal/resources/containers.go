@@ -54,18 +54,18 @@ func (c *ContainerResource) YAML(item ResourceItem) string {
 
 func (c *ContainerResource) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 20},
-		{Name: "IMAGE", Width: 30},
-		{Name: "STATE", Width: 18},
-		{Name: "RESTARTS", Width: 8},
+		{Name: "NAME", Width: 16},
+		{Name: "STATUS", Width: 16},
+		{Name: "RESTARTS", Width: 9},
+		{Name: "IMAGE", Width: 57},
 	}
 }
 
 func (c *ContainerResource) TableRow(item ResourceItem) []string {
 	for _, cr := range c.containers {
 		if cr.Name == item.Name {
-			return []string{cr.Name, cr.Image, cr.State, cr.Restarts}
+			return []string{cr.Name, cr.State, cr.Restarts, cr.Image}
 		}
 	}
-	return []string{item.Name, "", item.Status, item.Restarts}
+	return []string{item.Name, item.Status, item.Restarts, ""}
 }

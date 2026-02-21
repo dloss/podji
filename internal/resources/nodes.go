@@ -4,6 +4,25 @@ import "strings"
 
 type Nodes struct{}
 
+func (n *Nodes) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 30},
+		{Name: "STATUS", Width: 12},
+		{Name: "ROLES", Width: 16},
+		{Name: "VERSION", Width: 12},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (n *Nodes) TableRow(item ResourceItem) []string {
+	role := "worker"
+	version := "v1.29.2"
+	if strings.HasPrefix(item.Name, "control-plane") {
+		role = "control-plane"
+	}
+	return []string{item.Name, item.Status, role, version, item.Age}
+}
+
 func NewNodes() *Nodes {
 	return &Nodes{}
 }

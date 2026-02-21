@@ -4,6 +4,25 @@ import "strings"
 
 type Events struct{}
 
+func (e *Events) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "TYPE", Width: 10},
+		{Name: "REASON", Width: 24},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (e *Events) TableRow(item ResourceItem) []string {
+	parts := strings.SplitN(item.Name, ".", 2)
+	object := parts[0]
+	reason := ""
+	if len(parts) > 1 {
+		reason = parts[1]
+	}
+	return []string{object, item.Kind, reason, item.Age}
+}
+
 func NewEvents() *Events {
 	return &Events{}
 }

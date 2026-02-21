@@ -4,6 +4,42 @@ import "strings"
 
 type Contexts struct{}
 
+func (c *Contexts) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 30},
+		{Name: "STATUS", Width: 13},
+		{Name: "CLUSTER", Width: 28},
+		{Name: "SERVER", Width: 50},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (c *Contexts) TableRow(item ResourceItem) []string {
+	cluster := item.Name
+	server := "https://127.0.0.1:6443"
+	switch item.Name {
+	case "dev-us-east-1":
+		cluster = "eks-dev-us-east-1"
+		server = "https://ABCDEF1234.gr7.us-east-1.eks.amazonaws.com"
+	case "staging-eu-west-1":
+		cluster = "eks-staging-eu-west-1"
+		server = "https://GHIJKL5678.gr7.eu-west-1.eks.amazonaws.com"
+	case "prod-us-east-1":
+		cluster = "eks-prod-us-east-1"
+		server = "https://MNOPQR9012.gr7.us-east-1.eks.amazonaws.com"
+	case "prod-eu-west-1":
+		cluster = "eks-prod-eu-west-1"
+		server = "https://STUVWX3456.gr7.eu-west-1.eks.amazonaws.com"
+	case "minikube":
+		cluster = "minikube"
+		server = "https://192.168.49.2:8443"
+	case "docker-desktop":
+		cluster = "docker-desktop"
+		server = "https://127.0.0.1:6443"
+	}
+	return []string{item.Name, item.Status, cluster, server, item.Age}
+}
+
 func NewContexts() *Contexts {
 	return &Contexts{}
 }

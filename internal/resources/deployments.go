@@ -4,6 +4,19 @@ import "strings"
 
 type Deployments struct{}
 
+func (d *Deployments) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 35},
+		{Name: "STATUS", Width: 14},
+		{Name: "READY", Width: 8},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (d *Deployments) TableRow(item ResourceItem) []string {
+	return []string{item.Name, item.Status, item.Ready, item.Age}
+}
+
 func NewDeployments() *Deployments {
 	return &Deployments{}
 }

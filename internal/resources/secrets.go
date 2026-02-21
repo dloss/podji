@@ -1,8 +1,37 @@
 package resources
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type Secrets struct{}
+
+func (s *Secrets) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 35},
+		{Name: "TYPE", Width: 38},
+		{Name: "DATA", Width: 8},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (s *Secrets) TableRow(item ResourceItem) []string {
+	kind := item.Kind
+	if kind == "" {
+		kind = "Opaque"
+	}
+	dataCount := 2
+	switch item.Name {
+	case "default-token-x7m2k":
+		dataCount = 3
+	case "docker-registry-creds":
+		dataCount = 1
+	case "api-gateway-tls":
+		dataCount = 2
+	}
+	return []string{item.Name, kind, fmt.Sprintf("%d", dataCount), item.Age}
+}
 
 func NewSecrets() *Secrets {
 	return &Secrets{}

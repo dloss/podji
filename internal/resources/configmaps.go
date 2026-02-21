@@ -1,8 +1,36 @@
 package resources
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type ConfigMaps struct{}
+
+func (c *ConfigMaps) TableColumns() []TableColumn {
+	return []TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "DATA", Width: 8},
+		{Name: "AGE", Width: 6},
+	}
+}
+
+func (c *ConfigMaps) TableRow(item ResourceItem) []string {
+	dataCount := 3
+	switch item.Name {
+	case "coredns":
+		dataCount = 1
+	case "kube-proxy":
+		dataCount = 2
+	case "feature-flags":
+		dataCount = 8
+	case "prometheus-rules":
+		dataCount = 5
+	case "nginx-config":
+		dataCount = 2
+	}
+	return []string{item.Name, fmt.Sprintf("%d", dataCount), item.Age}
+}
 
 func NewConfigMaps() *ConfigMaps {
 	return &ConfigMaps{}
