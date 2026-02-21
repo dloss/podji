@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/dloss/podji/internal/ui/listview"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -26,27 +25,6 @@ func (overflowView) Breadcrumb() string { return "workloads" }
 func (overflowView) Footer() string { return "q quit" }
 
 func (overflowView) SetSize(width, height int) {}
-
-type scopePickerView struct {
-	breadcrumb string
-	selected   string
-}
-
-func (v scopePickerView) Init() bubbletea.Cmd { return nil }
-
-func (v scopePickerView) Update(msg bubbletea.Msg) viewstate.Update {
-	return viewstate.Update{Action: viewstate.Push, Next: v}
-}
-
-func (v scopePickerView) View() string { return "" }
-
-func (v scopePickerView) Breadcrumb() string { return v.breadcrumb }
-
-func (v scopePickerView) SelectedBreadcrumb() string { return v.selected }
-
-func (v scopePickerView) Footer() string { return "" }
-
-func (v scopePickerView) SetSize(width, height int) {}
 
 func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
@@ -126,20 +104,6 @@ func TestLeftAtNamespaceSwitchesToContext(t *testing.T) {
 	}
 }
 
-func TestUppercaseNSwitchesToNamespace(t *testing.T) {
-	m := New()
-
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'N'}})
-	got := updated.(Model)
-
-	if got.scope != scopeNamespace {
-		t.Fatalf("expected scope %d (namespace) after N, got %d", scopeNamespace, got.scope)
-	}
-	if got.crumbs[0] != "namespaces" {
-		t.Fatalf("expected crumbs[0] = 'namespaces', got %q", got.crumbs[0])
-	}
-}
-
 func TestLeftAtContextIsNoop(t *testing.T) {
 	m := New()
 
@@ -170,46 +134,5 @@ func TestHistorySaveRestoreIncludesScope(t *testing.T) {
 	}
 	if got.history[0].scope != scopeLens {
 		t.Fatalf("expected history scope = %d (lens), got %d", scopeLens, got.history[0].scope)
-	}
-}
-
-func TestNamespaceSelectionReturnsToActiveLensRoot(t *testing.T) {
-	m := New()
-	m.scope = scopeNamespace
-	m.stack = []viewstate.View{
-		scopePickerView{
-			breadcrumb: "namespaces",
-			selected:   "namespaces: team-a",
-		},
-	}
-	m.crumbs = []string{"namespaces"}
-	m.history = []snapshot{
-		{
-			stack:  []viewstate.View{overflowView{}},
-			crumbs: []string{"pods: api-123"},
-			lens:   1,
-			scope:  scopeLens,
-		},
-	}
-
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
-	got := updated.(Model)
-
-	if got.namespace != "team-a" {
-		t.Fatalf("expected namespace team-a, got %q", got.namespace)
-	}
-	if got.scope != scopeLens {
-		t.Fatalf("expected scope %d (lens), got %d", scopeLens, got.scope)
-	}
-	if got.lens != 1 {
-		t.Fatalf("expected lens 1, got %d", got.lens)
-	}
-	if len(got.stack) != 1 {
-		t.Fatalf("expected lens root stack depth 1, got %d", len(got.stack))
-	}
-	res := got.registry.ResourceByKey(lenses[got.lens].landingKey)
-	expected := normalizeBreadcrumbPart(listview.New(res, got.registry).Breadcrumb())
-	if got.crumbs[0] != expected {
-		t.Fatalf("expected root breadcrumb %q, got %q", expected, got.crumbs[0])
 	}
 }

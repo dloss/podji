@@ -126,13 +126,13 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.switchToScope(scopeContext)
 			}
 			return m, nil
-		case "n", "N":
+		case "N":
 			if m.scope != scopeNamespace {
 				m.saveHistory()
 				m.switchToScope(scopeNamespace)
 			}
 			return m, nil
-		case "x":
+		case "X":
 			if m.scope != scopeContext {
 				m.saveHistory()
 				m.switchToScope(scopeContext)
