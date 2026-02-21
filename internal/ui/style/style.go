@@ -19,9 +19,10 @@ var (
 	Footer      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	ErrorBanner = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
 	Muted       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	Warning     = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	Error       = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
-	Healthy     = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	Warning      = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	Error        = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
+	Healthy      = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	FilterPrompt = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )
 
 type statusSeverity int

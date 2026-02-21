@@ -10,6 +10,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/podpickerview"
 	"github.com/dloss/podji/internal/ui/relatedview"
@@ -87,6 +88,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	filterbar.Setup(&model)
 	model.Paginator.Type = paginator.Arabic
 	return &View{
 		resource:  resource,
@@ -167,25 +169,25 @@ func (v *View) View() string {
 		return base
 	}
 
-	insertAt := 1
-	if len(lines) > 1 && lines[1] == "" {
-		insertAt = 2
+	// Skip leading blank lines emitted by the list model.
+	dataStart := 0
+	for dataStart < len(lines) && strings.TrimSpace(lines[dataStart]) == "" {
+		dataStart++
 	}
 
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	header := "  " + headerRowWithHint(v.columns, label, childHint)
-	out := make([]string, 0, len(lines)+1)
-	out = append(out, lines[:insertAt]...)
-	out = append(out, header)
-	out = append(out, lines[insertAt:]...)
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, "")     // blank line separating lens/breadcrumb from table
+	out = append(out, header) // column header
+	out = append(out, lines[dataStart:]...)
 
-	// Keep dense layout: remove the first empty spacer line after the header.
-	for i := insertAt + 1; i < len(out); i++ {
-		if strings.TrimSpace(out[i]) == "" {
-			out = append(out[:i], out[i+1:]...)
-			break
-		}
+	// Trim trailing blank lines so we stay within the same height budget
+	// the list model allocated (we added blank+header but may have removed
+	// fewer leading blanks than we added).
+	for len(out) > len(lines) && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
 	}
 
 	view := strings.Join(out, "\n")
@@ -193,9 +195,9 @@ func (v *View) View() string {
 		view = style.Warning.Render(banner) + "\n" + view
 	}
 	if len(v.list.VisibleItems()) == 0 {
-		return view + "\n\n" + style.Muted.Render("  "+v.emptyMessage())
+		view += "\n\n" + style.Muted.Render("  "+v.emptyMessage())
 	}
-	return view
+	return filterbar.Append(view, v.list)
 }
 
 func (v *View) Breadcrumb() string {

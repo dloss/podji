@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
@@ -44,6 +45,7 @@ func New(workload resources.ResourceItem) *View {
 	model.SetShowStatusBar(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	filterbar.Setup(&model)
 
 	if len(items) > 0 {
 		// Newest-first in this mock: select first row as the default quick path.
@@ -88,9 +90,9 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 func (v *View) View() string {
 	view := v.list.View()
 	if len(v.list.VisibleItems()) == 0 {
-		return view + "\n\n" + style.Muted.Render(v.resource.EmptyMessage(v.list.IsFiltered(), strings.TrimSpace(v.list.FilterValue())))
+		view += "\n\n" + style.Muted.Render(v.resource.EmptyMessage(v.list.IsFiltered(), strings.TrimSpace(v.list.FilterValue())))
 	}
-	return view
+	return filterbar.Append(view, v.list)
 }
 
 func (v *View) Breadcrumb() string {

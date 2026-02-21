@@ -9,6 +9,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/eventview"
+	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
@@ -54,6 +55,7 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	filterbar.Setup(&model)
 
 	return &View{source: source, resource: resource, registry: registry, list: model}
 }
@@ -93,25 +95,22 @@ func (v *View) View() string {
 		return base
 	}
 
-	insertAt := 1
-	if len(lines) > 1 && lines[1] == "" {
-		insertAt = 2
+	dataStart := 0
+	for dataStart < len(lines) && strings.TrimSpace(lines[dataStart]) == "" {
+		dataStart++
 	}
 
 	header := "  RELATED"
-	out := make([]string, 0, len(lines)+1)
-	out = append(out, lines[:insertAt]...)
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, "")
 	out = append(out, header)
-	out = append(out, lines[insertAt:]...)
+	out = append(out, lines[dataStart:]...)
 
-	for i := insertAt + 1; i < len(out); i++ {
-		if strings.TrimSpace(out[i]) == "" {
-			out = append(out[:i], out[i+1:]...)
-			break
-		}
+	for len(out) > len(lines) && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
 	}
 
-	return strings.Join(out, "\n")
+	return filterbar.Append(strings.Join(out, "\n"), v.list)
 }
 
 func (v *View) Breadcrumb() string { return "related" }
@@ -266,6 +265,7 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 	model.SetShowTitle(false)
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
+	filterbar.Setup(&model)
 	return &relationList{resource: resource, registry: registry, list: model, columns: columns}
 }
 
@@ -307,34 +307,32 @@ func (v *relationList) View() string {
 		return base
 	}
 
-	insertAt := 1
-	if len(lines) > 1 && lines[1] == "" {
-		insertAt = 2
+	dataStart := 0
+	for dataStart < len(lines) && strings.TrimSpace(lines[dataStart]) == "" {
+		dataStart++
 	}
 
 	label := resources.SingularName(relationBreadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	header := "  " + relationHeaderRowWithHint(v.columns, label, childHint)
-	out := make([]string, 0, len(lines)+1)
-	out = append(out, lines[:insertAt]...)
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, "")
 	out = append(out, header)
-	out = append(out, lines[insertAt:]...)
+	out = append(out, lines[dataStart:]...)
 
-	for i := insertAt + 1; i < len(out); i++ {
-		if strings.TrimSpace(out[i]) == "" {
-			out = append(out[:i], out[i+1:]...)
-			break
-		}
+	for len(out) > len(lines) && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
 	}
 
 	view := strings.Join(out, "\n")
 	if len(v.list.VisibleItems()) == 0 {
 		if provider, ok := v.resource.(resources.EmptyStateProvider); ok {
-			return view + "\n\n" + style.Muted.Render(provider.EmptyMessage(v.list.IsFiltered(), strings.TrimSpace(v.list.FilterValue())))
+			view += "\n\n" + style.Muted.Render(provider.EmptyMessage(v.list.IsFiltered(), strings.TrimSpace(v.list.FilterValue())))
+		} else {
+			view += "\n\n" + style.Muted.Render("No related items.")
 		}
-		return view + "\n\n" + style.Muted.Render("No related items.")
 	}
-	return view
+	return filterbar.Append(view, v.list)
 }
 
 func (v *relationList) Breadcrumb() string { return v.resource.Name() }
