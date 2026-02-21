@@ -3,6 +3,7 @@ package relatedview
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -300,7 +301,9 @@ func (v *relationList) View() string {
 		insertAt = 2
 	}
 
-	header := "  " + relationHeaderRow(v.columns, relationBreadcrumbLabel(v.resource.Name()))
+	label := resources.SingularName(relationBreadcrumbLabel(v.resource.Name()))
+	childHint := resources.SingularName(v.NextBreadcrumb())
+	header := "  " + relationHeaderRowWithHint(v.columns, label, childHint)
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:insertAt]...)
 	out = append(out, header)
@@ -401,11 +404,26 @@ func relationColumnWidths(columns []resources.TableColumn) []int {
 }
 
 func relationHeaderRow(columns []resources.TableColumn, firstLabel string) string {
+	return relationHeaderRowWithHint(columns, firstLabel, "")
+}
+
+func relationHeaderRowWithHint(columns []resources.TableColumn, firstLabel string, childHint string) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
 		name := col.Name
 		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
-			name = strings.ToUpper(firstLabel)
+			label := strings.ToUpper(firstLabel)
+			if childHint != "" {
+				hint := " → " + relationTitleCase(childHint)
+				visibleLen := len([]rune(label)) + len([]rune(hint))
+				padding := col.Width - visibleLen
+				if padding < 0 {
+					padding = 0
+				}
+				headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
+				continue
+			}
+			name = label
 		}
 		headers = append(headers, relationPadCell(name, col.Width))
 	}
@@ -428,6 +446,15 @@ func relationPadCell(value string, width int) string {
 		return value + strings.Repeat(" ", padding)
 	}
 	return value
+}
+
+func relationTitleCase(value string) string {
+	if value == "" {
+		return value
+	}
+	runes := []rune(value)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }
 
 func relationBreadcrumbLabel(resourceName string) string {

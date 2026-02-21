@@ -171,7 +171,9 @@ func (v *View) View() string {
 		insertAt = 2
 	}
 
-	header := "  " + headerRow(v.columns, breadcrumbLabel(v.resource.Name()))
+	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+	childHint := resources.SingularName(v.NextBreadcrumb())
+	header := "  " + headerRowWithHint(v.columns, label, childHint)
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:insertAt]...)
 	out = append(out, header)
@@ -292,11 +294,26 @@ func statusStyle(status string) string {
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {
+	return headerRowWithHint(columns, firstLabel, "")
+}
+
+func headerRowWithHint(columns []resources.TableColumn, firstLabel string, childHint string) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
 		name := col.Name
 		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
-			name = strings.ToUpper(firstLabel)
+			label := strings.ToUpper(firstLabel)
+			if childHint != "" {
+				hint := " → " + titleCase(childHint)
+				visibleLen := len([]rune(label)) + len([]rune(hint))
+				padding := col.Width - visibleLen
+				if padding < 0 {
+					padding = 0
+				}
+				headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
+				continue
+			}
+			name = label
 		}
 		headers = append(headers, padCell(name, col.Width))
 	}

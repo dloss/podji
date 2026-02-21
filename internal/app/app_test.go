@@ -41,11 +41,8 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	if len(lines) > m.height {
 		t.Fatalf("expected <= %d lines, got %d", m.height, len(lines))
 	}
-	if !strings.Contains(lines[0], "Apps") {
-		t.Fatalf("expected scope line to be preserved, got %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "Workloads") {
-		t.Fatalf("expected breadcrumb line to be preserved, got %q", lines[1])
+	if !strings.Contains(lines[0], "CONTEXT:") || !strings.Contains(lines[0], "[Apps]") {
+		t.Fatalf("expected nav line with context and lens, got %q", lines[0])
 	}
 }
 

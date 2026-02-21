@@ -42,9 +42,6 @@ type selectedBreadcrumbProvider interface {
 	SelectedBreadcrumb() string
 }
 
-type nextBreadcrumbPreviewer interface {
-	NextBreadcrumb() string
-}
 
 func New() Model {
 	registry := resources.DefaultRegistry()
@@ -161,10 +158,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 }
 
 func (m Model) View() string {
-	head := strings.Join([]string{
-		style.Scope.Render(m.scope()),
-		m.breadcrumb(),
-	}, "\n")
+	head := style.Scope.Render(m.navLine())
 	body := m.top().View()
 	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
 
@@ -188,47 +182,33 @@ func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
-func (m Model) breadcrumb() string {
-	if len(m.crumbs) == 0 {
-		return ""
+func (m Model) navLine() string {
+	parts := []string{
+		"CONTEXT: " + m.context,
+		"NAMESPACE: " + m.namespace,
 	}
-	if len(m.stack) == 1 {
-		base := style.Active.Render(titleCase(normalizeBreadcrumbPart(m.top().Breadcrumb())))
-		if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
-			next := strings.TrimSpace(previewer.NextBreadcrumb())
-			if next != "" {
-				base += style.Muted.Render(" > " + titleCase(normalizeBreadcrumbPart(next)))
-			}
+	if len(m.crumbs) > 1 {
+		for _, part := range m.crumbs[:len(m.crumbs)-1] {
+			parts = append(parts, formatCrumb(part))
 		}
-		return base
 	}
+	path := strings.Join(parts, " > ")
 
-	segments := make([]string, 0, len(m.crumbs))
-	for idx, part := range m.crumbs {
-		rendered := titleCase(part)
-		if idx == len(m.crumbs)-1 {
-			segments = append(segments, style.Active.Render(rendered))
-			continue
-		}
-		segments = append(segments, style.Crumb.Render(rendered))
+	lensTag := "[" + lenses[m.lens].name + "]"
+	gap := m.width - len([]rune(path)) - len([]rune(lensTag))
+	if gap < 2 {
+		gap = 2
 	}
-
-	hierarchy := strings.Join(segments, style.Crumb.Render(" > "))
-	if previewer, ok := m.top().(nextBreadcrumbPreviewer); ok {
-		next := strings.TrimSpace(previewer.NextBreadcrumb())
-		if next != "" {
-			hierarchy += style.Muted.Render(" > " + titleCase(normalizeBreadcrumbPart(next)))
-		}
-	}
-	return hierarchy
+	return path + strings.Repeat(" ", gap) + lensTag
 }
 
-func (m Model) scope() string {
-	return strings.Join([]string{
-		lenses[m.lens].name,
-		"ctx:" + m.context,
-		"ns:" + m.namespace,
-	}, "   ")
+func formatCrumb(crumb string) string {
+	if idx := strings.Index(crumb, ": "); idx >= 0 {
+		label := strings.ToUpper(resources.SingularName(crumb[:idx]))
+		value := crumb[idx+2:]
+		return label + ": " + value
+	}
+	return strings.ToUpper(resources.SingularName(crumb))
 }
 
 func (m Model) availableHeight() int {
@@ -236,9 +216,9 @@ func (m Model) availableHeight() int {
 		return 0
 	}
 
-	extra := 3
+	extra := 2 // 1 nav line + 1 footer line
 	if m.errorMsg != "" {
-		extra = 4
+		extra = 3
 	}
 
 	height := m.height - extra
@@ -253,7 +233,7 @@ func (m Model) bodyHeightLimit() int {
 		return 0
 	}
 
-	reserved := 3 // 2 header lines + 1 footer line
+	reserved := 2 // 1 nav line + 1 footer line
 	if m.errorMsg != "" {
 		reserved++
 	}
