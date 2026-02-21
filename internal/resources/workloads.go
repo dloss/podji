@@ -11,7 +11,7 @@ type Workloads struct {
 }
 
 func NewWorkloads() *Workloads {
-	return &Workloads{sortMode: "problem", scenario: "normal"}
+	return &Workloads{sortMode: "name", scenario: "normal"}
 }
 
 func (w *Workloads) Name() string { return "workloads" }
@@ -107,11 +107,11 @@ func (w *Workloads) TableRow(item ResourceItem) []string {
 }
 
 func (w *Workloads) ToggleSort() {
-	if w.sortMode == "problem" {
-		w.sortMode = "name"
+	if w.sortMode == "name" {
+		w.sortMode = "problem"
 		return
 	}
-	w.sortMode = "problem"
+	w.sortMode = "name"
 }
 
 func (w *Workloads) SortMode() string {

@@ -5,24 +5,8 @@ import (
 	"testing"
 )
 
-func TestWorkloadsProblemSortOrder(t *testing.T) {
+func TestWorkloadsDefaultNameSort(t *testing.T) {
 	w := NewWorkloads()
-	items := w.Items()
-	if len(items) == 0 {
-		t.Fatalf("expected mock workloads")
-	}
-
-	if items[0].Status != "Failed" {
-		t.Fatalf("expected first status Failed, got %q", items[0].Status)
-	}
-	if items[len(items)-1].Status != "Suspended" {
-		t.Fatalf("expected last status Suspended, got %q", items[len(items)-1].Status)
-	}
-}
-
-func TestWorkloadsToggleSortByName(t *testing.T) {
-	w := NewWorkloads()
-	w.ToggleSort()
 	items := w.Items()
 
 	if len(items) < 3 {
@@ -34,6 +18,22 @@ func TestWorkloadsToggleSortByName(t *testing.T) {
 	}
 	if items[1].Name != "cleanup-tmp" {
 		t.Fatalf("expected cleanup-tmp second, got %q", items[1].Name)
+	}
+}
+
+func TestWorkloadsToggleSortByProblem(t *testing.T) {
+	w := NewWorkloads()
+	w.ToggleSort()
+	items := w.Items()
+	if len(items) == 0 {
+		t.Fatalf("expected mock workloads")
+	}
+
+	if items[0].Status != "Failed" {
+		t.Fatalf("expected first status Failed, got %q", items[0].Status)
+	}
+	if items[len(items)-1].Status != "Suspended" {
+		t.Fatalf("expected last status Suspended, got %q", items[len(items)-1].Status)
 	}
 }
 

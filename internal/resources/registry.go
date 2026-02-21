@@ -41,22 +41,6 @@ func (r *Registry) Resources() []ResourceType {
 
 func defaultSort(items []ResourceItem) {
 	sort.SliceStable(items, func(i, j int) bool {
-		statusI := statusWeight(items[i].Status)
-		statusJ := statusWeight(items[j].Status)
-		if statusI != statusJ {
-			return statusI < statusJ
-		}
 		return items[i].Name < items[j].Name
 	})
-}
-
-func statusWeight(status string) int {
-	switch status {
-	case "CrashLoop", "Error", "Failed":
-		return 0
-	case "Pending", "Warning":
-		return 1
-	default:
-		return 2
-	}
 }
