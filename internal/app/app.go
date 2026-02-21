@@ -11,10 +11,17 @@ import (
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
+const (
+	scopeContext   = 0
+	scopeNamespace = 1
+	scopeLens      = 2
+)
+
 type snapshot struct {
 	stack  []viewstate.View
 	crumbs []string
 	lens   int
+	scope  int
 }
 
 type Model struct {
@@ -22,6 +29,7 @@ type Model struct {
 	stack     []viewstate.View
 	crumbs    []string
 	lens      int
+	scope     int
 	history   []snapshot
 	context   string
 	namespace string
@@ -61,6 +69,7 @@ func New() Model {
 		stack:     []viewstate.View{root},
 		crumbs:    []string{rootCrumb},
 		lens:      0,
+		scope:     scopeLens,
 		context:   "default",
 		namespace: "default",
 	}
@@ -110,15 +119,24 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			} else {
-				m.restoreHistory()
+			} else if m.scope == scopeLens {
+				m.saveHistory()
+				m.switchToScope(scopeNamespace)
+			} else if m.scope == scopeNamespace {
+				m.switchToScope(scopeContext)
 			}
 			return m, nil
 		case "n":
-			m.errorMsg = "namespace picker not wired yet"
+			if m.scope != scopeNamespace {
+				m.saveHistory()
+				m.switchToScope(scopeNamespace)
+			}
 			return m, nil
 		case "x":
-			m.errorMsg = "context picker not wired yet"
+			if m.scope != scopeContext {
+				m.saveHistory()
+				m.switchToScope(scopeContext)
+			}
 			return m, nil
 		default:
 			runes := []rune(msg.String())
@@ -142,6 +160,22 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	update := m.top().Update(msg)
 	switch update.Action {
 	case viewstate.Push:
+		if m.scope == scopeNamespace || m.scope == scopeContext {
+			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
+				if value := normalizeBreadcrumbPart(selected.SelectedBreadcrumb()); value != "" {
+					if idx := strings.Index(value, ": "); idx >= 0 {
+						name := value[idx+2:]
+						if m.scope == scopeNamespace {
+							m.namespace = name
+						} else {
+							m.context = name
+						}
+					}
+				}
+			}
+			m.restoreHistory()
+			return m, nil
+		}
 		if len(m.crumbs) > 0 {
 			committed := m.crumbs[len(m.crumbs)-1]
 			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
@@ -201,7 +235,7 @@ func (m *Model) saveHistory() {
 	copy(s, m.stack)
 	c := make([]string, len(m.crumbs))
 	copy(c, m.crumbs)
-	m.history = append(m.history, snapshot{stack: s, crumbs: c, lens: m.lens})
+	m.history = append(m.history, snapshot{stack: s, crumbs: c, lens: m.lens, scope: m.scope})
 }
 
 func (m *Model) restoreHistory() bool {
@@ -213,18 +247,57 @@ func (m *Model) restoreHistory() bool {
 	m.stack = last.stack
 	m.crumbs = last.crumbs
 	m.lens = last.lens
+	m.scope = last.scope
 	m.top().SetSize(m.width, m.availableHeight())
 	return true
 }
 
+func (m *Model) switchToScope(scope int) {
+	m.scope = scope
+	var res resources.ResourceType
+	switch scope {
+	case scopeNamespace:
+		res = m.registry.ResourceByKey('N')
+	case scopeContext:
+		res = m.registry.ResourceByKey('X')
+	default:
+		m.switchToLensRoot()
+		return
+	}
+	if res == nil {
+		return
+	}
+	view := listview.New(res, m.registry)
+	view.SetSize(m.width, m.availableHeight())
+	m.stack = []viewstate.View{view}
+	m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+}
+
 func (m Model) scopeLine() string {
 	sep := style.NavSep.Render(" > ")
-	return style.Scope.Render("Context: ") + style.ScopeValue.Render(m.context) +
-		sep +
-		style.Scope.Render("Namespace: ") + style.ScopeValue.Render(m.namespace)
+
+	contextLabel := style.Scope.Render("Context: ")
+	contextValue := style.ScopeValue.Render(m.context)
+	if m.scope == scopeContext {
+		contextLabel = style.ScopeActive.Render("Context: ")
+		contextValue = style.ScopeActiveValue.Render(m.context)
+	}
+
+	nsLabel := style.Scope.Render("Namespace: ")
+	nsValue := style.ScopeValue.Render(m.namespace)
+	if m.scope == scopeNamespace {
+		nsLabel = style.ScopeActive.Render("Namespace: ")
+		nsValue = style.ScopeActiveValue.Render(m.namespace)
+	}
+
+	return contextLabel + contextValue + sep + nsLabel + nsValue
 }
 
 func (m Model) breadcrumbLine() string {
+	if m.scope != scopeLens {
+		return style.Scope.Render("[" + m.crumbs[0] + "]")
+	}
+
 	lensTag := style.Scope.Render("[" + lenses[m.lens].name + "]")
 	if len(m.crumbs) <= 1 {
 		return lensTag
@@ -294,6 +367,7 @@ func clampViewLines(view string, maxLines int) string {
 }
 
 func (m *Model) switchToLensRoot() {
+	m.scope = scopeLens
 	l := lenses[m.lens]
 	res := m.registry.ResourceByKey(l.landingKey)
 	if res == nil {

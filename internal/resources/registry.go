@@ -18,6 +18,7 @@ func DefaultRegistry() *Registry {
 		NewNamespaces(),
 		NewNodes(),
 		NewEvents(),
+		NewContexts(),
 	}
 
 	byKey := make(map[rune]ResourceType, len(resources))

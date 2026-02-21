@@ -8,8 +8,10 @@ import (
 
 var (
 	Header      = lipgloss.NewStyle().Bold(true)
-	Scope       = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	ScopeValue  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	Scope            = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	ScopeValue       = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	ScopeActive      = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Bold(true)
+	ScopeActiveValue = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Bold(true)
 	Crumb       = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 	CrumbValue  = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 	Active      = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))

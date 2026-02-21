@@ -65,3 +65,4 @@ func NewSecrets() ResourceType     { return &stubResource{name: "secrets", key: 
 func NewNamespaces() ResourceType  { return &stubResource{name: "namespaces", key: 'N'} }
 func NewNodes() ResourceType       { return &stubResource{name: "nodes", key: 'O'} }
 func NewEvents() ResourceType      { return &stubResource{name: "events", key: 'E'} }
+func NewContexts() ResourceType    { return &stubResource{name: "contexts", key: 'X'} }
