@@ -1,0 +1,70 @@
+package resources
+
+import "strings"
+
+type Secrets struct{}
+
+func NewSecrets() *Secrets {
+	return &Secrets{}
+}
+
+func (s *Secrets) Name() string { return "secrets" }
+func (s *Secrets) Key() rune   { return 'K' }
+
+func (s *Secrets) Items() []ResourceItem {
+	items := []ResourceItem{
+		{Name: "api-gateway-tls", Kind: "kubernetes.io/tls", Status: "Healthy", Age: "14d"},
+		{Name: "auth-service-credentials", Kind: "Opaque", Status: "Healthy", Age: "21d"},
+		{Name: "default-token-x7m2k", Kind: "kubernetes.io/service-account-token", Status: "Healthy", Age: "180d"},
+		{Name: "docker-registry-creds", Kind: "kubernetes.io/dockerconfigjson", Status: "Healthy", Age: "90d"},
+		{Name: "payment-stripe-key", Kind: "Opaque", Status: "Healthy", Age: "5d"},
+		{Name: "postgres-credentials", Kind: "Opaque", Status: "Healthy", Age: "30d"},
+		{Name: "redis-password", Kind: "Opaque", Status: "Healthy", Age: "30d"},
+	}
+	s.Sort(items)
+	return items
+}
+
+func (s *Secrets) Sort(items []ResourceItem) {
+	defaultSort(items)
+}
+
+func (s *Secrets) Detail(item ResourceItem) DetailData {
+	kind := item.Kind
+	if kind == "" {
+		kind = "Opaque"
+	}
+	return DetailData{
+		StatusLine: "Healthy    type: " + kind + "    data-keys: 2    age: " + item.Age,
+		Events: []string{
+			"—   No recent events",
+		},
+		Labels: []string{
+			"app.kubernetes.io/managed-by=helm",
+		},
+	}
+}
+
+func (s *Secrets) Logs(item ResourceItem) []string {
+	return []string{
+		"Logs are not available for secrets.",
+	}
+}
+
+func (s *Secrets) Events(item ResourceItem) []string {
+	return []string{"—   No recent events"}
+}
+
+func (s *Secrets) YAML(item ResourceItem) string {
+	kind := item.Kind
+	if kind == "" {
+		kind = "Opaque"
+	}
+	return strings.TrimSpace(`apiVersion: v1
+kind: Secret
+metadata:
+  name: ` + item.Name + `
+type: ` + kind + `
+data:
+  <redacted>`)
+}
