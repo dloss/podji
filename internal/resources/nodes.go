@@ -114,6 +114,69 @@ func (n *Nodes) Events(item ResourceItem) []string {
 	return []string{"—   No recent events"}
 }
 
+func (n *Nodes) Describe(item ResourceItem) string {
+	role := "worker"
+	if strings.HasPrefix(item.Name, "control-plane") {
+		role = "control-plane"
+	}
+	ip := "10.0.1.1"
+	switch item.Name {
+	case "worker-01":
+		ip = "10.0.1.11"
+	case "worker-02":
+		ip = "10.0.1.12"
+	case "worker-03":
+		ip = "10.0.1.13"
+	case "worker-04":
+		ip = "10.0.1.14"
+	case "control-plane-01":
+		ip = "10.0.0.1"
+	case "control-plane-02":
+		ip = "10.0.0.2"
+	}
+	readyStatus := "True"
+	if item.Status == "NotReady" {
+		readyStatus = "False"
+	}
+	return "Name:               " + item.Name + "\n" +
+		"Roles:              " + role + "\n" +
+		"Labels:             kubernetes.io/hostname=" + item.Name + "\n" +
+		"                    node.kubernetes.io/instance-type=m5.xlarge\n" +
+		"                    topology.kubernetes.io/zone=us-east-1a\n" +
+		"                    node-role.kubernetes.io/" + role + "=\n" +
+		"Annotations:        node.alpha.kubernetes.io/ttl: 0\n" +
+		"CreationTimestamp:   <age: " + item.Age + ">\n" +
+		"Addresses:\n" +
+		"  InternalIP:  " + ip + "\n" +
+		"  Hostname:    " + item.Name + "\n" +
+		"Capacity:\n" +
+		"  cpu:                4\n" +
+		"  memory:             16384Mi\n" +
+		"  pods:               110\n" +
+		"  ephemeral-storage:  100Gi\n" +
+		"Allocatable:\n" +
+		"  cpu:                3920m\n" +
+		"  memory:             15896Mi\n" +
+		"  pods:               110\n" +
+		"  ephemeral-storage:  95Gi\n" +
+		"Conditions:\n" +
+		"  Type             Status\n" +
+		"  ----             ------\n" +
+		"  Ready            " + readyStatus + "\n" +
+		"  MemoryPressure   False\n" +
+		"  DiskPressure     False\n" +
+		"  PIDPressure      False\n" +
+		"System Info:\n" +
+		"  Kubelet Version:            v1.29.2\n" +
+		"  Container Runtime Version:  containerd://1.7.11\n" +
+		"  Kernel Version:             5.15.0-1051-aws\n" +
+		"  OS Image:                   Ubuntu 22.04.3 LTS\n" +
+		"  Operating System:           linux\n" +
+		"  Architecture:               amd64\n" +
+		"PodCIDR:            10.244.0.0/24\n" +
+		"Pods:               " + item.Ready
+}
+
 func (n *Nodes) YAML(item ResourceItem) string {
 	role := "worker"
 	if strings.HasPrefix(item.Name, "control-plane") {

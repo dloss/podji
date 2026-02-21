@@ -52,6 +52,10 @@ func (c *ContainerResource) YAML(item ResourceItem) string {
 	return c.parentRes.YAML(c.podItem)
 }
 
+func (c *ContainerResource) Describe(item ResourceItem) string {
+	return c.parentRes.Describe(c.podItem)
+}
+
 func (c *ContainerResource) TableColumns() []TableColumn {
 	return []TableColumn{
 		{Name: "NAME", Width: 16},

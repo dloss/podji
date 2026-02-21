@@ -84,6 +84,34 @@ func (s *Secrets) Events(item ResourceItem) []string {
 	return []string{"—   No recent events"}
 }
 
+func (s *Secrets) Describe(item ResourceItem) string {
+	kind := item.Kind
+	if kind == "" {
+		kind = "Opaque"
+	}
+	dataKeys := "  username:  8 bytes\n  password:  24 bytes"
+	switch kind {
+	case "kubernetes.io/tls":
+		dataKeys = "  tls.crt:  1164 bytes\n  tls.key:  1704 bytes"
+	case "kubernetes.io/service-account-token":
+		dataKeys = "  ca.crt:     1066 bytes\n  namespace:  7 bytes\n  token:      832 bytes"
+	case "kubernetes.io/dockerconfigjson":
+		dataKeys = "  .dockerconfigjson:  186 bytes"
+	}
+	return "Name:         " + item.Name + "\n" +
+		"Namespace:    " + ActiveNamespace + "\n" +
+		"Labels:       app.kubernetes.io/managed-by=helm\n" +
+		"Annotations:  meta.helm.sh/release-name: " + item.Name + "\n" +
+		"\n" +
+		"Type:  " + kind + "\n" +
+		"\n" +
+		"Data\n" +
+		"====\n" +
+		dataKeys + "\n" +
+		"\n" +
+		"Events:  <none>"
+}
+
 func (s *Secrets) YAML(item ResourceItem) string {
 	kind := item.Kind
 	if kind == "" {

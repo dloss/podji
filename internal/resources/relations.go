@@ -59,6 +59,13 @@ func (r *relatedResource) Events(item ResourceItem) []string {
 		"1m ago   Normal   Related   Opened from related panel",
 	}
 }
+func (r *relatedResource) Describe(item ResourceItem) string {
+	return "Name:         " + item.Name + "\n" +
+		"Namespace:    " + ActiveNamespace + "\n" +
+		"Relation:     " + r.name + "\n" +
+		"Status:       " + item.Status + "\n" +
+		"Age:          " + item.Age
+}
 func (r *relatedResource) YAML(item ResourceItem) string {
 	kind := "Pod"
 	apiVersion := "v1"
@@ -241,6 +248,26 @@ func (w *WorkloadPods) Logs(item ResourceItem) []string {
 }
 func (w *WorkloadPods) Events(item ResourceItem) []string {
 	return []string{"2m ago   Normal   Scheduled   Assigned to node worker-01"}
+}
+func (w *WorkloadPods) Describe(item ResourceItem) string {
+	return "Name:             " + item.Name + "\n" +
+		"Namespace:        " + ActiveNamespace + "\n" +
+		"Node:             worker-01/10.0.1.11\n" +
+		"Status:           " + item.Status + "\n" +
+		"IP:               10.244.1.35\n" +
+		"Controlled By:    ReplicaSet/" + w.workload.Name + "-7d9c7c9d4f\n" +
+		"Containers:\n" +
+		"  app:\n" +
+		"    Image:   ghcr.io/example/" + w.workload.Name + ":latest\n" +
+		"    Port:    8080/TCP\n" +
+		"    State:   Running\n" +
+		"  sidecar:\n" +
+		"    Image:   busybox:stable\n" +
+		"    State:   Running\n" +
+		"Events:\n" +
+		"  Type    Reason   Age  Message\n" +
+		"  ----    ------   ---  -------\n" +
+		"  Normal  Pulled   2m   Pulled container image"
 }
 func (w *WorkloadPods) YAML(item ResourceItem) string {
 	return strings.TrimSpace(`apiVersion: v1

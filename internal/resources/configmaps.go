@@ -79,6 +79,35 @@ func (c *ConfigMaps) Events(item ResourceItem) []string {
 	return []string{"—   No recent events"}
 }
 
+func (c *ConfigMaps) Describe(item ResourceItem) string {
+	return "Name:         " + item.Name + "\n" +
+		"Namespace:    " + ActiveNamespace + "\n" +
+		"Labels:       app.kubernetes.io/managed-by=helm\n" +
+		"              app.kubernetes.io/part-of=" + item.Name + "\n" +
+		"Annotations:  meta.helm.sh/release-name: " + item.Name + "\n" +
+		"\n" +
+		"Data\n" +
+		"====\n" +
+		"config.yaml:\n" +
+		"----\n" +
+		"server:\n" +
+		"  port: 8080\n" +
+		"  readTimeout: 30s\n" +
+		"logging:\n" +
+		"  level: info\n" +
+		"\n" +
+		"database.yaml:\n" +
+		"----\n" +
+		"host: postgres." + ActiveNamespace + ".svc.cluster.local\n" +
+		"port: 5432\n" +
+		"\n" +
+		"features.json:\n" +
+		"----\n" +
+		"{\"enableNewUI\": true, \"enableBetaAPI\": false}\n" +
+		"\n" +
+		"Events:  <none>"
+}
+
 func (c *ConfigMaps) YAML(item ResourceItem) string {
 	return strings.TrimSpace(`apiVersion: v1
 kind: ConfigMap

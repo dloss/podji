@@ -98,6 +98,15 @@ func (n *Namespaces) Events(item ResourceItem) []string {
 	return []string{"—   No recent events"}
 }
 
+func (n *Namespaces) Describe(item ResourceItem) string {
+	return "Name:          " + item.Name + "\n" +
+		"Labels:        kubernetes.io/metadata.name=" + item.Name + "\n" +
+		"Annotations:   <none>\n" +
+		"Status:        " + item.Status + "\n" +
+		"Age:           " + item.Age + "\n" +
+		"Events:        <none>"
+}
+
 func (n *Namespaces) YAML(item ResourceItem) string {
 	annotations := ""
 	extraLabels := ""

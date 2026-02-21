@@ -31,12 +31,15 @@ LIST VIEWS
   esc                  Clear filter
   s                    Toggle sort (workloads)
   v                    Cycle scenario (workloads)
+  d                    Describe
+  e                    Events
   y                    YAML
   R                    Related resources
   L                    Logs (direct)
   pgup / pgdn          Page up / down
 
 DETAIL VIEW
+  d                    Describe
   L                    Logs
   e                    Events
   y                    YAML

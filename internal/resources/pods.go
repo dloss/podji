@@ -108,6 +108,65 @@ func (p *Pods) Events(item ResourceItem) []string {
 	}
 }
 
+func (p *Pods) Describe(item ResourceItem) string {
+	return "Name:             " + item.Name + "\n" +
+		"Namespace:        " + ActiveNamespace + "\n" +
+		"Priority:         0\n" +
+		"Service Account:  default\n" +
+		"Node:             worker-03/10.0.1.13\n" +
+		"Start Time:       Sat, 19 Feb 2026 08:12:00 +0000\n" +
+		"Labels:           app=api\n" +
+		"                  tier=backend\n" +
+		"                  env=prod\n" +
+		"                  pod-template-hash=7c6c8d5f7d\n" +
+		"Status:           " + item.Status + "\n" +
+		"IP:               10.244.2.15\n" +
+		"Controlled By:    ReplicaSet/api-7c6c8d5f7d\n" +
+		"Containers:\n" +
+		"  api:\n" +
+		"    Image:          myco/api:v2.3.1\n" +
+		"    Port:           8080/TCP\n" +
+		"    State:          Running\n" +
+		"      Started:      Sat, 19 Feb 2026 08:12:10 +0000\n" +
+		"    Ready:          True\n" +
+		"    Restart Count:  0\n" +
+		"    Limits:\n" +
+		"      cpu:     1\n" +
+		"      memory:  512Mi\n" +
+		"    Requests:\n" +
+		"      cpu:     250m\n" +
+		"      memory:  256Mi\n" +
+		"    Liveness:   http-get http://:8080/healthz delay=15s period=10s\n" +
+		"    Readiness:  http-get http://:8080/readyz delay=5s period=5s\n" +
+		"    Mounts:\n" +
+		"      /etc/api from config (ro)\n" +
+		"  sidecar:\n" +
+		"    Image:          envoy:1.28\n" +
+		"    Port:           9901/TCP\n" +
+		"    State:          CrashLoopBackOff\n" +
+		"      Reason:       OOMKilled\n" +
+		"    Ready:          False\n" +
+		"    Restart Count:  " + item.Restarts + "\n" +
+		"    Limits:\n" +
+		"      cpu:     200m\n" +
+		"      memory:  128Mi\n" +
+		"    Requests:\n" +
+		"      cpu:     100m\n" +
+		"      memory:  64Mi\n" +
+		"Conditions:\n" +
+		"  Type              Status\n" +
+		"  Ready             False\n" +
+		"  ContainersReady   False\n" +
+		"  PodScheduled      True\n" +
+		"QOS Class:        Burstable\n" +
+		"Events:\n" +
+		"  Type     Reason      Age   Message\n" +
+		"  ----     ------      ---   -------\n" +
+		"  Warning  BackOff     10m   Back-off restarting failed container sidecar\n" +
+		"  Normal   Pulled      12m   Successfully pulled image \"envoy:1.28\"\n" +
+		"  Warning  OOMKilling  15m   Memory capped at 128Mi"
+}
+
 func (p *Pods) YAML(item ResourceItem) string {
 	return strings.TrimSpace(`apiVersion: v1
 kind: Pod

@@ -34,6 +34,7 @@ type ResourceType interface {
 	Logs(item ResourceItem) []string
 	Events(item ResourceItem) []string
 	YAML(item ResourceItem) string
+	Describe(item ResourceItem) string
 }
 
 // TableResource lets a resource define custom table columns and row rendering.

@@ -100,6 +100,31 @@ func (e *Events) Events(item ResourceItem) []string {
 	return d.Events
 }
 
+func (e *Events) Describe(item ResourceItem) string {
+	parts := strings.SplitN(item.Name, ".", 2)
+	object := parts[0]
+	reason := ""
+	if len(parts) > 1 {
+		reason = parts[1]
+	}
+	d := e.Detail(item)
+	message := "Event occurred"
+	if len(d.Events) > 0 {
+		evParts := strings.SplitN(d.Events[0], "   ", 4)
+		if len(evParts) >= 4 {
+			message = strings.TrimSpace(evParts[3])
+		}
+	}
+	return "Name:             " + item.Name + "\n" +
+		"Namespace:        " + ActiveNamespace + "\n" +
+		"Involved Object:  " + object + "\n" +
+		"Reason:           " + reason + "\n" +
+		"Message:          " + message + "\n" +
+		"Type:             " + item.Kind + "\n" +
+		"Count:            3\n" +
+		"Age:              " + item.Age
+}
+
 func (e *Events) YAML(item ResourceItem) string {
 	parts := strings.SplitN(item.Name, ".", 2)
 	object := parts[0]

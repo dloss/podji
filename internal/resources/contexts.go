@@ -116,6 +116,12 @@ func (c *Contexts) Events(item ResourceItem) []string {
 	return []string{"—   Contexts do not produce events"}
 }
 
+func (c *Contexts) Describe(item ResourceItem) string {
+	return "Name:      " + item.Name + "\n" +
+		"Status:    " + item.Status + "\n" +
+		"Age:       " + item.Age
+}
+
 func (c *Contexts) YAML(item ResourceItem) string {
 	cluster := item.Name
 	user := "admin"

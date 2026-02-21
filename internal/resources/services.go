@@ -124,6 +124,35 @@ func (s *Services) Events(item ResourceItem) []string {
 	return []string{"—   No recent events"}
 }
 
+func (s *Services) Describe(item ResourceItem) string {
+	svcType := item.Kind
+	if svcType == "" {
+		svcType = "ClusterIP"
+	}
+	clusterIP := serviceClusterIP(item.Name, svcType)
+	endpoints := item.Ready
+	if endpoints == "" {
+		endpoints = "0 endpoints"
+	}
+	return "Name:              " + item.Name + "\n" +
+		"Namespace:         " + ActiveNamespace + "\n" +
+		"Labels:            app=" + item.Name + "\n" +
+		"                   app.kubernetes.io/managed-by=helm\n" +
+		"Annotations:       <none>\n" +
+		"Selector:          app=" + item.Name + "\n" +
+		"Type:              " + svcType + "\n" +
+		"IP Family Policy:  SingleStack\n" +
+		"IP Families:       IPv4\n" +
+		"IP:                " + clusterIP + "\n" +
+		"Port:              http  80/TCP\n" +
+		"TargetPort:        8080/TCP\n" +
+		"Port:              metrics  9090/TCP\n" +
+		"TargetPort:        9090/TCP\n" +
+		"Endpoints:         " + endpoints + "\n" +
+		"Session Affinity:  None\n" +
+		"Events:            <none>"
+}
+
 func (s *Services) YAML(item ResourceItem) string {
 	svcType := item.Kind
 	if svcType == "" {

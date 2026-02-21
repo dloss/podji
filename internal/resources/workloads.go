@@ -232,6 +232,39 @@ func (w *Workloads) Events(item ResourceItem) []string {
 	}
 }
 
+func (w *Workloads) Describe(item ResourceItem) string {
+	kind := "Deployment"
+	extra := ""
+	switch item.Kind {
+	case "STS":
+		kind = "StatefulSet"
+	case "DS":
+		kind = "DaemonSet"
+	case "JOB":
+		kind = "Job"
+		extra = "Completions:      1\nParallelism:      1\nBackoff Limit:    3\n"
+	case "CJ":
+		kind = "CronJob"
+		extra = "Schedule:             0 2 * * *\nConcurrency Policy:   Forbid\nSuspend:              False\n"
+	}
+
+	return "Name:             " + item.Name + "\n" +
+		"Namespace:        " + ActiveNamespace + "\n" +
+		"Kind:             " + kind + "\n" +
+		"Selector:         app=" + item.Name + "\n" +
+		"Labels:           app=" + item.Name + "\n" +
+		"                  team=platform\n" +
+		extra +
+		"Replicas:         " + item.Ready + "\n" +
+		"Status:           " + item.Status + "\n" +
+		"Age:              " + item.Age + "\n" +
+		"Events:\n" +
+		"  Type    Reason      Age  Message\n" +
+		"  ----    ------      ---  -------\n" +
+		"  Normal  Reconciled  2m   Workload " + item.Name + " is up to date\n" +
+		"  Normal  Scaling     15m  Replica count evaluated"
+}
+
 func (w *Workloads) YAML(item ResourceItem) string {
 	apiVersion := "apps/v1"
 	kind := "Deployment"

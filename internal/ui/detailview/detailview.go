@@ -7,6 +7,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/relatedview"
@@ -39,6 +40,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				return viewstate.Update{Action: viewstate.Push, Next: v.ContainerViewFactory(v.item, v.resource)}
 			}
 			return viewstate.Update{Action: viewstate.Push, Next: logview.New(v.item, v.resource)}
+		case "d":
+			return viewstate.Update{Action: viewstate.Push, Next: describeview.New(v.item, v.resource)}
 		case "e":
 			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
@@ -86,7 +89,7 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  L logs  R related  e events  y yaml  ? help"
+	return "backspace back  d describe  L logs  R related  e events  y yaml  ? help"
 }
 
 func (v *View) SetSize(width, height int) {

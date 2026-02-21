@@ -98,6 +98,44 @@ func (d *Deployments) Events(item ResourceItem) []string {
 	}
 }
 
+func (d *Deployments) Describe(item ResourceItem) string {
+	return "Name:                   " + item.Name + "\n" +
+		"Namespace:              " + ActiveNamespace + "\n" +
+		"CreationTimestamp:      Mon, 10 Feb 2026 14:00:00 +0000\n" +
+		"Labels:                 app=" + item.Name + "\n" +
+		"                        app.kubernetes.io/managed-by=helm\n" +
+		"Annotations:            deployment.kubernetes.io/revision: 12\n" +
+		"Selector:               app=" + item.Name + "\n" +
+		"Replicas:               " + item.Ready + " updated | " + item.Ready + " available\n" +
+		"StrategyType:           RollingUpdate\n" +
+		"RollingUpdateStrategy:  25% max unavailable, 25% max surge\n" +
+		"Pod Template:\n" +
+		"  Labels:  app=" + item.Name + "\n" +
+		"           tier=backend\n" +
+		"  Containers:\n" +
+		"   " + item.Name + ":\n" +
+		"    Image:        ghcr.io/example/" + item.Name + ":v2.3.1\n" +
+		"    Port:         8080/TCP\n" +
+		"    Liveness:     http-get http://:8080/healthz delay=15s period=10s\n" +
+		"    Readiness:    http-get http://:8080/readyz delay=5s period=5s\n" +
+		"    Limits:\n" +
+		"      cpu:     1\n" +
+		"      memory:  512Mi\n" +
+		"    Requests:\n" +
+		"      cpu:     250m\n" +
+		"      memory:  256Mi\n" +
+		"Conditions:\n" +
+		"  Type           Status  Reason\n" +
+		"  ----           ------  ------\n" +
+		"  Available      True    MinimumReplicasAvailable\n" +
+		"  Progressing    True    NewReplicaSetAvailable\n" +
+		"Events:\n" +
+		"  Type    Reason             Age  Message\n" +
+		"  ----    ------             ---  -------\n" +
+		"  Normal  ScalingReplicaSet  5m   Scaled up replica set " + item.Name + "-7d8f9c to 2\n" +
+		"  Normal  ScalingReplicaSet  3d   Scaled down replica set " + item.Name + "-6c7e8b to 0"
+}
+
 func (d *Deployments) YAML(item ResourceItem) string {
 	return strings.TrimSpace(`apiVersion: apps/v1
 kind: Deployment

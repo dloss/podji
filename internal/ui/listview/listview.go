@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/podpickerview"
@@ -162,6 +164,20 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   relatedview.New(selected.data, v.resource, v.registry),
 				}
 			}
+		case "e":
+			if selected, ok := v.list.SelectedItem().(item); ok {
+				return viewstate.Update{
+					Action: viewstate.Push,
+					Next:   eventview.New(selected.data, v.resource),
+				}
+			}
+		case "d":
+			if selected, ok := v.list.SelectedItem().(item); ok {
+				return viewstate.Update{
+					Action: viewstate.Push,
+					Next:   describeview.New(selected.data, v.resource),
+				}
+			}
 		}
 	}
 
@@ -227,7 +243,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "pgup prev-page  pgdn next-page")
 	}
 	if strings.EqualFold(v.resource.Name(), "workloads") {
-		parts = append(parts, "-> pods", "L logs", "R related", "y yaml", "/ filter", "tab view")
+		parts = append(parts, "-> pods", "d describe", "e events", "L logs", "R related", "y yaml", "/ filter", "tab view")
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
 			parts = append(parts, "s sort:"+v.sortLabel)
 		}
@@ -240,7 +256,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "-> logs", "/ filter", "esc clear", "backspace back")
 		return strings.Join(parts, "  ")
 	}
-	parts = append(parts, "L logs", "R related", "y yaml", "/ filter", "esc clear", "? help", "q quit")
+	parts = append(parts, "d describe", "e events", "L logs", "R related", "y yaml", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
 }
 
