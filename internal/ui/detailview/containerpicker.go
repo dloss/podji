@@ -86,7 +86,7 @@ func (v *ContainerPicker) View() string {
 		insertAt = 2
 	}
 
-	header := "  CONTAINERS"
+	header := "  CONTAINER"
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:insertAt]...)
 	out = append(out, header)

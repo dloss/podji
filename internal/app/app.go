@@ -158,7 +158,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 }
 
 func (m Model) View() string {
-	head := style.Scope.Render(m.navLine())
+	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	body := m.top().View()
 	footer := style.Footer.Render(strings.TrimSpace(m.top().Footer() + "  home top  shift+home default"))
 
@@ -182,33 +182,34 @@ func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
-func (m Model) navLine() string {
-	parts := []string{
-		"CONTEXT: " + m.context,
-		"NAMESPACE: " + m.namespace,
-	}
-	if len(m.crumbs) > 1 {
-		for _, part := range m.crumbs[:len(m.crumbs)-1] {
-			parts = append(parts, formatCrumb(part))
-		}
-	}
-	path := strings.Join(parts, " > ")
+func (m Model) scopeLine() string {
+	sep := style.NavSep.Render(" > ")
+	return style.Scope.Render("Context: ") + style.ScopeValue.Render(m.context) +
+		sep +
+		style.Scope.Render("Namespace: ") + style.ScopeValue.Render(m.namespace)
+}
 
-	lensTag := "[" + lenses[m.lens].name + "]"
-	gap := m.width - len([]rune(path)) - len([]rune(lensTag))
-	if gap < 2 {
-		gap = 2
+func (m Model) breadcrumbLine() string {
+	lensTag := style.Scope.Render("[" + lenses[m.lens].name + "]")
+	if len(m.crumbs) <= 1 {
+		return lensTag
 	}
-	return path + strings.Repeat(" ", gap) + lensTag
+
+	sep := style.NavSep.Render(" > ")
+	segments := make([]string, 0, len(m.crumbs)-1)
+	for _, part := range m.crumbs[:len(m.crumbs)-1] {
+		segments = append(segments, formatCrumb(part))
+	}
+	return lensTag + "  " + strings.Join(segments, sep)
 }
 
 func formatCrumb(crumb string) string {
 	if idx := strings.Index(crumb, ": "); idx >= 0 {
-		label := strings.ToUpper(resources.SingularName(crumb[:idx]))
+		label := titleCase(resources.SingularName(crumb[:idx]))
 		value := crumb[idx+2:]
-		return label + ": " + value
+		return style.Crumb.Render(label+": ") + style.CrumbValue.Render(value)
 	}
-	return strings.ToUpper(resources.SingularName(crumb))
+	return style.Crumb.Render(titleCase(resources.SingularName(crumb)))
 }
 
 func (m Model) availableHeight() int {
@@ -216,9 +217,9 @@ func (m Model) availableHeight() int {
 		return 0
 	}
 
-	extra := 2 // 1 nav line + 1 footer line
+	extra := 3 // 2 header lines + 1 footer line
 	if m.errorMsg != "" {
-		extra = 3
+		extra = 4
 	}
 
 	height := m.height - extra
@@ -233,7 +234,7 @@ func (m Model) bodyHeightLimit() int {
 		return 0
 	}
 
-	reserved := 2 // 1 nav line + 1 footer line
+	reserved := 3 // 2 header lines + 1 footer line
 	if m.errorMsg != "" {
 		reserved++
 	}
