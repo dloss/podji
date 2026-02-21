@@ -116,7 +116,19 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.lens = (m.lens + 1) % len(lenses)
 			m.switchToLensRoot()
 			return m, nil
-		case "backspace", "h", "left", "esc":
+		case "backspace", "esc":
+			if len(m.stack) > 1 {
+				m.stack = m.stack[:len(m.stack)-1]
+				m.crumbs = m.crumbs[:len(m.crumbs)-1]
+				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+			} else if m.scope == scopeLens {
+				m.saveHistory()
+				m.switchToScope(scopeNamespace)
+			} else if m.scope == scopeNamespace || m.scope == scopeContext {
+				m.restoreHistory()
+			}
+			return m, nil
+		case "h", "left":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
@@ -125,6 +137,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.saveHistory()
 				m.switchToScope(scopeNamespace)
 			} else if m.scope == scopeNamespace {
+				m.saveHistory()
 				m.switchToScope(scopeContext)
 			}
 			return m, nil
