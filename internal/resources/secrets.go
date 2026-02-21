@@ -89,11 +89,29 @@ func (s *Secrets) YAML(item ResourceItem) string {
 	if kind == "" {
 		kind = "Opaque"
 	}
+	dataKeys := `  username: <redacted>
+  password: <redacted>`
+	switch kind {
+	case "kubernetes.io/tls":
+		dataKeys = `  tls.crt: <redacted>
+  tls.key: <redacted>`
+	case "kubernetes.io/service-account-token":
+		dataKeys = `  ca.crt: <redacted>
+  namespace: <redacted>
+  token: <redacted>`
+	case "kubernetes.io/dockerconfigjson":
+		dataKeys = `  .dockerconfigjson: <redacted>`
+	}
 	return strings.TrimSpace(`apiVersion: v1
 kind: Secret
 metadata:
   name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app.kubernetes.io/managed-by: helm
+  annotations:
+    meta.helm.sh/release-name: ` + item.Name + `
 type: ` + kind + `
 data:
-  <redacted>`)
+` + dataKeys)
 }

@@ -129,13 +129,30 @@ func (s *Services) YAML(item ResourceItem) string {
 	if svcType == "" {
 		svcType = "ClusterIP"
 	}
+	clusterIP := serviceClusterIP(item.Name, svcType)
 	return strings.TrimSpace(`apiVersion: v1
 kind: Service
 metadata:
   name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: ` + item.Name + `
+    app.kubernetes.io/managed-by: helm
 spec:
   type: ` + svcType + `
+  selector:
+    app: ` + item.Name + `
   ports:
-  - port: 80
-    targetPort: 8080`)
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  clusterIP: ` + clusterIP + `
+  sessionAffinity: None
+status:
+  loadBalancer: {}`)
 }

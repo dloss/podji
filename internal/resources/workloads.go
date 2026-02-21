@@ -233,5 +233,113 @@ func (w *Workloads) Events(item ResourceItem) []string {
 }
 
 func (w *Workloads) YAML(item ResourceItem) string {
-	return strings.TrimSpace("kind: Workload\nmetadata:\n  name: " + item.Name + "\nspec:\n  kind: " + item.Kind)
+	apiVersion := "apps/v1"
+	kind := "Deployment"
+	spec := `  replicas: 2
+  selector:
+    matchLabels:
+      app: ` + item.Name + `
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ` + item.Name + `
+    spec:
+      containers:
+      - name: ` + item.Name + `
+        image: ghcr.io/example/` + item.Name + `:latest
+        ports:
+        - containerPort: 8080`
+
+	switch item.Kind {
+	case "STS":
+		kind = "StatefulSet"
+		spec = `  replicas: 3
+  serviceName: ` + item.Name + `
+  selector:
+    matchLabels:
+      app: ` + item.Name + `
+  template:
+    metadata:
+      labels:
+        app: ` + item.Name + `
+    spec:
+      containers:
+      - name: ` + item.Name + `
+        image: ghcr.io/example/` + item.Name + `:latest
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/` + item.Name + `
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi`
+	case "DS":
+		kind = "DaemonSet"
+		spec = `  selector:
+    matchLabels:
+      app: ` + item.Name + `
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ` + item.Name + `
+    spec:
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: ` + item.Name + `
+        image: ghcr.io/example/` + item.Name + `:latest
+        ports:
+        - containerPort: 9100`
+	case "JOB":
+		apiVersion = "batch/v1"
+		kind = "Job"
+		spec = `  backoffLimit: 3
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: ` + item.Name + `
+        image: ghcr.io/example/` + item.Name + `:latest
+        command: ["./run-job"]`
+	case "CJ":
+		apiVersion = "batch/v1"
+		kind = "CronJob"
+		spec = `  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: ` + item.Name + `
+            image: ghcr.io/example/` + item.Name + `:latest
+            command: ["./run-job"]`
+	}
+
+	return strings.TrimSpace(`apiVersion: ` + apiVersion + `
+kind: ` + kind + `
+metadata:
+  name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: ` + item.Name + `
+    team: platform
+    app.kubernetes.io/managed-by: helm
+spec:
+` + spec)
 }

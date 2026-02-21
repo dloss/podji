@@ -99,10 +99,29 @@ func (n *Namespaces) Events(item ResourceItem) []string {
 }
 
 func (n *Namespaces) YAML(item ResourceItem) string {
+	annotations := ""
+	extraLabels := ""
+	switch item.Name {
+	case "production":
+		extraLabels = "\n    env: production\n    team: platform"
+		annotations = "\n  annotations:\n    scheduler.alpha.kubernetes.io/node-selector: env=production"
+	case "staging":
+		extraLabels = "\n    env: staging\n    team: platform"
+	case "monitoring":
+		extraLabels = "\n    app.kubernetes.io/managed-by: helm"
+	case "kube-system":
+		extraLabels = "\n    kubernetes.io/cluster-service: \"true\""
+	}
 	return strings.TrimSpace(`apiVersion: v1
 kind: Namespace
 metadata:
   name: ` + item.Name + `
+  labels:
+    kubernetes.io/metadata.name: ` + item.Name + extraLabels + annotations + `
+  uid: a1b2c3d4-e5f6-7890-abcd-ef0123456789
+spec:
+  finalizers:
+  - kubernetes
 status:
   phase: ` + item.Status)
 }

@@ -112,13 +112,100 @@ func (p *Pods) YAML(item ResourceItem) string {
 	return strings.TrimSpace(`apiVersion: v1
 kind: Pod
 metadata:
-  name: api-7c6c8d5f7d-x8p2k
+  name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: api
+    tier: backend
+    env: prod
+    pod-template-hash: 7c6c8d5f7d
+  ownerReferences:
+  - apiVersion: apps/v1
+    kind: ReplicaSet
+    name: api-7c6c8d5f7d
+    uid: 3a4b5c6d-7e8f-9a0b-1c2d-3e4f5a6b7c8d
 spec:
+  nodeName: worker-03
+  serviceAccountName: default
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 30
+  dnsPolicy: ClusterFirst
   containers:
   - name: api
     image: myco/api:v2.3.1
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    readinessProbe:
+      httpGet:
+        path: /readyz
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    volumeMounts:
+    - name: config
+      mountPath: /etc/api
+      readOnly: true
   - name: sidecar
     image: envoy:1.28
+    ports:
+    - containerPort: 9901
+      protocol: TCP
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  volumes:
+  - name: config
+    configMap:
+      name: api-gateway-config
 status:
-  phase: Running`)
+  phase: ` + item.Status + `
+  podIP: 10.244.2.15
+  hostIP: 10.0.1.13
+  startTime: "2026-02-19T08:12:00Z"
+  qosClass: Burstable
+  conditions:
+  - type: Ready
+    status: "True"
+    lastTransitionTime: "2026-02-19T08:12:30Z"
+  - type: ContainersReady
+    status: "True"
+    lastTransitionTime: "2026-02-19T08:12:30Z"
+  - type: PodScheduled
+    status: "True"
+    lastTransitionTime: "2026-02-19T08:12:00Z"
+  containerStatuses:
+  - name: api
+    ready: true
+    restartCount: 0
+    state:
+      running:
+        startedAt: "2026-02-19T08:12:10Z"
+    image: myco/api:v2.3.1
+    imageID: docker-pullable://myco/api@sha256:a1b2c3d4e5f6
+  - name: sidecar
+    ready: true
+    restartCount: ` + item.Restarts + `
+    state:
+      running:
+        startedAt: "2026-02-19T08:12:12Z"
+    image: envoy:1.28
+    imageID: docker-pullable://envoy@sha256:f6e5d4c3b2a1`)
 }

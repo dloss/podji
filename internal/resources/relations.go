@@ -60,7 +60,109 @@ func (r *relatedResource) Events(item ResourceItem) []string {
 	}
 }
 func (r *relatedResource) YAML(item ResourceItem) string {
-	return strings.TrimSpace("kind: Related\nmetadata:\n  name: " + item.Name + "\n  relation: " + r.name)
+	kind := "Pod"
+	apiVersion := "v1"
+	extraSpec := ""
+
+	switch {
+	case strings.HasPrefix(r.name, "backends"):
+		kind = "Pod"
+		extraSpec = `
+  nodeName: worker-01
+  containers:
+  - name: app
+    image: ghcr.io/example/` + item.Name + `:latest
+    ports:
+    - containerPort: 8080
+status:
+  phase: ` + item.Status + `
+  podIP: 10.244.1.22`
+	case strings.HasPrefix(r.name, "consumers"):
+		apiVersion = "apps/v1"
+		kind = "Deployment"
+		if item.Kind == "JOB" {
+			apiVersion = "batch/v1"
+			kind = "Job"
+		}
+		extraSpec = `
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ` + item.Name
+	case strings.HasPrefix(r.name, "services"):
+		kind = "Service"
+		extraSpec = `
+  type: ClusterIP
+  selector:
+    app: ` + item.Name + `
+  ports:
+  - port: 80
+    targetPort: 8080`
+	case strings.HasPrefix(r.name, "config"):
+		if strings.HasSuffix(item.Name, "-secret") {
+			kind = "Secret"
+			extraSpec = `
+type: Opaque
+data:
+  username: <redacted>
+  password: <redacted>`
+		} else {
+			kind = "ConfigMap"
+			extraSpec = `
+data:
+  config.yaml: |
+    server:
+      port: 8080`
+		}
+	case strings.HasPrefix(r.name, "storage"):
+		kind = "PersistentVolumeClaim"
+		extraSpec = `
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp3
+status:
+  phase: Bound`
+	case strings.HasPrefix(r.name, "jobs"):
+		apiVersion = "batch/v1"
+		kind = "Job"
+		extraSpec = `
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: job
+        image: ghcr.io/example/` + item.Name + `:latest`
+	case strings.HasPrefix(r.name, "owner"):
+		apiVersion = "apps/v1"
+		kind = "Deployment"
+		extraSpec = `
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ` + item.Name
+	case strings.HasPrefix(r.name, "mounted-by"):
+		kind = "Pod"
+		extraSpec = `
+  containers:
+  - name: app
+    volumeMounts:
+    - name: data
+      mountPath: /var/lib/data`
+	}
+
+	return strings.TrimSpace(`apiVersion: ` + apiVersion + `
+kind: ` + kind + `
+metadata:
+  name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: ` + item.Name + `
+spec:` + extraSpec)
 }
 func (r *relatedResource) EmptyMessage(filtered bool, filter string) string {
 	if filtered {
@@ -141,7 +243,51 @@ func (w *WorkloadPods) Events(item ResourceItem) []string {
 	return []string{"2m ago   Normal   Scheduled   Assigned to node worker-01"}
 }
 func (w *WorkloadPods) YAML(item ResourceItem) string {
-	return strings.TrimSpace("kind: Pod\nmetadata:\n  name: " + item.Name + "\n  labels:\n    workload: " + w.workload.Name)
+	return strings.TrimSpace(`apiVersion: v1
+kind: Pod
+metadata:
+  name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: ` + w.workload.Name + `
+    pod-template-hash: 7d9c7c9d4f
+  ownerReferences:
+  - apiVersion: apps/v1
+    kind: ReplicaSet
+    name: ` + w.workload.Name + `-7d9c7c9d4f
+spec:
+  nodeName: worker-01
+  serviceAccountName: default
+  containers:
+  - name: app
+    image: ghcr.io/example/` + w.workload.Name + `:latest
+    ports:
+    - containerPort: 8080
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  - name: sidecar
+    image: busybox:stable
+status:
+  phase: ` + item.Status + `
+  podIP: 10.244.1.35
+  hostIP: 10.0.1.11
+  conditions:
+  - type: Ready
+    status: "True"
+  containerStatuses:
+  - name: app
+    ready: true
+    restartCount: 0
+    image: ghcr.io/example/` + w.workload.Name + `:latest
+  - name: sidecar
+    ready: true
+    restartCount: 0
+    image: busybox:stable`)
 }
 func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
 	if filtered {

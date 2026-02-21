@@ -84,7 +84,33 @@ func (c *ConfigMaps) YAML(item ResourceItem) string {
 kind: ConfigMap
 metadata:
   name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: ` + item.Name + `
+  annotations:
+    meta.helm.sh/release-name: ` + item.Name + `
 data:
   config.yaml: |
-    # configuration for ` + item.Name)
+    server:
+      port: 8080
+      readTimeout: 30s
+      writeTimeout: 30s
+    logging:
+      level: info
+      format: json
+    metrics:
+      enabled: true
+      port: 9090
+  database.yaml: |
+    host: postgres.` + ActiveNamespace + `.svc.cluster.local
+    port: 5432
+    sslMode: require
+    maxConnections: 25
+  features.json: |
+    {
+      "enableNewUI": true,
+      "enableBetaAPI": false,
+      "maintenanceMode": false
+    }`)
 }

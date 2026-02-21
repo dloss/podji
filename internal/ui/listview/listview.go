@@ -14,6 +14,7 @@ import (
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/podpickerview"
 	"github.com/dloss/podji/internal/ui/relatedview"
+	"github.com/dloss/podji/internal/ui/yamlview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -147,6 +148,13 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.refreshItems()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
+		case "y":
+			if selected, ok := v.list.SelectedItem().(item); ok {
+				return viewstate.Update{
+					Action: viewstate.Push,
+					Next:   yamlview.New(selected.data, v.resource),
+				}
+			}
 		case "R":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
@@ -219,7 +227,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "pgup prev-page  pgdn next-page")
 	}
 	if strings.EqualFold(v.resource.Name(), "workloads") {
-		parts = append(parts, "-> pods", "L logs", "R related", "/ filter", "tab view")
+		parts = append(parts, "-> pods", "L logs", "R related", "y yaml", "/ filter", "tab view")
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
 			parts = append(parts, "s sort:"+v.sortLabel)
 		}
@@ -232,7 +240,7 @@ func (v *View) Footer() string {
 		parts = append(parts, "-> logs", "/ filter", "esc clear", "backspace back")
 		return strings.Join(parts, "  ")
 	}
-	parts = append(parts, "L logs", "R related", "/ filter", "esc clear", "? help", "q quit")
+	parts = append(parts, "L logs", "R related", "y yaml", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
 }
 

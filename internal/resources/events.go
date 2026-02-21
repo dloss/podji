@@ -107,12 +107,51 @@ func (e *Events) YAML(item ResourceItem) string {
 	if len(parts) > 1 {
 		reason = parts[1]
 	}
+
+	d := e.Detail(item)
+	message := "Event occurred"
+	if len(d.Events) > 0 {
+		// Extract message from the last segment of the event line.
+		evParts := strings.SplitN(d.Events[0], "   ", 4)
+		if len(evParts) >= 4 {
+			message = strings.TrimSpace(evParts[3])
+		}
+	}
+
+	objKind := "Pod"
+	objAPIVersion := "v1"
+	if strings.Contains(object, "worker-") && !strings.Contains(object, "-") || reason == "NodeNotReady" {
+		objKind = "Node"
+	}
+	if reason == "ScalingReplicaSet" {
+		objKind = "Deployment"
+		objAPIVersion = "apps/v1"
+	}
+	if reason == "EnsuredLoadBalancer" {
+		objKind = "Service"
+	}
+
 	return strings.TrimSpace(`apiVersion: v1
 kind: Event
 metadata:
-  name: ` + item.Name + `
+  name: ` + item.Name + `.17a3b4c5d6e7f8
+  namespace: ` + ActiveNamespace + `
+  creationTimestamp: "2026-02-21T09:50:00Z"
 involvedObject:
+  apiVersion: ` + objAPIVersion + `
+  kind: ` + objKind + `
   name: ` + object + `
+  namespace: ` + ActiveNamespace + `
+  uid: f1e2d3c4-b5a6-9788-7654-321fedcba098
 reason: ` + reason + `
-type: ` + item.Kind)
+message: ` + message + `
+type: ` + item.Kind + `
+count: 3
+firstTimestamp: "2026-02-21T09:45:00Z"
+lastTimestamp: "2026-02-21T09:50:00Z"
+source:
+  component: kubelet
+  host: worker-03
+reportingComponent: kubelet
+reportingInstance: worker-03`)
 }

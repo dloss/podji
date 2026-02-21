@@ -115,12 +115,82 @@ func (n *Nodes) Events(item ResourceItem) []string {
 }
 
 func (n *Nodes) YAML(item ResourceItem) string {
+	role := "worker"
+	if strings.HasPrefix(item.Name, "control-plane") {
+		role = "control-plane"
+	}
+	ip := "10.0.1.1"
+	switch item.Name {
+	case "worker-01":
+		ip = "10.0.1.11"
+	case "worker-02":
+		ip = "10.0.1.12"
+	case "worker-03":
+		ip = "10.0.1.13"
+	case "worker-04":
+		ip = "10.0.1.14"
+	case "control-plane-01":
+		ip = "10.0.0.1"
+	case "control-plane-02":
+		ip = "10.0.0.2"
+	}
+	readyStatus := "True"
+	if item.Status == "NotReady" {
+		readyStatus = "False"
+	}
 	return strings.TrimSpace(`apiVersion: v1
 kind: Node
 metadata:
   name: ` + item.Name + `
+  labels:
+    kubernetes.io/hostname: ` + item.Name + `
+    kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+    node.kubernetes.io/instance-type: m5.xlarge
+    topology.kubernetes.io/zone: us-east-1a
+    topology.kubernetes.io/region: us-east-1
+    node-role.kubernetes.io/` + role + `: ""
+spec:
+  podCIDR: 10.244.0.0/24
+  providerID: aws:///us-east-1a/i-0abc123def456
 status:
+  capacity:
+    cpu: "4"
+    memory: 16384Mi
+    pods: "110"
+    ephemeral-storage: 100Gi
+  allocatable:
+    cpu: "3920m"
+    memory: 15896Mi
+    pods: "110"
+    ephemeral-storage: 95Gi
   conditions:
   - type: Ready
-    status: "` + strings.Replace(item.Status, "Not", "False # ", 1) + `"`)
+    status: "` + readyStatus + `"
+    lastHeartbeatTime: "2026-02-21T10:00:00Z"
+    lastTransitionTime: "2025-11-23T08:00:00Z"
+    reason: KubeletReady
+    message: kubelet is posting ready status
+  - type: MemoryPressure
+    status: "False"
+    lastHeartbeatTime: "2026-02-21T10:00:00Z"
+  - type: DiskPressure
+    status: "False"
+    lastHeartbeatTime: "2026-02-21T10:00:00Z"
+  - type: PIDPressure
+    status: "False"
+    lastHeartbeatTime: "2026-02-21T10:00:00Z"
+  addresses:
+  - type: InternalIP
+    address: ` + ip + `
+  - type: Hostname
+    address: ` + item.Name + `
+  nodeInfo:
+    kubeletVersion: v1.29.2
+    kubeProxyVersion: v1.29.2
+    operatingSystem: linux
+    architecture: amd64
+    containerRuntimeVersion: containerd://1.7.11
+    kernelVersion: 5.15.0-1051-aws
+    osImage: Ubuntu 22.04.3 LTS`)
 }

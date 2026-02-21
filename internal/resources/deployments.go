@@ -103,9 +103,78 @@ func (d *Deployments) YAML(item ResourceItem) string {
 kind: Deployment
 metadata:
   name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+  labels:
+    app: ` + item.Name + `
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/version: v2.3.1
+  annotations:
+    deployment.kubernetes.io/revision: "12"
+    meta.helm.sh/release-name: ` + item.Name + `
 spec:
   replicas: 2
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: ` + item.Name)
+      app: ` + item.Name + `
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: ` + item.Name + `
+        tier: backend
+    spec:
+      serviceAccountName: ` + item.Name + `
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: ` + item.Name + `
+        image: ghcr.io/example/` + item.Name + `:v2.3.1
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        envFrom:
+        - configMapRef:
+            name: ` + item.Name + `-config
+        - secretRef:
+            name: ` + item.Name + `-credentials
+status:
+  observedGeneration: 12
+  replicas: 2
+  updatedReplicas: 2
+  readyReplicas: 2
+  availableReplicas: 2
+  conditions:
+  - type: Available
+    status: "True"
+    lastTransitionTime: "2026-02-10T14:00:00Z"
+    reason: MinimumReplicasAvailable
+    message: Deployment has minimum availability.
+  - type: Progressing
+    status: "True"
+    lastTransitionTime: "2026-02-10T14:00:00Z"
+    reason: NewReplicaSetAvailable
+    message: ReplicaSet "` + item.Name + `-7d8f9c" has successfully progressed.`)
 }
