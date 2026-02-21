@@ -126,7 +126,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.switchToScope(scopeContext)
 			}
 			return m, nil
-		case "n":
+		case "n", "N":
 			if m.scope != scopeNamespace {
 				m.saveHistory()
 				m.switchToScope(scopeNamespace)
@@ -172,6 +172,12 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						}
 					}
 				}
+			}
+			if m.scope == scopeNamespace {
+				// Namespace changes always return to the active lens root.
+				m.restoreHistory()
+				m.switchToLensRoot()
+				return m, nil
 			}
 			m.restoreHistory()
 			return m, nil
