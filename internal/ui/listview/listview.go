@@ -123,9 +123,13 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 						Next:   next,
 					}
 				}
+				dv := detailview.New(selected.data, v.resource, v.registry)
+				dv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+					return New(resources.NewContainerResource(item, res), v.registry)
+				}
 				return viewstate.Update{
 					Action: viewstate.Push,
-					Next:   detailview.New(selected.data, v.resource, v.registry),
+					Next:   dv,
 				}
 			}
 		case "s":
@@ -222,6 +226,10 @@ func (v *View) Footer() string {
 		}
 		return strings.Join(parts, "  ")
 	}
+	if strings.EqualFold(v.resource.Name(), "containers") {
+		parts = append(parts, "-> logs", "/ filter", "esc clear", "backspace back")
+		return strings.Join(parts, "  ")
+	}
 	parts = append(parts, "L logs", "R related", "/ filter", "esc clear", "? help", "q quit")
 	return strings.Join(parts, "  ")
 }
@@ -253,6 +261,9 @@ func (v *View) NextBreadcrumb() string {
 			return "logs"
 		}
 		return "containers"
+	}
+	if resourceName == "containers" {
+		return "logs"
 	}
 	return "detail"
 }
@@ -442,12 +453,23 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 		if len(containers) <= 1 {
 			return logview.New(selected, v.resource)
 		}
-		return detailview.NewContainerPicker(selected, v.resource)
+		return New(resources.NewContainerResource(selected, v.resource), v.registry)
+	}
+
+	if resourceName == "containers" {
+		if cRes, ok := v.resource.(*resources.ContainerResource); ok {
+			return logview.NewWithContainer(cRes.PodItem(), cRes.ParentResource(), selected.Name)
+		}
+		return logview.New(selected, v.resource)
 	}
 
 	if strings.HasPrefix(resourceName, "backends") {
 		podContext := resources.NewWorkloadPods(resources.ResourceItem{Name: "backend", Kind: "DEP"})
-		return detailview.New(selected, podContext, v.registry)
+		dv := detailview.New(selected, podContext, v.registry)
+		dv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+			return New(resources.NewContainerResource(item, res), v.registry)
+		}
+		return dv
 	}
 
 	return nil

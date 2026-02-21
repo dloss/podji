@@ -16,11 +16,12 @@ import (
 )
 
 type View struct {
-	item     resources.ResourceItem
-	resource resources.ResourceType
-	registry *resources.Registry
-	width    int
-	height   int
+	item                 resources.ResourceItem
+	resource             resources.ResourceType
+	registry             *resources.Registry
+	ContainerViewFactory func(item resources.ResourceItem, resource resources.ResourceType) viewstate.View
+	width                int
+	height               int
 }
 
 func New(item resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
@@ -34,8 +35,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		switch key.String() {
 		case "L":
 			containers := v.resource.Detail(v.item).Containers
-			if len(containers) > 1 {
-				return viewstate.Update{Action: viewstate.Push, Next: NewContainerPicker(v.item, v.resource)}
+			if len(containers) > 1 && v.ContainerViewFactory != nil {
+				return viewstate.Update{Action: viewstate.Push, Next: v.ContainerViewFactory(v.item, v.resource)}
 			}
 			return viewstate.Update{Action: viewstate.Push, Next: logview.New(v.item, v.resource)}
 		case "e":
