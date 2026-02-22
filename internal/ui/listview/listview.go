@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
@@ -242,7 +243,11 @@ func (v *View) View() string {
 		out[1] = header
 	}
 	dst := 2
+	hasVisibleItems := len(v.list.VisibleItems()) > 0
 	for _, line := range lines[dataStart:] {
+		if !hasVisibleItems && strings.TrimSpace(ansi.Strip(line)) == "No items." {
+			continue
+		}
 		if dst >= len(out) {
 			break
 		}

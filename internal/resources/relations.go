@@ -321,9 +321,6 @@ func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
 		return "No pods match `" + filter + "`."
 	}
 
-	if w.workload.Kind == "CJ" && w.workload.Name == "sync-reports" {
-		return "No pods found for workload `sync-reports`. Hint: press r to view Related (Jobs, Events, Config, Network)."
-	}
 	return "No pods found for workload `" + w.workload.Name + "`."
 }
 

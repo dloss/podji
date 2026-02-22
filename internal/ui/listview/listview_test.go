@@ -123,6 +123,12 @@ func TestEmptyStateMessageAlignedWithTable(t *testing.T) {
 	view := New(resources.NewWorkloadPods(resources.ResourceItem{Name: "sync-reports", Kind: "CJ"}), registry)
 
 	rendered := view.View()
+	if strings.Contains(rendered, "No items.") {
+		t.Fatalf("expected no duplicate default empty state, got: %s", rendered)
+	}
+	if strings.Contains(rendered, "Hint: press r to view Related") {
+		t.Fatalf("expected simplified empty-state message, got: %s", rendered)
+	}
 	if !strings.Contains(rendered, "  No pods found for workload `sync-reports`.") {
 		t.Fatalf("expected indented empty-state message, got: %s", rendered)
 	}

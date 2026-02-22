@@ -62,7 +62,7 @@ func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 	}
 
 	msg := pods.EmptyMessage(false, "")
-	if !strings.Contains(msg, "press r") {
-		t.Fatalf("expected related hint, got %q", msg)
+	if msg != "No pods found for workload `sync-reports`." {
+		t.Fatalf("expected simplified empty-state message, got %q", msg)
 	}
 }
