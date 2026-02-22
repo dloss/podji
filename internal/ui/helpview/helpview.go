@@ -25,7 +25,10 @@ VIEWS
   P                    Pods
   D                    Deployments
   S                    Services
+  C                    ConfigMaps
+  K                    Secrets
   O                    Nodes
+  E                    Events
 
 LIST VIEWS
   / (slash)            Start filter
