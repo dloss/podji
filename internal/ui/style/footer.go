@@ -28,7 +28,7 @@ func FormatBindings(bindings []Binding) string {
 }
 
 // FormatKeys renders a cluster of bright keys with no labels, separated by single spaces.
-// Used for navigation shortcut clusters like "W P D S C K O".
+// Used for navigation shortcut clusters like "W P D S C K O E".
 func FormatKeys(keys []string) string {
 	parts := make([]string, len(keys))
 	for i, k := range keys {
@@ -38,7 +38,7 @@ func FormatKeys(keys []string) string {
 }
 
 // NavKeys is the standard navigation shortcut cluster ordered by lens grouping.
-var NavKeys = []string{"W", "P", "D", "S", "C", "K", "O"}
+var NavKeys = []string{"W", "P", "D", "S", "C", "K", "O", "E"}
 
 // FormatFooter renders bindings left-aligned with optional pagination right-aligned.
 // If width is 0, no right-alignment is applied.
