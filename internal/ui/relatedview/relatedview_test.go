@@ -91,7 +91,7 @@ func TestRelationColumnWidthsForRowsFitsAvailableWidth(t *testing.T) {
 		{"pods", "12", "Owned pods and replica set relations"},
 	}
 
-	widths := relationColumnWidthsForRows(columns, rows, 22)
+	widths := relationColumnWidthsForRows(columns, rows, 22, "related")
 	sum := 0
 	for _, width := range widths {
 		sum += width
@@ -112,7 +112,7 @@ func TestRelationColumnWidthsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
 		{"configmap"},
 	}
 
-	widths := relationColumnWidthsForRows(columns, rows, 40)
+	widths := relationColumnWidthsForRows(columns, rows, 40, "related")
 	if widths[0] != len("configmap") {
 		t.Fatalf("expected width %d, got %v", len("configmap"), widths)
 	}

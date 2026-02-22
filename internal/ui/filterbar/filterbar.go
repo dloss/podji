@@ -19,20 +19,19 @@ func Setup(model *list.Model) {
 }
 
 // Append adds the filter bar at the bottom of the view when the list is in
-// filter mode, replacing the last blank line to stay within the same line
-// budget (the list pads its output with trailing blank lines).
+// filter mode. If the view already has trailing blank padding, the final
+// padding line is replaced to keep the same line budget.
 func Append(view string, l list.Model) string {
 	if !l.SettingFilter() {
 		return view
 	}
 	bar := l.FilterInput.View()
 	lines := strings.Split(view, "\n")
-	// Replace the last blank line with the filter bar.
-	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) == "" {
-			lines[i] = bar
-			return strings.Join(lines, "\n")
-		}
+	// Only consume trailing padding. Interior blank lines are content and must
+	// remain in place (for example, between table and empty-state message).
+	if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines[len(lines)-1] = bar
+		return strings.Join(lines, "\n")
 	}
 	// Fallback: just append.
 	return view + "\n" + bar

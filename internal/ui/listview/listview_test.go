@@ -249,7 +249,7 @@ func TestColumnWidthsForRowsShrinkToContent(t *testing.T) {
 		{"web", "Pending", "2h"},
 	}
 
-	widths := columnWidthsForRows(columns, rows, 120)
+	widths := columnWidthsForRows(columns, rows, 120, "name")
 	if widths[0] != 4 || widths[1] != 7 || widths[2] != 3 {
 		t.Fatalf("expected content-sized widths [4 7 3], got %v", widths)
 	}
@@ -263,7 +263,7 @@ func TestColumnWidthsForRowsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
 		{"configmap"},
 	}
 
-	widths := columnWidthsForRows(columns, rows, 40)
+	widths := columnWidthsForRows(columns, rows, 40, "name")
 	if widths[0] != len("configmap") {
 		t.Fatalf("expected width %d, got %v", len("configmap"), widths)
 	}
@@ -280,7 +280,7 @@ func TestColumnWidthsForRowsPrioritizesFirstColumnWhenTight(t *testing.T) {
 		{"very-long-workload-name", "CrashLoopBackOff", "1234", "90d"},
 	}
 
-	widths := columnWidthsForRows(columns, rows, 24)
+	widths := columnWidthsForRows(columns, rows, 24, "name")
 	sum := 0
 	for _, width := range widths {
 		sum += width

@@ -231,25 +231,42 @@ func (v *View) View() string {
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	header := "  " + headerRowWithHint(v.columns, v.colWidths, label, childHint)
-	out := make([]string, 0, len(lines)+2)
-	out = append(out, "")     // blank line separating lens/breadcrumb from table
-	out = append(out, header) // column header
-	out = append(out, lines[dataStart:]...)
-
-	// Trim trailing blank lines so we stay within the same height budget
-	// the list model allocated (we added blank+header but may have removed
-	// fewer leading blanks than we added).
-	for len(out) > len(lines) && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
-		out = out[:len(out)-1]
+	// Keep the same line budget as the base list view so the footer doesn't
+	// jump, then place our table header into the first two rows.
+	out := make([]string, len(lines))
+	for i := range out {
+		out[i] = ""
 	}
-
-	view := strings.Join(out, "\n")
+	out[0] = ""
+	if len(out) > 1 {
+		out[1] = header
+	}
+	dst := 2
+	for _, line := range lines[dataStart:] {
+		if dst >= len(out) {
+			break
+		}
+		out[dst] = line
+		dst++
+	}
 	if banner := v.bannerMessage(); banner != "" {
-		view = style.Warning.Render(banner) + "\n" + view
+		// Reserve one content row for the banner while preserving line count.
+		for i := len(out) - 1; i > 0; i-- {
+			out[i] = out[i-1]
+		}
+		out[0] = style.Warning.Render(banner)
 	}
 	if len(v.list.VisibleItems()) == 0 {
-		view += "\n\n" + style.Muted.Render("  "+v.emptyMessage())
+		// Render empty-state text inside the existing budget.
+		msgRow := 3
+		if msgRow >= len(out) {
+			msgRow = len(out) - 1
+		}
+		if msgRow >= 0 {
+			out[msgRow] = style.Muted.Render("  " + v.emptyMessage())
+		}
 	}
+	view := strings.Join(out, "\n")
 	return filterbar.Append(view, v.list)
 }
 
