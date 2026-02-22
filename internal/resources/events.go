@@ -1,9 +1,29 @@
 package resources
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type Events struct {
 	sortMode string
+}
+
+type ScopedEvents struct {
+	base   *Events
+	object string
+	count  int
+}
+
+func NewScopedEvents(object string, count int) *ScopedEvents {
+	if count <= 0 {
+		count = 1
+	}
+	return &ScopedEvents{
+		base:   NewEvents(),
+		object: strings.TrimSpace(object),
+		count:  count,
+	}
 }
 
 func (e *Events) TableColumns() []TableColumn {
@@ -46,6 +66,74 @@ func (e *Events) Items() []ResourceItem {
 	}
 	e.Sort(items)
 	return items
+}
+
+func (e *ScopedEvents) Name() string { return "events" }
+func (e *ScopedEvents) Key() rune   { return 'E' }
+func (e *ScopedEvents) TableColumns() []TableColumn {
+	return e.base.TableColumns()
+}
+func (e *ScopedEvents) TableRow(item ResourceItem) []string {
+	return e.base.TableRow(item)
+}
+
+func (e *ScopedEvents) Items() []ResourceItem {
+	object := e.object
+	if object == "" {
+		object = "object"
+	}
+
+	templates := []struct {
+		reason string
+		kind   string
+		status string
+		age    string
+	}{
+		{reason: "BackOff", kind: "Warning", status: "Warning", age: "10m"},
+		{reason: "OOMKilling", kind: "Warning", status: "Warning", age: "12m"},
+		{reason: "Pulled", kind: "Normal", status: "Healthy", age: "12m"},
+		{reason: "FailedScheduling", kind: "Warning", status: "Warning", age: "20m"},
+		{reason: "ScalingReplicaSet", kind: "Normal", status: "Healthy", age: "45m"},
+		{reason: "SuccessfulCreate", kind: "Normal", status: "Healthy", age: "6h"},
+		{reason: "Scheduled", kind: "Normal", status: "Healthy", age: "8m"},
+		{reason: "Killing", kind: "Warning", status: "Warning", age: "25m"},
+		{reason: "Created", kind: "Normal", status: "Healthy", age: "11m"},
+		{reason: "Pulling", kind: "Normal", status: "Healthy", age: "13m"},
+		{reason: "Started", kind: "Normal", status: "Healthy", age: "9m"},
+		{reason: "Ready", kind: "Normal", status: "Healthy", age: "7m"},
+	}
+
+	items := make([]ResourceItem, 0, e.count)
+	for i := 0; i < e.count; i++ {
+		tmpl := templates[i%len(templates)]
+		items = append(items, ResourceItem{
+			Name:   fmt.Sprintf("%s.%s", object, tmpl.reason),
+			Kind:   tmpl.kind,
+			Status: tmpl.status,
+			Age:    tmpl.age,
+		})
+	}
+
+	e.base.Sort(items)
+	return items
+}
+func (e *ScopedEvents) Sort(items []ResourceItem) { e.base.Sort(items) }
+func (e *ScopedEvents) ToggleSort()              { e.base.ToggleSort() }
+func (e *ScopedEvents) SortMode() string         { return e.base.SortMode() }
+func (e *ScopedEvents) Detail(item ResourceItem) DetailData {
+	return e.base.Detail(item)
+}
+func (e *ScopedEvents) Logs(item ResourceItem) []string {
+	return e.base.Logs(item)
+}
+func (e *ScopedEvents) Events(item ResourceItem) []string {
+	return e.base.Events(item)
+}
+func (e *ScopedEvents) Describe(item ResourceItem) string {
+	return e.base.Describe(item)
+}
+func (e *ScopedEvents) YAML(item ResourceItem) string {
+	return e.base.YAML(item)
 }
 
 func (e *Events) Sort(items []ResourceItem) {

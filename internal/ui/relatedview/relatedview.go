@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
-	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/style"
@@ -233,13 +232,16 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	openResource := func(r resources.ResourceType) func() viewstate.View {
 		return func() viewstate.View { return newRelationList(r, registry) }
 	}
+	openEvents := func(count int) func() viewstate.View {
+		return openResource(resources.NewScopedEvents(source.Name, count))
+	}
 
 	if isPodResource(resource) {
 		entries = append(entries, entry{
 			name:        "events",
 			count:       3,
 			description: "Recent warnings and lifecycle events",
-			open:        func() viewstate.View { return eventview.New(source, resource) },
+			open:        openEvents(3),
 		})
 		entries = append(entries, entry{
 			name:        "owner",
@@ -274,7 +276,7 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 			name:        "events",
 			count:       12,
 			description: "Recent warnings and rollout events",
-			open:        func() viewstate.View { return eventview.New(source, resource) },
+			open:        openEvents(12),
 		})
 		entries = append(entries, entry{
 			name:        "pods",
@@ -314,26 +316,26 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	if name == "services" {
 		return []entry{
 			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
-			{name: "events", count: 4, description: "Service-related events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
 		}
 	}
 
 	if name == "configmaps" || name == "secrets" {
 		return []entry{
 			{name: "consumers", count: 2, description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
-			{name: "events", count: 3, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
 		}
 	}
 
 	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
 		return []entry{
 			{name: "mounted-by", count: 1, description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
-			{name: "events", count: 2, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
 		}
 	}
 
 	return []entry{
-		{name: "events", count: 3, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+		{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
 	}
 }
 
@@ -415,6 +417,12 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   logview.New(selected.data, v.resource),
 				}
 			}
+		case "s":
+			if sortable, ok := v.resource.(resources.ToggleSortable); ok {
+				sortable.ToggleSort()
+				v.refreshItems()
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "f":
 			v.findMode = true
 			v.findTargets = v.computeFindTargets()
@@ -473,7 +481,11 @@ func (v *relationList) Footer() string {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
-	line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
+	actions := []style.Binding{style.B("tab", "lens")}
+	if _, ok := v.resource.(resources.ToggleSortable); ok {
+		actions = append(actions, style.B("s", "sort"))
+	}
+	line2 := style.ActionFooter(actions, v.list.Width())
 	return line1 + "\n" + line2
 }
 

@@ -7,6 +7,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
 func TestRelatedFindModeJumpsToMatchingCategory(t *testing.T) {
@@ -78,6 +79,58 @@ func TestRelationListFindModeJumpsToMatchingItem(t *testing.T) {
 	name := strings.ToLower(strings.TrimSpace(selected.data.Name))
 	if len(name) == 0 || name[0] != 'a' {
 		t.Fatalf("expected item starting with 'a', got %q", selected.data.Name)
+	}
+}
+
+func TestPodRelatedEventsOpenEventsResourceList(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	pods := resources.NewPods()
+	source := pods.Items()[0]
+	view := New(source, pods, registry)
+	view.SetSize(120, 40)
+
+	update := view.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	if update.Action != viewstate.Push {
+		t.Fatalf("expected push action, got %v", update.Action)
+	}
+	if update.Next == nil {
+		t.Fatal("expected next view to be set")
+	}
+	if got := update.Next.Breadcrumb(); got != "events" {
+		t.Fatalf("expected events breadcrumb, got %q", got)
+	}
+
+	eventsList, ok := update.Next.(*relationList)
+	if !ok {
+		t.Fatalf("expected relationList, got %T", update.Next)
+	}
+	items := eventsList.resource.Items()
+	if len(items) != 3 {
+		t.Fatalf("expected 3 scoped events, got %d", len(items))
+	}
+	for _, item := range items {
+		if !strings.HasPrefix(item.Name, source.Name+".") {
+			t.Fatalf("expected scoped event name prefix %q, got %q", source.Name+".", item.Name)
+		}
+	}
+}
+
+func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	related := newRelationList(resources.NewScopedEvents("api", 3), registry)
+	related.SetSize(120, 40)
+
+	sortable, ok := related.resource.(resources.ToggleSortable)
+	if !ok {
+		t.Fatalf("expected ToggleSortable resource, got %T", related.resource)
+	}
+	if got := sortable.SortMode(); got != "name" {
+		t.Fatalf("expected initial sort mode name, got %q", got)
+	}
+
+	related.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'s'}})
+	if got := sortable.SortMode(); got != "status" {
+		t.Fatalf("expected sort mode status after one toggle, got %q", got)
 	}
 }
 
