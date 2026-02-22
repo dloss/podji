@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -74,7 +75,10 @@ func (v *View) Footer() string {
 	if v.previous {
 		mode = "previous"
 	}
-	return "t mode:" + mode + "  f follow  w wrap  / search  space pause  esc back"
+	return style.FormatBindings([]style.Binding{
+		style.B("t", "mode:"+mode), style.B("f", "follow"), style.B("w", "wrap"),
+		style.B("/", "search"), style.B("space", "pause"), style.B("esc", "back"),
+	})
 }
 
 func (v *View) SetSize(width, height int) {

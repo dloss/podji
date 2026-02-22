@@ -238,26 +238,37 @@ func (v *View) SelectedBreadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	parts := []string{v.paginationStatus()}
+	var bindings []style.Binding
 	if v.list.Paginator.TotalPages > 1 && len(v.list.VisibleItems()) > 0 {
-		parts = append(parts, "pgup prev-page  pgdn next-page")
+		bindings = append(bindings, style.B("pgup", "prev"), style.B("pgdn", "next"))
 	}
 	if strings.EqualFold(v.resource.Name(), "workloads") {
-		parts = append(parts, "-> pods", "d describe", "e events", "L logs", "R related", "y yaml", "/ filter", "tab view")
+		bindings = append(bindings,
+			style.B("↵", "pods"), style.B("d", "describe"), style.B("e", "events"),
+			style.B("L", "logs"), style.B("R", "related"), style.B("y", "yaml"),
+			style.B("/", "filter"), style.B("tab", "view"),
+		)
 		if _, ok := v.resource.(resources.ToggleSortable); ok {
-			parts = append(parts, "s sort:"+v.sortLabel)
+			bindings = append(bindings, style.B("s", "sort:"+v.sortLabel))
 		}
 		if cycler, ok := v.resource.(resources.ScenarioCycler); ok {
-			parts = append(parts, "v state:"+cycler.Scenario())
+			bindings = append(bindings, style.B("v", "state:"+cycler.Scenario()))
 		}
-		return strings.Join(parts, "  ")
+		return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
 	}
 	if strings.EqualFold(v.resource.Name(), "containers") {
-		parts = append(parts, "-> logs", "/ filter", "esc clear", "backspace back")
-		return strings.Join(parts, "  ")
+		bindings = append(bindings,
+			style.B("↵", "logs"), style.B("/", "filter"),
+			style.B("esc", "clear"), style.B("⌫", "back"),
+		)
+		return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
 	}
-	parts = append(parts, "d describe", "e events", "L logs", "R related", "y yaml", "/ filter", "esc clear", "? help", "q quit")
-	return strings.Join(parts, "  ")
+	bindings = append(bindings,
+		style.B("d", "describe"), style.B("e", "events"), style.B("L", "logs"),
+		style.B("R", "related"), style.B("y", "yaml"), style.B("/", "filter"),
+		style.B("esc", "clear"),
+	)
+	return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
 }
 
 func (v *View) SetSize(width, height int) {

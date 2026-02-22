@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -13,8 +14,8 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
 
-	footer := view.Footer()
-	wants := []string{"-> pods", "L logs", "R related", "y yaml", "tab view", "s sort"}
+	footer := ansi.Strip(view.Footer())
+	wants := []string{"↵ pods", "L logs", "R related", "y yaml", "tab view", "s sort"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)

@@ -17,6 +17,8 @@ var (
 	Active      = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 	NavSep      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	Footer      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	FooterKey   = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
+	FooterLabel = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	ErrorBanner = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
 	Muted       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	Warning      = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)

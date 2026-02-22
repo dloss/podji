@@ -100,7 +100,10 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "-> logs  / filter  esc clear  backspace back"
+	return style.FormatBindings([]style.Binding{
+		style.B("↵", "logs"), style.B("/", "filter"),
+		style.B("esc", "clear"), style.B("⌫", "back"),
+	})
 }
 
 func (v *View) SetSize(width, height int) {

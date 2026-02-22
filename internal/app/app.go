@@ -238,11 +238,12 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 func (m Model) View() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	body := m.top().View()
-	footerText := strings.TrimSpace(m.top().Footer() + "  ? help  home top  shift+home default  q quit")
+	footerLine1 := strings.TrimSpace(m.top().Footer())
 	if m.width > 0 {
-		footerText = ansi.Truncate(footerText, m.width-2, "…")
+		footerLine1 = ansi.Truncate(footerLine1, m.width-2, "…")
 	}
-	footer := style.Footer.Render(footerText)
+	footerLine2 := style.GlobalFooter(m.width)
+	footer := footerLine1 + "\n" + footerLine2
 
 	if m.height > 0 {
 		body = clampViewLines(body, m.bodyHeightLimit())
@@ -359,9 +360,9 @@ func (m Model) availableHeight() int {
 		return 0
 	}
 
-	extra := 3 // 2 header lines + 1 footer line
+	extra := 4 // 2 header lines + 2 footer lines
 	if m.errorMsg != "" {
-		extra = 4
+		extra = 5
 	}
 
 	height := m.height - extra
@@ -376,7 +377,7 @@ func (m Model) bodyHeightLimit() int {
 		return 0
 	}
 
-	reserved := 3 // 2 header lines + 1 footer line
+	reserved := 4 // 2 header lines + 2 footer lines
 	if m.errorMsg != "" {
 		reserved++
 	}

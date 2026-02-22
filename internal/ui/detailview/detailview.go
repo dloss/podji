@@ -89,7 +89,10 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  d describe  L logs  R related  e events  y yaml  ? help"
+	return style.FormatBindings([]style.Binding{
+		style.B("d", "describe"), style.B("e", "events"), style.B("L", "logs"),
+		style.B("R", "related"), style.B("y", "yaml"),
+	})
 }
 
 func (v *View) SetSize(width, height int) {

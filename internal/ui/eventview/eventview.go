@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -39,7 +40,9 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return "backspace back  / search  esc back"
+	return style.FormatBindings([]style.Binding{
+		style.B("⌫", "back"), style.B("/", "search"), style.B("esc", "back"),
+	})
 }
 
 func (v *View) SetSize(width, height int) {

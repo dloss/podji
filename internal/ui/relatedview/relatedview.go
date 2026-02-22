@@ -116,7 +116,10 @@ func (v *View) View() string {
 func (v *View) Breadcrumb() string { return "related" }
 
 func (v *View) Footer() string {
-	return "-> open  / filter  esc clear  backspace back"
+	return style.FormatBindings([]style.Binding{
+		style.B("↵", "open"), style.B("/", "filter"),
+		style.B("esc", "clear"), style.B("⌫", "back"),
+	})
 }
 
 func (v *View) SetSize(width, height int) {
@@ -338,7 +341,10 @@ func (v *relationList) View() string {
 func (v *relationList) Breadcrumb() string { return v.resource.Name() }
 
 func (v *relationList) Footer() string {
-	return "-> logs  / filter  esc clear  backspace back"
+	return style.FormatBindings([]style.Binding{
+		style.B("↵", "logs"), style.B("/", "filter"),
+		style.B("esc", "clear"), style.B("⌫", "back"),
+	})
 }
 
 func (v *relationList) SetSize(width, height int) {
