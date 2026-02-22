@@ -234,15 +234,16 @@ func (v *View) View() string {
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	mode := sortMode(v.resource)
+	indicator := sortIndicatorSymbol(mode)
 	activeSortIdx := -1
 	if v.sortTouched || !isDefaultSortMode(v.resource, mode) {
 		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
 	}
 	headerPrefix := "  "
 	if activeSortIdx == 0 {
-		headerPrefix = " " + style.Muted.Render("↑")
+		headerPrefix = " " + indicator
 	}
-	header := headerPrefix + headerRowWithHint(v.columns, v.colWidths, label, childHint, activeSortIdx)
+	header := headerPrefix + headerRowWithHint(v.columns, v.colWidths, label, childHint, activeSortIdx, indicator)
 	// Keep the same line budget as the base list view so the footer doesn't
 	// jump, then place our table header into the first two rows.
 	out := make([]string, len(lines))
@@ -399,7 +400,7 @@ func statusStyle(status string) string {
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {
-	return headerRowWithHint(columns, nil, firstLabel, "", -1)
+	return headerRowWithHint(columns, nil, firstLabel, "", -1, "▲")
 }
 
 func headerRowWithHint(
@@ -408,6 +409,7 @@ func headerRowWithHint(
 	firstLabel string,
 	childHint string,
 	activeSortIdx int,
+	indicator string,
 ) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
@@ -439,7 +441,7 @@ func headerRowWithHint(
 	for idx := 1; idx < len(headers); idx++ {
 		sep := columnSeparator
 		if idx == activeSortIdx {
-			sep = " " + style.Muted.Render("↑")
+			sep = " " + indicator
 		}
 		b.WriteString(sep)
 		b.WriteString(headers[idx])
@@ -596,6 +598,13 @@ func sortMode(resource resources.ResourceType) string {
 		return sortable.SortMode()
 	}
 	return ""
+}
+
+func sortIndicatorSymbol(mode string) string {
+	if mode == "status" {
+		return "▼"
+	}
+	return "▲"
 }
 
 func activeSortColumn(resource resources.ResourceType, columns []resources.TableColumn, mode string) int {

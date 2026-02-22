@@ -306,35 +306,35 @@ func TestViewHeaderShowsSortArrowAndMovesWithSortMode(t *testing.T) {
 
 	// Default mode is name.
 	rendered := ansi.Strip(view.View())
-	if strings.Contains(rendered, "↑") {
+	if strings.Contains(rendered, "▲") {
 		t.Fatalf("expected no sort arrow on default mode, got: %s", rendered)
 	}
 
 	// name -> status
 	view.Update(keyRunes('s'))
 	rendered = ansi.Strip(view.View())
-	if !strings.Contains(rendered, "↑STATUS") {
+	if !strings.Contains(rendered, "▼STATUS") {
 		t.Fatalf("expected status sort arrow, got: %s", rendered)
 	}
 
 	// status -> kind
 	view.Update(keyRunes('s'))
 	rendered = ansi.Strip(view.View())
-	if !strings.Contains(rendered, "↑KIND") {
+	if !strings.Contains(rendered, "▲KIND") {
 		t.Fatalf("expected kind sort arrow, got: %s", rendered)
 	}
 
 	// kind -> age
 	view.Update(keyRunes('s'))
 	rendered = ansi.Strip(view.View())
-	if !strings.Contains(rendered, "↑AGE") {
+	if !strings.Contains(rendered, "▲AGE") {
 		t.Fatalf("expected age sort arrow, got: %s", rendered)
 	}
 
 	// age -> name (default), arrow remains because user changed sort in this view
 	view.Update(keyRunes('s'))
 	rendered = ansi.Strip(view.View())
-	if !strings.Contains(rendered, "↑WORKLOAD") {
+	if !strings.Contains(rendered, "▲WORKLOAD") {
 		t.Fatalf("expected sort arrow to remain visible after returning to default mode, got: %s", rendered)
 	}
 }
@@ -347,7 +347,7 @@ func TestEventsStatusSortArrowUsesTypeColumn(t *testing.T) {
 	// name -> status
 	view.Update(keyRunes('s'))
 	rendered := ansi.Strip(view.View())
-	if !strings.Contains(rendered, "↑TYPE") {
+	if !strings.Contains(rendered, "▼TYPE") {
 		t.Fatalf("expected status sort arrow on TYPE for events, got: %s", rendered)
 	}
 }
