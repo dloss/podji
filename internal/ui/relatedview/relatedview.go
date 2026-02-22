@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/eventview"
@@ -16,20 +17,29 @@ import (
 )
 
 type entry struct {
-	title       string
+	name        string
+	count       int
 	description string
 	open        func() viewstate.View
 }
 
-func (e entry) Title() string       { return e.title }
+func (e entry) Title() string {
+	if e.count > 0 {
+		return fmt.Sprintf("%s (%d)", e.name, e.count)
+	}
+	return e.name
+}
 func (e entry) Description() string { return e.description }
-func (e entry) FilterValue() string { return e.title + " " + e.description }
+func (e entry) FilterValue() string { return e.name }
 
 type View struct {
-	source   resources.ResourceItem
-	resource resources.ResourceType
-	registry *resources.Registry
-	list     list.Model
+	source      resources.ResourceItem
+	resource    resources.ResourceType
+	registry    *resources.Registry
+	list        list.Model
+	columns     []resources.TableColumn
+	findMode    bool
+	findTargets map[int]bool
 }
 
 // RelatedCount returns the number of related-resource categories available for
@@ -40,15 +50,24 @@ func RelatedCount(source resources.ResourceItem, resource resources.ResourceType
 
 func New(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
 	items := relatedEntries(source, resource, registry)
+	columns := relatedTableColumns()
+	widths := relationColumnWidths(columns)
 	listItems := make([]list.Item, 0, len(items))
 	for _, it := range items {
-		listItems = append(listItems, it)
+		listItems = append(listItems, relatedItem{
+			entry:  it,
+			row:    []string{it.name, relatedCountCell(it.count), it.description},
+			widths: widths,
+		})
 	}
 
-	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(1)
-	delegate.SetSpacing(0)
-	delegate.ShowDescription = false
+	v := &View{
+		source:   source,
+		resource: resource,
+		registry: registry,
+		columns:  columns,
+	}
+	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -56,8 +75,10 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	filterbar.Setup(&model)
+	model.Paginator.Type = paginator.Arabic
 
-	return &View{source: source, resource: resource, registry: registry, list: model}
+	v.list = model
+	return v
 }
 
 func (v *View) Init() bubbletea.Cmd { return nil }
@@ -70,6 +91,18 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 		}
 
+		if v.findMode {
+			v.findMode = false
+			v.findTargets = nil
+			if key.String() == "esc" {
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+			if r := relatedSingleRune(key); r != 0 {
+				v.jumpToChar(r)
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
 		switch key.String() {
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
@@ -77,9 +110,13 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
 		case "enter", "l", "right":
-			if selected, ok := v.list.SelectedItem().(entry); ok && selected.open != nil {
-				return viewstate.Update{Action: viewstate.Push, Next: selected.open()}
+			if selected, ok := v.list.SelectedItem().(relatedItem); ok && selected.entry.open != nil {
+				return viewstate.Update{Action: viewstate.Push, Next: selected.entry.open()}
 			}
+		case "f":
+			v.findMode = true
+			v.findTargets = v.computeFindTargets()
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 	}
 
@@ -100,7 +137,7 @@ func (v *View) View() string {
 		dataStart++
 	}
 
-	header := "  RELATED"
+	header := "  " + relationHeaderRowWithHint(v.columns, "related", v.NextBreadcrumb())
 	out := make([]string, 0, len(lines)+2)
 	out = append(out, "")
 	out = append(out, header)
@@ -110,14 +147,30 @@ func (v *View) View() string {
 		out = out[:len(out)-1]
 	}
 
-	return filterbar.Append(strings.Join(out, "\n"), v.list)
+	view := strings.Join(out, "\n")
+	if len(v.list.VisibleItems()) == 0 {
+		if v.list.IsFiltered() {
+			view += "\n\n" + style.Muted.Render("No related categories match the active filter. Press esc to clear.")
+		} else {
+			view += "\n\n" + style.Muted.Render("No related categories found.")
+		}
+	}
+
+	return filterbar.Append(view, v.list)
 }
 
 func (v *View) Breadcrumb() string { return "related" }
 
 func (v *View) Footer() string {
-	line1 := ""
-	line2 := style.ActionFooter(nil, 0)
+	indicators := []style.Binding{}
+	if v.findMode {
+		indicators = append(indicators, style.B("f", "…"))
+	}
+	if v.list.IsFiltered() {
+		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
+	}
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+	line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
 	return line1 + "\n" + line2
 }
 
@@ -129,11 +182,15 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter()
+	return v.list.SettingFilter() || v.findMode
 }
 
 func (v *View) NextBreadcrumb() string {
-	return ""
+	selected, ok := v.list.SelectedItem().(relatedItem)
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(selected.entry.name)
 }
 
 func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
@@ -146,27 +203,32 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 
 	if isPodResource(resource) {
 		entries = append(entries, entry{
-			title:       "Events (3)",
+			name:        "events",
+			count:       3,
 			description: "Recent warnings and lifecycle events",
 			open:        func() viewstate.View { return eventview.New(source, resource) },
 		})
 		entries = append(entries, entry{
-			title:       "Owner (1)",
+			name:        "owner",
+			count:       1,
 			description: "Owning workload (Deployment, StatefulSet, etc.)",
 			open:        openResource(resources.NewPodOwner(source.Name)),
 		})
 		entries = append(entries, entry{
-			title:       "Services (1)",
+			name:        "services",
+			count:       1,
 			description: "Services selecting this pod",
 			open:        openResource(resources.NewPodServices(source.Name)),
 		})
 		entries = append(entries, entry{
-			title:       "Config (2)",
+			name:        "config",
+			count:       2,
 			description: "ConfigMaps and Secrets mounted by this pod",
 			open:        openResource(resources.NewPodConfig(source.Name)),
 		})
 		entries = append(entries, entry{
-			title:       "Storage (1)",
+			name:        "storage",
+			count:       1,
 			description: "PVCs mounted by this pod",
 			open:        openResource(resources.NewPodStorage(source.Name)),
 		})
@@ -176,34 +238,40 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	if name == "workloads" {
 		// Workload tweak: promote Events near top for debugging.
 		entries = append(entries, entry{
-			title:       "Events (12)",
+			name:        "events",
+			count:       12,
 			description: "Recent warnings and rollout events",
 			open:        func() viewstate.View { return eventview.New(source, resource) },
 		})
 		entries = append(entries, entry{
-			title:       fmt.Sprintf("Pods (%d)", len(resources.NewWorkloadPods(source).Items())),
+			name:        "pods",
+			count:       len(resources.NewWorkloadPods(source).Items()),
 			description: "Owned pods",
 			open:        openResource(resources.NewWorkloadPods(source)),
 		})
 		if source.Kind == "CJ" {
 			entries = append(entries, entry{
-				title:       "Jobs (2)",
+				name:        "jobs",
+				count:       2,
 				description: "Owned jobs",
 				open:        openResource(resources.NewJobsForCronJob(source.Name)),
 			})
 		}
 		entries = append(entries, entry{
-			title:       "Services (1)",
+			name:        "services",
+			count:       1,
 			description: "Network endpoints",
 			open:        openResource(resources.NewRelatedServices(source.Name)),
 		})
 		entries = append(entries, entry{
-			title:       "Config (2)",
+			name:        "config",
+			count:       2,
 			description: "ConfigMaps and Secrets",
 			open:        openResource(resources.NewRelatedConfig(source.Name)),
 		})
 		entries = append(entries, entry{
-			title:       "Storage (1)",
+			name:        "storage",
+			count:       1,
 			description: "PVC and PV references",
 			open:        openResource(resources.NewRelatedStorage(source.Name)),
 		})
@@ -212,35 +280,37 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 
 	if name == "services" {
 		return []entry{
-			{title: "Backends (2)", description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
-			{title: "Events (4)", description: "Service-related events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
+			{name: "events", count: 4, description: "Service-related events", open: func() viewstate.View { return eventview.New(source, resource) }},
 		}
 	}
 
 	if name == "configmaps" || name == "secrets" {
 		return []entry{
-			{title: "Consumers (2)", description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
-			{title: "Events (3)", description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "consumers", count: 2, description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
 		}
 	}
 
 	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
 		return []entry{
-			{title: "Mounted-by (1)", description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
-			{title: "Events (2)", description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+			{name: "mounted-by", count: 1, description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
+			{name: "events", count: 2, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
 		}
 	}
 
 	return []entry{
-		{title: "Events (3)", description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
+		{name: "events", count: 3, description: "Recent events", open: func() viewstate.View { return eventview.New(source, resource) }},
 	}
 }
 
 type relationList struct {
-	resource resources.ResourceType
-	registry *resources.Registry
-	list     list.Model
-	columns  []resources.TableColumn
+	resource    resources.ResourceType
+	registry    *resources.Registry
+	list        list.Model
+	columns     []resources.TableColumn
+	findMode    bool
+	findTargets map[int]bool
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
@@ -257,10 +327,8 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 		})
 	}
 
-	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(1)
-	delegate.SetSpacing(0)
-	delegate.ShowDescription = false
+	v := &relationList{resource: resource, registry: registry, columns: columns}
+	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -268,7 +336,9 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 	model.DisableQuitKeybindings()
 	model.SetFilteringEnabled(true)
 	filterbar.Setup(&model)
-	return &relationList{resource: resource, registry: registry, list: model, columns: columns}
+	model.Paginator.Type = paginator.Arabic
+	v.list = model
+	return v
 }
 
 func (v *relationList) Init() bubbletea.Cmd { return nil }
@@ -279,6 +349,18 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 			updated, cmd := v.list.Update(msg)
 			v.list = updated
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+		}
+
+		if v.findMode {
+			v.findMode = false
+			v.findTargets = nil
+			if key.String() == "esc" {
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+			if r := relatedSingleRune(key); r != 0 {
+				v.jumpToChar(r)
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
 		switch key.String() {
@@ -294,6 +376,10 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   logview.New(selected.data, v.resource),
 				}
 			}
+		case "f":
+			v.findMode = true
+			v.findTargets = v.computeFindTargets()
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 	}
 
@@ -340,8 +426,15 @@ func (v *relationList) View() string {
 func (v *relationList) Breadcrumb() string { return v.resource.Name() }
 
 func (v *relationList) Footer() string {
-	line1 := ""
-	line2 := style.ActionFooter(nil, 0)
+	indicators := []style.Binding{}
+	if v.findMode {
+		indicators = append(indicators, style.B("f", "…"))
+	}
+	if v.list.IsFiltered() {
+		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
+	}
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+	line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
 	return line1 + "\n" + line2
 }
 
@@ -353,7 +446,7 @@ func (v *relationList) SetSize(width, height int) {
 }
 
 func (v *relationList) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter()
+	return v.list.SettingFilter() || v.findMode
 }
 
 func (v *relationList) NextBreadcrumb() string {
@@ -361,6 +454,26 @@ func (v *relationList) NextBreadcrumb() string {
 		return ""
 	}
 	return "logs"
+}
+
+type relatedItem struct {
+	entry  entry
+	row    []string
+	widths []int
+}
+
+func (i relatedItem) Title() string {
+	cells := make([]string, 0, len(i.row))
+	for idx, value := range i.row {
+		width := i.widths[idx]
+		cells = append(cells, relationPadCell(value, width))
+	}
+	return strings.Join(cells, " ")
+}
+
+func (i relatedItem) Description() string { return "" }
+func (i relatedItem) FilterValue() string {
+	return i.entry.FilterValue()
 }
 
 type relationItem struct {
@@ -385,7 +498,7 @@ func (i relationItem) Title() string {
 
 func (i relationItem) Description() string { return "" }
 func (i relationItem) FilterValue() string {
-	return i.data.Name + " " + i.data.Status + " " + i.data.Ready
+	return i.data.Name
 }
 
 func relationTableColumns(resource resources.ResourceType) []resources.TableColumn {
@@ -398,6 +511,14 @@ func relationTableColumns(resource resources.ResourceType) []resources.TableColu
 		{Name: "READY", Width: 7},
 		{Name: "RESTARTS", Width: 14},
 		{Name: "AGE", Width: 6},
+	}
+}
+
+func relatedTableColumns() []resources.TableColumn {
+	return []resources.TableColumn{
+		{Name: "RELATED", Width: 18},
+		{Name: "COUNT", Width: 5},
+		{Name: "DESCRIPTION", Width: 58},
 	}
 }
 
@@ -476,6 +597,130 @@ func relationBreadcrumbLabel(resourceName string) string {
 		label = strings.TrimSpace(label[:open])
 	}
 	return label
+}
+
+func relatedSingleRune(key bubbletea.KeyMsg) rune {
+	if key.Type == bubbletea.KeyRunes && len(key.Runes) == 1 {
+		return key.Runes[0]
+	}
+	return 0
+}
+
+func (v *View) jumpToChar(r rune) {
+	target := unicode.ToLower(r)
+	visible := v.list.VisibleItems()
+	for i, li := range visible {
+		if it, ok := li.(relatedItem); ok {
+			name := strings.TrimSpace(it.entry.name)
+			if len(name) > 0 && unicode.ToLower([]rune(name)[0]) == target {
+				v.list.Select(i)
+				return
+			}
+		}
+	}
+}
+
+func (v *View) computeFindTargets() map[int]bool {
+	targets := make(map[int]bool)
+	seen := make(map[rune]bool)
+	for i, li := range v.list.VisibleItems() {
+		if it, ok := li.(relatedItem); ok {
+			name := strings.TrimSpace(it.entry.name)
+			if len(name) > 0 {
+				ch := unicode.ToLower([]rune(name)[0])
+				if !seen[ch] {
+					seen[ch] = true
+					targets[i] = true
+				}
+			}
+		}
+	}
+	return targets
+}
+
+func (v *View) paginationStatus() string {
+	totalVisible := len(v.list.VisibleItems())
+	if totalVisible == 0 {
+		if v.list.IsFiltered() {
+			return fmt.Sprintf("Showing 0 of 0 filtered (%d total)", len(v.list.Items()))
+		}
+		return "Showing 0 of 0"
+	}
+
+	start, end := v.list.Paginator.GetSliceBounds(totalVisible)
+	if v.list.IsFiltered() {
+		return fmt.Sprintf(
+			"Showing %d-%d of %d filtered (%d total)",
+			start+1,
+			end,
+			totalVisible,
+			len(v.list.Items()),
+		)
+	}
+
+	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
+}
+
+func (v *relationList) jumpToChar(r rune) {
+	target := unicode.ToLower(r)
+	visible := v.list.VisibleItems()
+	for i, li := range visible {
+		if it, ok := li.(relationItem); ok {
+			name := strings.TrimSpace(it.data.Name)
+			if len(name) > 0 && unicode.ToLower([]rune(name)[0]) == target {
+				v.list.Select(i)
+				return
+			}
+		}
+	}
+}
+
+func (v *relationList) computeFindTargets() map[int]bool {
+	targets := make(map[int]bool)
+	seen := make(map[rune]bool)
+	for i, li := range v.list.VisibleItems() {
+		if it, ok := li.(relationItem); ok {
+			name := strings.TrimSpace(it.data.Name)
+			if len(name) > 0 {
+				ch := unicode.ToLower([]rune(name)[0])
+				if !seen[ch] {
+					seen[ch] = true
+					targets[i] = true
+				}
+			}
+		}
+	}
+	return targets
+}
+
+func (v *relationList) paginationStatus() string {
+	totalVisible := len(v.list.VisibleItems())
+	if totalVisible == 0 {
+		if v.list.IsFiltered() {
+			return fmt.Sprintf("Showing 0 of 0 filtered (%d total)", len(v.list.Items()))
+		}
+		return "Showing 0 of 0"
+	}
+
+	start, end := v.list.Paginator.GetSliceBounds(totalVisible)
+	if v.list.IsFiltered() {
+		return fmt.Sprintf(
+			"Showing %d-%d of %d filtered (%d total)",
+			start+1,
+			end,
+			totalVisible,
+			len(v.list.Items()),
+		)
+	}
+
+	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
+}
+
+func relatedCountCell(count int) string {
+	if count <= 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%d", count)
 }
 
 func isPodResource(r resources.ResourceType) bool {
