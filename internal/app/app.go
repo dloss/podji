@@ -101,7 +101,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
-		case "home", "pos1":
+		case "home", "pos1", "0":
 			m.saveHistory()
 			m.switchToLensRoot()
 			return m, nil

@@ -14,7 +14,7 @@ NAVIGATION
   enter / right / l    Open selected item
   backspace / left / h Back / pop view
   esc                  Clear filter, then back
-  home                 Go to lens root
+  home / 0             Go to lens root
   shift+home           Go to default lens
 
 VIEWS
