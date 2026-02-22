@@ -234,3 +234,40 @@ func TestHistorySaveRestoreIncludesScope(t *testing.T) {
 		t.Fatalf("expected history scope = %d (lens), got %d", scopeLens, got.history[0].scope)
 	}
 }
+
+func TestNamespaceScopeYOpensYamlWithoutSelectingNamespace(t *testing.T) {
+	m := New()
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'y'}})
+	got := updated.(Model)
+
+	if got.scope != scopeNamespace {
+		t.Fatalf("expected to remain in namespace scope, got %d", got.scope)
+	}
+	if len(got.stack) != 2 {
+		t.Fatalf("expected yaml view to be pushed, stack len=%d", len(got.stack))
+	}
+	if got.top().Breadcrumb() != "yaml" {
+		t.Fatalf("expected top breadcrumb yaml, got %q", got.top().Breadcrumb())
+	}
+}
+
+func TestContextScopeROpensRelatedWithoutSelectingContext(t *testing.T) {
+	m := New()
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	got := updated.(Model)
+
+	if got.scope != scopeContext {
+		t.Fatalf("expected to remain in context scope, got %d", got.scope)
+	}
+	if len(got.stack) != 2 {
+		t.Fatalf("expected related view to be pushed, stack len=%d", len(got.stack))
+	}
+	if got.top().Breadcrumb() != "related" {
+		t.Fatalf("expected top breadcrumb related, got %q", got.top().Breadcrumb())
+	}
+}

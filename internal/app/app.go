@@ -185,7 +185,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	update := m.top().Update(routedMsg)
 	switch update.Action {
 	case viewstate.Push:
-		if m.scope == scopeNamespace || m.scope == scopeContext {
+		if (m.scope == scopeNamespace || m.scope == scopeContext) && isScopeSelectionMsg(routedMsg) {
 			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
 				if value := normalizeBreadcrumbPart(selected.SelectedBreadcrumb()); value != "" {
 					if idx := strings.Index(value, ": "); idx >= 0 {
@@ -235,6 +235,19 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	}
 
 	return m, update.Cmd
+}
+
+func isScopeSelectionMsg(msg bubbletea.Msg) bool {
+	key, ok := msg.(bubbletea.KeyMsg)
+	if !ok {
+		return false
+	}
+	switch key.String() {
+	case "enter", "l", "right", "o":
+		return true
+	default:
+		return false
+	}
 }
 
 func (m Model) View() string {
