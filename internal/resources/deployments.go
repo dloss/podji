@@ -2,7 +2,9 @@ package resources
 
 import "strings"
 
-type Deployments struct{}
+type Deployments struct {
+	sortMode string
+}
 
 func (d *Deployments) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -18,7 +20,7 @@ func (d *Deployments) TableRow(item ResourceItem) []string {
 }
 
 func NewDeployments() *Deployments {
-	return &Deployments{}
+	return &Deployments{sortMode: "name"}
 }
 
 func (d *Deployments) Name() string { return "deployments" }
@@ -65,7 +67,23 @@ func deploymentItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (d *Deployments) Sort(items []ResourceItem) {
+	if d.sortMode == "problem" {
+		problemSort(items)
+		return
+	}
 	defaultSort(items)
+}
+
+func (d *Deployments) ToggleSort() {
+	if d.sortMode == "name" {
+		d.sortMode = "problem"
+		return
+	}
+	d.sortMode = "name"
+}
+
+func (d *Deployments) SortMode() string {
+	return d.sortMode
 }
 
 func (d *Deployments) Detail(item ResourceItem) DetailData {

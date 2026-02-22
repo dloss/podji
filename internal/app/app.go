@@ -5,7 +5,6 @@ import (
 	"unicode"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
@@ -238,12 +237,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 func (m Model) View() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	body := m.top().View()
-	footerLine1 := strings.TrimSpace(m.top().Footer())
-	if m.width > 0 {
-		footerLine1 = ansi.Truncate(footerLine1, m.width-2, "…")
-	}
-	footerLine2 := style.GlobalFooter(m.width)
-	footer := footerLine1 + "\n" + footerLine2
+	footer := m.top().Footer()
 
 	if m.height > 0 {
 		body = clampViewLines(body, m.bodyHeightLimit())

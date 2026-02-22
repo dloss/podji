@@ -2,7 +2,9 @@ package resources
 
 import "strings"
 
-type Nodes struct{}
+type Nodes struct {
+	sortMode string
+}
 
 func (n *Nodes) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -24,7 +26,7 @@ func (n *Nodes) TableRow(item ResourceItem) []string {
 }
 
 func NewNodes() *Nodes {
-	return &Nodes{}
+	return &Nodes{sortMode: "name"}
 }
 
 func (n *Nodes) Name() string { return "nodes" }
@@ -44,7 +46,23 @@ func (n *Nodes) Items() []ResourceItem {
 }
 
 func (n *Nodes) Sort(items []ResourceItem) {
+	if n.sortMode == "problem" {
+		problemSort(items)
+		return
+	}
 	defaultSort(items)
+}
+
+func (n *Nodes) ToggleSort() {
+	if n.sortMode == "name" {
+		n.sortMode = "problem"
+		return
+	}
+	n.sortMode = "name"
+}
+
+func (n *Nodes) SortMode() string {
+	return n.sortMode
 }
 
 func (n *Nodes) Detail(item ResourceItem) DetailData {

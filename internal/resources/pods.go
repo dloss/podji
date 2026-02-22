@@ -2,10 +2,12 @@ package resources
 
 import "strings"
 
-type Pods struct{}
+type Pods struct {
+	sortMode string
+}
 
 func NewPods() *Pods {
-	return &Pods{}
+	return &Pods{sortMode: "name"}
 }
 
 func (p *Pods) Name() string {
@@ -62,7 +64,23 @@ func podItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (p *Pods) Sort(items []ResourceItem) {
+	if p.sortMode == "problem" {
+		problemSort(items)
+		return
+	}
 	defaultSort(items)
+}
+
+func (p *Pods) ToggleSort() {
+	if p.sortMode == "name" {
+		p.sortMode = "problem"
+		return
+	}
+	p.sortMode = "name"
+}
+
+func (p *Pods) SortMode() string {
+	return p.sortMode
 }
 
 func (p *Pods) Detail(item ResourceItem) DetailData {

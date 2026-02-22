@@ -71,14 +71,26 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	mode := "current"
+	// Line 1: status indicators (non-default only).
+	var indicators []style.Binding
 	if v.previous {
-		mode = "previous"
+		indicators = append(indicators, style.B("mode", "previous"))
 	}
-	return style.FormatBindings([]style.Binding{
-		style.B("t", "mode:"+mode), style.B("f", "follow"), style.B("w", "wrap"),
-		style.B("/", "search"), style.B("space", "pause"), style.B("esc", "back"),
-	})
+	if !v.follow {
+		indicators = append(indicators, style.B("follow", "off"))
+	}
+	if !v.wrap {
+		indicators = append(indicators, style.B("wrap", "off"))
+	}
+	line1 := style.FormatBindings(indicators)
+
+	// Line 2: actions.
+	actions := []style.Binding{
+		style.B("t", "mode"), style.B("f", "follow"), style.B("w", "wrap"),
+		style.B("/", "search"),
+	}
+	line2 := style.ActionFooter(actions, v.viewport.Width)
+	return line1 + "\n" + line2
 }
 
 func (v *View) SetSize(width, height int) {

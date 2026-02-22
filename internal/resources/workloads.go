@@ -1,9 +1,6 @@
 package resources
 
-import (
-	"sort"
-	"strings"
-)
+import "strings"
 
 type Workloads struct {
 	sortMode string
@@ -86,38 +83,11 @@ func workloadItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (w *Workloads) Sort(items []ResourceItem) {
-	if w.sortMode == "name" {
-		sort.SliceStable(items, func(i, j int) bool {
-			return items[i].Name < items[j].Name
-		})
+	if w.sortMode == "problem" {
+		problemSort(items)
 		return
 	}
-
-	sort.SliceStable(items, func(i, j int) bool {
-		wi := workloadStatusWeight(items[i].Status)
-		wj := workloadStatusWeight(items[j].Status)
-		if wi != wj {
-			return wi < wj
-		}
-		return items[i].Name < items[j].Name
-	})
-}
-
-func workloadStatusWeight(status string) int {
-	switch status {
-	case "Failed":
-		return 0
-	case "Degraded":
-		return 1
-	case "Progressing":
-		return 2
-	case "Healthy":
-		return 3
-	case "Suspended":
-		return 4
-	default:
-		return 5
-	}
+	defaultSort(items)
 }
 
 func (w *Workloads) TableColumns() []TableColumn {

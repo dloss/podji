@@ -48,3 +48,33 @@ func defaultSort(items []ResourceItem) {
 		return items[i].Name < items[j].Name
 	})
 }
+
+// statusWeight returns a severity weight for sorting: lower = more problematic.
+func statusWeight(status string) int {
+	switch status {
+	case "Failed", "CrashLoop", "CrashLoopBackOff":
+		return 0
+	case "Degraded", "NotReady", "Warning":
+		return 1
+	case "Pending", "Progressing", "Unknown":
+		return 2
+	case "Healthy", "Running", "Ready":
+		return 3
+	case "Suspended":
+		return 4
+	default:
+		return 5
+	}
+}
+
+// problemSort sorts items by status severity (most problematic first), then by name.
+func problemSort(items []ResourceItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		wi := statusWeight(items[i].Status)
+		wj := statusWeight(items[j].Status)
+		if wi != wj {
+			return wi < wj
+		}
+		return items[i].Name < items[j].Name
+	})
+}

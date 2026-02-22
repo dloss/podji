@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-type Services struct{}
+type Services struct {
+	sortMode string
+}
 
 func (s *Services) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -38,7 +40,7 @@ func serviceClusterIP(name string, svcType string) string {
 }
 
 func NewServices() *Services {
-	return &Services{}
+	return &Services{sortMode: "name"}
 }
 
 func (s *Services) Name() string { return "services" }
@@ -88,7 +90,23 @@ func serviceItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (s *Services) Sort(items []ResourceItem) {
+	if s.sortMode == "problem" {
+		problemSort(items)
+		return
+	}
 	defaultSort(items)
+}
+
+func (s *Services) ToggleSort() {
+	if s.sortMode == "name" {
+		s.sortMode = "problem"
+		return
+	}
+	s.sortMode = "name"
+}
+
+func (s *Services) SortMode() string {
+	return s.sortMode
 }
 
 func (s *Services) Detail(item ResourceItem) DetailData {

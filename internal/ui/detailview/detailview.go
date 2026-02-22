@@ -89,10 +89,10 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return style.FormatBindings([]style.Binding{
-		style.B("d", "describe"), style.B("e", "events"), style.B("L", "logs"),
-		style.B("R", "related"), style.B("y", "yaml"),
-	})
+	line1 := ""
+	actions := []style.Binding{style.B("R", "related")}
+	line2 := style.ActionFooter(actions, v.width)
+	return line1 + "\n" + line2
 }
 
 func (v *View) SetSize(width, height int) {

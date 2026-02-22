@@ -238,37 +238,38 @@ func (v *View) SelectedBreadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	var bindings []style.Binding
-	if v.list.Paginator.TotalPages > 1 && len(v.list.VisibleItems()) > 0 {
-		bindings = append(bindings, style.B("pgup", "prev"), style.B("pgdn", "next"))
+	// Line 1: status indicators (non-default only) + pagination right-aligned.
+	var indicators []style.Binding
+	if _, ok := v.resource.(resources.ToggleSortable); ok && v.sortLabel != "name" {
+		indicators = append(indicators, style.B("sort", v.sortLabel))
 	}
-	if strings.EqualFold(v.resource.Name(), "workloads") {
-		bindings = append(bindings,
-			style.B("↵", "pods"), style.B("d", "describe"), style.B("e", "events"),
-			style.B("L", "logs"), style.B("R", "related"), style.B("y", "yaml"),
-			style.B("/", "filter"), style.B("tab", "view"),
-		)
-		if _, ok := v.resource.(resources.ToggleSortable); ok {
-			bindings = append(bindings, style.B("s", "sort:"+v.sortLabel))
+	if cycler, ok := v.resource.(resources.ScenarioCycler); ok && cycler.Scenario() != "normal" {
+		indicators = append(indicators, style.B("state", cycler.Scenario()))
+	}
+	if v.list.IsFiltered() {
+		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
+	}
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+
+	// Line 2: view-specific actions + nav keys + ? help.
+	var actions []style.Binding
+	isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
+	isContainers := strings.EqualFold(v.resource.Name(), "containers")
+
+	if _, ok := v.resource.(resources.ToggleSortable); ok {
+		actions = append(actions, style.B("s", "sort"))
+	}
+	if isWorkloads {
+		if _, ok := v.resource.(resources.ScenarioCycler); ok {
+			actions = append(actions, style.B("v", "state"))
 		}
-		if cycler, ok := v.resource.(resources.ScenarioCycler); ok {
-			bindings = append(bindings, style.B("v", "state:"+cycler.Scenario()))
-		}
-		return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
 	}
-	if strings.EqualFold(v.resource.Name(), "containers") {
-		bindings = append(bindings,
-			style.B("↵", "logs"), style.B("/", "filter"),
-			style.B("esc", "clear"), style.B("⌫", "back"),
-		)
-		return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
+	if !isContainers {
+		actions = append(actions, style.B("tab", "lens"), style.B("R", "related"))
 	}
-	bindings = append(bindings,
-		style.B("d", "describe"), style.B("e", "events"), style.B("L", "logs"),
-		style.B("R", "related"), style.B("y", "yaml"), style.B("/", "filter"),
-		style.B("esc", "clear"),
-	)
-	return style.FormatFooter(bindings, v.paginationStatus(), v.list.Width())
+	line2 := style.ActionFooter(actions, v.list.Width())
+
+	return line1 + "\n" + line2
 }
 
 func (v *View) SetSize(width, height int) {

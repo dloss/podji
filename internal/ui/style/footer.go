@@ -3,7 +3,6 @@ package style
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -28,6 +27,19 @@ func FormatBindings(bindings []Binding) string {
 	return strings.Join(parts, "  ")
 }
 
+// FormatKeys renders a cluster of bright keys with no labels, separated by single spaces.
+// Used for navigation shortcut clusters like "W P D S C K O".
+func FormatKeys(keys []string) string {
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = FooterKey.Render(k)
+	}
+	return strings.Join(parts, " ")
+}
+
+// NavKeys is the standard navigation shortcut cluster ordered by lens grouping.
+var NavKeys = []string{"W", "P", "D", "S", "C", "K", "O"}
+
 // FormatFooter renders bindings left-aligned with optional pagination right-aligned.
 // If width is 0, no right-alignment is applied.
 func FormatFooter(bindings []Binding, pagination string, width int) string {
@@ -45,17 +57,23 @@ func FormatFooter(bindings []Binding, pagination string, width int) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// GlobalFooter renders the standard global navigation line.
-func GlobalFooter(width int) string {
-	line := FormatBindings([]Binding{
-		{"←", "back"},
-		{"home", "top"},
-		{"⇧home", "default"},
-		{"?", "help"},
-		{"q", "quit"},
-	})
+// StatusFooter renders status indicators left-aligned with pagination right-aligned.
+// Indicators are only shown when non-default. Returns empty string if no indicators and no pagination.
+func StatusFooter(indicators []Binding, pagination string, width int) string {
+	return FormatFooter(indicators, pagination, width)
+}
+
+// ActionFooter renders view-specific action bindings, then nav keys, then "? help".
+func ActionFooter(actions []Binding, width int) string {
+	parts := []string{}
+	if len(actions) > 0 {
+		parts = append(parts, FormatBindings(actions))
+	}
+	parts = append(parts, FormatKeys(NavKeys))
+	parts = append(parts, FormatBindings([]Binding{B("?", "help")}))
+	line := strings.Join(parts, "  ")
 	if width > 0 {
 		line = ansi.Truncate(line, width-2, "…")
 	}
-	return lipgloss.NewStyle().Width(width).Render(line)
+	return line
 }

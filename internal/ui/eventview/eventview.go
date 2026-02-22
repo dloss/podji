@@ -40,9 +40,9 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
-	return style.FormatBindings([]style.Binding{
-		style.B("⌫", "back"), style.B("/", "search"), style.B("esc", "back"),
-	})
+	line1 := ""
+	line2 := style.ActionFooter(nil, v.viewport.Width)
+	return line1 + "\n" + line2
 }
 
 func (v *View) SetSize(width, height int) {
