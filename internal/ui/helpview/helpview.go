@@ -10,17 +10,15 @@ import (
 )
 
 var helpText = strings.TrimSpace(`
-NAVIGATION
-  enter / right / l    Open selected item
-  backspace / left / h Back / pop view
+GLOBAL
+  enter / right / l    Selected item
+  backspace / left / h Back
   esc                  Clear filter, then back
-  home / 0             Go to lens root
-  shift+home           Go to default lens
-
-VIEWS
-  tab / shift+tab      Cycle lens (Apps, Network, Infrastructure)
-  N                    Switch namespace
-  X                    Switch context
+  home / 0             Lens root
+  shift+home           Default lens
+  tab / shift+tab      Lens (Apps, Network, Infrastructure)
+  N                    Namespace
+  X                    Context
   W                    Workloads
   P                    Pods
   D                    Deployments
@@ -28,36 +26,29 @@ VIEWS
   C                    ConfigMaps
   K                    Secrets
   O                    Nodes
-  E                    Events
+  E                    Events (global)
 
-LIST VIEWS
-  / (slash)            Start filter
+TABLE
+  / (slash)            Filter
   esc                  Clear filter
-  s                    Toggle sort (name/problem)
-  v                    Cycle scenario (workloads)
+  s                    Sort (name/problem)
+  v                    State (workloads)
+  f <char>             Jump to first item by char
   d                    Describe
-  e                    Events
   y                    YAML
-  f <char>             Jump to first item starting with char
-  r                    Related resources
-  o                    Logs (direct)
+  e                    Events for selected item
+  r                    Related resources for selected item
+  o                    Logs (or next table)
   space / pgup / pgdn  Page up / down
 
-DETAIL VIEW
-  d                    Describe
-  o                    Logs
-  e                    Events
-  y                    YAML
-  r                    Related
-
-LOG VIEW
-  f                    Pause/resume (toggle follow)
-  w                    Toggle wrap
-  t                    Toggle current/previous
+LOGS
+  f                    Follow on/off
+  w                    Wrap on/off
+  t                    Current/previous
   up / down / j / k    Scroll
   space / pgup / pgdn  Page up / down
 
-GENERAL
+APP
   ?                    This help
   q / ctrl+c           Quit
 `)
