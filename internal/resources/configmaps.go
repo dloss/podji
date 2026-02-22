@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-type ConfigMaps struct{}
+type ConfigMaps struct {
+	sortMode string
+}
 
 func (c *ConfigMaps) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -33,7 +35,7 @@ func (c *ConfigMaps) TableRow(item ResourceItem) []string {
 }
 
 func NewConfigMaps() *ConfigMaps {
-	return &ConfigMaps{}
+	return &ConfigMaps{sortMode: "name"}
 }
 
 func (c *ConfigMaps) Name() string { return "configmaps" }
@@ -54,7 +56,22 @@ func (c *ConfigMaps) Items() []ResourceItem {
 }
 
 func (c *ConfigMaps) Sort(items []ResourceItem) {
-	defaultSort(items)
+	switch c.sortMode {
+	case "status":
+		problemSort(items)
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
+	}
+}
+
+func (c *ConfigMaps) ToggleSort() {
+	c.sortMode = cycleSortMode(c.sortMode, []string{"name", "status", "age"})
+}
+
+func (c *ConfigMaps) SortMode() string {
+	return c.sortMode
 }
 
 func (c *ConfigMaps) Detail(item ResourceItem) DetailData {

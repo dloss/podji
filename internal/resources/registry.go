@@ -1,6 +1,10 @@
 package resources
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // ActiveNamespace is the currently selected namespace. Resources can use this
 // to vary their stub data so namespace switching is visible.
@@ -77,4 +81,59 @@ func problemSort(items []ResourceItem) {
 		}
 		return items[i].Name < items[j].Name
 	})
+}
+
+// parseAge converts an age string like "3m", "6h", "2d" to minutes for comparison.
+func parseAge(age string) int {
+	age = strings.TrimSpace(age)
+	if age == "" {
+		return 0
+	}
+	suffix := age[len(age)-1]
+	num, err := strconv.Atoi(age[:len(age)-1])
+	if err != nil {
+		return 0
+	}
+	switch suffix {
+	case 'm':
+		return num
+	case 'h':
+		return num * 60
+	case 'd':
+		return num * 60 * 24
+	default:
+		return 0
+	}
+}
+
+// ageSort sorts items newest first (smallest parsed age), then by name.
+func ageSort(items []ResourceItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ai := parseAge(items[i].Age)
+		aj := parseAge(items[j].Age)
+		if ai != aj {
+			return ai < aj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+// kindSort sorts items alphabetically by Kind, then by name.
+func kindSort(items []ResourceItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Kind != items[j].Kind {
+			return items[i].Kind < items[j].Kind
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+// cycleSortMode advances to the next mode in the given slice.
+func cycleSortMode(current string, modes []string) string {
+	for idx, m := range modes {
+		if m == current {
+			return modes[(idx+1)%len(modes)]
+		}
+	}
+	return modes[0]
 }

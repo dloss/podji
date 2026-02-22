@@ -83,11 +83,16 @@ func workloadItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (w *Workloads) Sort(items []ResourceItem) {
-	if w.sortMode == "problem" {
+	switch w.sortMode {
+	case "status":
 		problemSort(items)
-		return
+	case "age":
+		ageSort(items)
+	case "kind":
+		kindSort(items)
+	default:
+		defaultSort(items)
 	}
-	defaultSort(items)
 }
 
 func (w *Workloads) TableColumns() []TableColumn {
@@ -113,11 +118,7 @@ func (w *Workloads) TableRow(item ResourceItem) []string {
 }
 
 func (w *Workloads) ToggleSort() {
-	if w.sortMode == "name" {
-		w.sortMode = "problem"
-		return
-	}
-	w.sortMode = "name"
+	w.sortMode = cycleSortMode(w.sortMode, []string{"name", "status", "kind", "age"})
 }
 
 func (w *Workloads) SortMode() string {

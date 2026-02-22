@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-type Secrets struct{}
+type Secrets struct {
+	sortMode string
+}
 
 func (s *Secrets) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -34,7 +36,7 @@ func (s *Secrets) TableRow(item ResourceItem) []string {
 }
 
 func NewSecrets() *Secrets {
-	return &Secrets{}
+	return &Secrets{sortMode: "name"}
 }
 
 func (s *Secrets) Name() string { return "secrets" }
@@ -55,7 +57,24 @@ func (s *Secrets) Items() []ResourceItem {
 }
 
 func (s *Secrets) Sort(items []ResourceItem) {
-	defaultSort(items)
+	switch s.sortMode {
+	case "status":
+		problemSort(items)
+	case "age":
+		ageSort(items)
+	case "kind":
+		kindSort(items)
+	default:
+		defaultSort(items)
+	}
+}
+
+func (s *Secrets) ToggleSort() {
+	s.sortMode = cycleSortMode(s.sortMode, []string{"name", "status", "kind", "age"})
+}
+
+func (s *Secrets) SortMode() string {
+	return s.sortMode
 }
 
 func (s *Secrets) Detail(item ResourceItem) DetailData {

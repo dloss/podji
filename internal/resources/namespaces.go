@@ -2,7 +2,9 @@ package resources
 
 import "strings"
 
-type Namespaces struct{}
+type Namespaces struct {
+	sortMode string
+}
 
 func (n *Namespaces) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -17,7 +19,7 @@ func (n *Namespaces) TableRow(item ResourceItem) []string {
 }
 
 func NewNamespaces() *Namespaces {
-	return &Namespaces{}
+	return &Namespaces{sortMode: "name"}
 }
 
 func (n *Namespaces) Name() string { return "namespaces" }
@@ -43,7 +45,22 @@ func (n *Namespaces) Items() []ResourceItem {
 }
 
 func (n *Namespaces) Sort(items []ResourceItem) {
-	defaultSort(items)
+	switch n.sortMode {
+	case "status":
+		problemSort(items)
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
+	}
+}
+
+func (n *Namespaces) ToggleSort() {
+	n.sortMode = cycleSortMode(n.sortMode, []string{"name", "status", "age"})
+}
+
+func (n *Namespaces) SortMode() string {
+	return n.sortMode
 }
 
 func (n *Namespaces) Detail(item ResourceItem) DetailData {

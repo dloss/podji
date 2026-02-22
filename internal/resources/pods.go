@@ -64,19 +64,18 @@ func podItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (p *Pods) Sort(items []ResourceItem) {
-	if p.sortMode == "problem" {
+	switch p.sortMode {
+	case "status":
 		problemSort(items)
-		return
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
 	}
-	defaultSort(items)
 }
 
 func (p *Pods) ToggleSort() {
-	if p.sortMode == "name" {
-		p.sortMode = "problem"
-		return
-	}
-	p.sortMode = "name"
+	p.sortMode = cycleSortMode(p.sortMode, []string{"name", "status", "age"})
 }
 
 func (p *Pods) SortMode() string {

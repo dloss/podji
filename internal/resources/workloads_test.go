@@ -21,9 +21,9 @@ func TestWorkloadsDefaultNameSort(t *testing.T) {
 	}
 }
 
-func TestWorkloadsToggleSortByProblem(t *testing.T) {
+func TestWorkloadsToggleSortByStatus(t *testing.T) {
 	w := NewWorkloads()
-	w.ToggleSort()
+	w.ToggleSort() // name -> status
 	items := w.Items()
 	if len(items) == 0 {
 		t.Fatalf("expected mock workloads")

@@ -67,19 +67,18 @@ func deploymentItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (d *Deployments) Sort(items []ResourceItem) {
-	if d.sortMode == "problem" {
+	switch d.sortMode {
+	case "status":
 		problemSort(items)
-		return
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
 	}
-	defaultSort(items)
 }
 
 func (d *Deployments) ToggleSort() {
-	if d.sortMode == "name" {
-		d.sortMode = "problem"
-		return
-	}
-	d.sortMode = "name"
+	d.sortMode = cycleSortMode(d.sortMode, []string{"name", "status", "age"})
 }
 
 func (d *Deployments) SortMode() string {

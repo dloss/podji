@@ -90,19 +90,20 @@ func serviceItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (s *Services) Sort(items []ResourceItem) {
-	if s.sortMode == "problem" {
+	switch s.sortMode {
+	case "status":
 		problemSort(items)
-		return
+	case "age":
+		ageSort(items)
+	case "kind":
+		kindSort(items)
+	default:
+		defaultSort(items)
 	}
-	defaultSort(items)
 }
 
 func (s *Services) ToggleSort() {
-	if s.sortMode == "name" {
-		s.sortMode = "problem"
-		return
-	}
-	s.sortMode = "name"
+	s.sortMode = cycleSortMode(s.sortMode, []string{"name", "status", "kind", "age"})
 }
 
 func (s *Services) SortMode() string {

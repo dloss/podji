@@ -46,19 +46,18 @@ func (n *Nodes) Items() []ResourceItem {
 }
 
 func (n *Nodes) Sort(items []ResourceItem) {
-	if n.sortMode == "problem" {
+	switch n.sortMode {
+	case "status":
 		problemSort(items)
-		return
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
 	}
-	defaultSort(items)
 }
 
 func (n *Nodes) ToggleSort() {
-	if n.sortMode == "name" {
-		n.sortMode = "problem"
-		return
-	}
-	n.sortMode = "name"
+	n.sortMode = cycleSortMode(n.sortMode, []string{"name", "status", "age"})
 }
 
 func (n *Nodes) SortMode() string {

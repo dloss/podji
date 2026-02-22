@@ -2,7 +2,9 @@ package resources
 
 import "strings"
 
-type Contexts struct{}
+type Contexts struct {
+	sortMode string
+}
 
 func (c *Contexts) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -41,7 +43,7 @@ func (c *Contexts) TableRow(item ResourceItem) []string {
 }
 
 func NewContexts() *Contexts {
-	return &Contexts{}
+	return &Contexts{sortMode: "name"}
 }
 
 func (c *Contexts) Name() string { return "contexts" }
@@ -61,7 +63,22 @@ func (c *Contexts) Items() []ResourceItem {
 }
 
 func (c *Contexts) Sort(items []ResourceItem) {
-	defaultSort(items)
+	switch c.sortMode {
+	case "status":
+		problemSort(items)
+	case "age":
+		ageSort(items)
+	default:
+		defaultSort(items)
+	}
+}
+
+func (c *Contexts) ToggleSort() {
+	c.sortMode = cycleSortMode(c.sortMode, []string{"name", "status", "age"})
+}
+
+func (c *Contexts) SortMode() string {
+	return c.sortMode
 }
 
 func (c *Contexts) Detail(item ResourceItem) DetailData {

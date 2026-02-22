@@ -2,7 +2,9 @@ package resources
 
 import "strings"
 
-type Events struct{}
+type Events struct {
+	sortMode string
+}
 
 func (e *Events) TableColumns() []TableColumn {
 	return []TableColumn{
@@ -24,7 +26,7 @@ func (e *Events) TableRow(item ResourceItem) []string {
 }
 
 func NewEvents() *Events {
-	return &Events{}
+	return &Events{sortMode: "name"}
 }
 
 func (e *Events) Name() string { return "events" }
@@ -47,7 +49,24 @@ func (e *Events) Items() []ResourceItem {
 }
 
 func (e *Events) Sort(items []ResourceItem) {
-	defaultSort(items)
+	switch e.sortMode {
+	case "status":
+		problemSort(items)
+	case "age":
+		ageSort(items)
+	case "kind":
+		kindSort(items)
+	default:
+		defaultSort(items)
+	}
+}
+
+func (e *Events) ToggleSort() {
+	e.sortMode = cycleSortMode(e.sortMode, []string{"name", "status", "kind", "age"})
+}
+
+func (e *Events) SortMode() string {
+	return e.sortMode
 }
 
 func (e *Events) Detail(item ResourceItem) DetailData {
