@@ -15,7 +15,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := ansi.Strip(view.Footer())
-	wants := []string{"s sort", "v state", "tab lens", "r related", "? help", "W", "P", "D", "S", "E"}
+	wants := []string{"s sort", "v state", "tab lens", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)

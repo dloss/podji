@@ -69,7 +69,7 @@ func ActionFooter(actions []Binding, width int) string {
 	if len(actions) > 0 {
 		parts = append(parts, FormatBindings(actions))
 	}
-	parts = append(parts, FormatKeys(NavKeys))
+	parts = append(parts, FormatKeys(NavKeys)+" "+FooterLabel.Render("nav"))
 	parts = append(parts, FormatBindings([]Binding{B("?", "help")}))
 	line := strings.Join(parts, "  ")
 	if width > 0 {
