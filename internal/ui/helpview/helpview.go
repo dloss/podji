@@ -38,7 +38,7 @@ LIST VIEWS
   f <char>             Jump to first item starting with char
   r                    Related resources
   o                    Logs (direct)
-  pgup / pgdn          Page up / down
+  space / pgup / pgdn  Page up / down
 
 DETAIL VIEW
   d                    Describe
@@ -48,10 +48,11 @@ DETAIL VIEW
   r                    Related
 
 LOG VIEW
-  f                    Toggle follow
+  f                    Pause/resume (toggle follow)
   w                    Toggle wrap
   t                    Toggle current/previous
   up / down / j / k    Scroll
+  space / pgup / pgdn  Page up / down
 
 GENERAL
   ?                    This help

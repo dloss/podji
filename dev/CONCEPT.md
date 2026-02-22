@@ -303,11 +303,12 @@ Defaults:
 
 Key actions:
 
-- `f`: follow toggle
-- `space`: pause scrolling
+- `f`: pause/resume (follow toggle)
+- `space` / `pgdn`: page down
+- `pgup`: page up
 - `/`: search, with `n` / `N` navigation
 - `w`: wrap toggle
-- `t`: timestamps toggle
+- `t`: current/previous mode toggle
 - `c`: container picker
 - `[` / `]`: cycle `--since` window (1m, 5m, 15m, 1h, all)
 - `Esc`: back

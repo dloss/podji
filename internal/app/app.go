@@ -81,6 +81,7 @@ func (m Model) Init() bubbletea.Cmd {
 }
 
 func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
+	routedMsg := msg
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
 		m.width = msg.Width
@@ -91,6 +92,8 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
 			break
 		}
+		msg = normalizeGlobalKey(msg)
+		routedMsg = msg
 		if msg.Type == bubbletea.KeyShiftTab || msg.String() == "shift+tab" || msg.String() == "backtab" {
 			m.saveHistory()
 			m.lens = (m.lens - 1 + len(lenses)) % len(lenses)
@@ -179,7 +182,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 	}
 
-	update := m.top().Update(msg)
+	update := m.top().Update(routedMsg)
 	switch update.Action {
 	case viewstate.Push:
 		if m.scope == scopeNamespace || m.scope == scopeContext {
@@ -449,4 +452,11 @@ func normalizeBreadcrumbPart(value string) string {
 		return value
 	}
 	return label + ": " + context
+}
+
+func normalizeGlobalKey(msg bubbletea.KeyMsg) bubbletea.KeyMsg {
+	if msg.Type == bubbletea.KeySpace || msg.String() == " " {
+		return bubbletea.KeyMsg{Type: bubbletea.KeyPgDown}
+	}
+	return msg
 }

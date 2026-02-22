@@ -86,7 +86,7 @@ func (v *View) Footer() string {
 
 	// Line 2: actions.
 	actions := []style.Binding{
-		style.B("t", "mode"), style.B("f", "follow"), style.B("w", "wrap"),
+		style.B("t", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
 		style.B("/", "search"),
 	}
 	line2 := style.ActionFooter(actions, v.viewport.Width)
