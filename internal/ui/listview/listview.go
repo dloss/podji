@@ -15,7 +15,6 @@ import (
 	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
-	"github.com/dloss/podji/internal/ui/podpickerview"
 	"github.com/dloss/podji/internal/ui/relatedview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
@@ -682,7 +681,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 			pods := resources.NewWorkloadPods(selected)
 			items := pods.Items()
 			if len(items) == 0 {
-				return podpickerview.New(selected)
+				return New(pods, v.registry)
 			}
 			return logview.New(preferredLogPod(items), pods)
 		}
