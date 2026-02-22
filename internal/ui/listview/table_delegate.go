@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func newTableDelegate() tableDelegate {
+func newTableDelegate(findMode *bool, findTargets *map[int]bool) tableDelegate {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.SetSpacing(0)
@@ -21,13 +21,15 @@ func newTableDelegate() tableDelegate {
 		Background(lipgloss.Color("236")).
 		BorderLeft(true).
 		BorderStyle(lipgloss.Border{Left: "▌"})
-	return tableDelegate{DefaultDelegate: delegate}
+	return tableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets}
 }
 
 // tableDelegate keeps Bubble's default list behavior but scopes filter-match
 // highlighting to the first (name) column in table rows.
 type tableDelegate struct {
 	list.DefaultDelegate
+	findMode    *bool
+	findTargets *map[int]bool
 }
 
 func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
@@ -56,7 +58,8 @@ func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 	}
 	matchStyle := matchBase.Inherit(d.Styles.FilterMatch)
 
-	row := renderRowWithNameMatch(it, isSelected, matches, matchStyle, matchBase)
+	findTarget := d.findMode != nil && *d.findMode && d.findTargets != nil && (*d.findTargets)[index]
+	row := renderRowWithNameMatch(it, isSelected, matches, matchStyle, matchBase, findTarget)
 	textWidth := m.Width() - titleStyle.GetPaddingLeft() - titleStyle.GetPaddingRight()
 	row = ansi.Truncate(row, textWidth, "…")
 	fmt.Fprint(w, titleStyle.Render(row)) //nolint:errcheck
@@ -68,6 +71,7 @@ func renderRowWithNameMatch(
 	matches []int,
 	matchStyle lipgloss.Style,
 	unmatchedStyle lipgloss.Style,
+	findTarget bool,
 ) string {
 	cells := make([]string, 0, len(it.row))
 
@@ -87,6 +91,10 @@ func renderRowWithNameMatch(
 			}
 		}
 
+		if idx == 0 && findTarget {
+			cellValue = underlineFirstChar(cellValue)
+		}
+
 		if idx > 0 && it.status != "" && it.row[idx] == it.status {
 			cellValue = inlineStatusStyle(cellValue, isSelected)
 		}
@@ -95,6 +103,19 @@ func renderRowWithNameMatch(
 	}
 
 	return strings.Join(cells, " ")
+}
+
+// underlineFirstChar applies underline + bright foreground to the first
+// visible character of value using raw ANSI sequences so it composes with
+// existing row styling.
+func underlineFirstChar(value string) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return value
+	}
+	// \x1b[4m = underline on, \x1b[1m = bold, \x1b[97m = bright white fg
+	// \x1b[22;24;39m = bold off, underline off, default fg
+	return "\x1b[4;1;97m" + string(runes[0]) + "\x1b[22;24;39m" + string(runes[1:])
 }
 
 // inlineStatusStyle applies status coloring. When preserveBg is true it uses

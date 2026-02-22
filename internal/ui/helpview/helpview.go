@@ -35,6 +35,7 @@ LIST VIEWS
   d                    Describe
   e                    Events
   y                    YAML
+  f <char>             Jump to first item starting with char
   R                    Related resources
   L                    Logs (direct)
   pgup / pgdn          Page up / down

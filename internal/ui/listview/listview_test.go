@@ -128,6 +128,120 @@ func TestEmptyStateMessageAlignedWithTable(t *testing.T) {
 	}
 }
 
+func TestFindModeJumpsToMatchingItem(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	// Press f to enter find mode.
+	result := view.Update(keyRunes('f'))
+	if result.Action != viewstate.None {
+		t.Fatalf("expected no navigation on f, got %v", result.Action)
+	}
+	if !view.findMode {
+		t.Fatal("expected findMode to be true after pressing f")
+	}
+	if !view.SuppressGlobalKeys() {
+		t.Fatal("expected SuppressGlobalKeys to be true in find mode")
+	}
+
+	// Press a character to jump.
+	view.Update(keyRunes('a'))
+	if view.findMode {
+		t.Fatal("expected findMode to be false after pressing a character")
+	}
+
+	// The selected item should start with 'a' (case-insensitive).
+	if selected, ok := view.list.SelectedItem().(item); ok {
+		name := strings.ToLower(strings.TrimSpace(selected.data.Name))
+		if len(name) == 0 || name[0] != 'a' {
+			t.Fatalf("expected item starting with 'a', got %q", selected.data.Name)
+		}
+	}
+}
+
+func TestFindModeEscCancels(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('f'))
+	if !view.findMode {
+		t.Fatal("expected findMode to be true")
+	}
+
+	view.Update(keyEsc())
+	if view.findMode {
+		t.Fatal("expected findMode to be false after esc")
+	}
+}
+
+func TestFindModeSuppressesGlobalKeys(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	if view.SuppressGlobalKeys() {
+		t.Fatal("expected SuppressGlobalKeys to be false initially")
+	}
+
+	view.Update(keyRunes('f'))
+	if !view.SuppressGlobalKeys() {
+		t.Fatal("expected SuppressGlobalKeys to be true in find mode")
+	}
+
+	// Press a character to exit find mode.
+	view.Update(keyRunes('z'))
+	if view.SuppressGlobalKeys() {
+		t.Fatal("expected SuppressGlobalKeys to be false after exiting find mode")
+	}
+}
+
+func TestFindModeFooterIndicator(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('f'))
+	footer := ansi.Strip(view.Footer())
+	if !strings.Contains(footer, "f") || !strings.Contains(footer, "…") {
+		t.Fatalf("expected find mode indicator in footer, got: %s", footer)
+	}
+}
+
+func TestComputeFindTargets(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	targets := view.computeFindTargets()
+	if len(targets) == 0 {
+		t.Fatal("expected at least one find target")
+	}
+
+	// Each target index should be the first occurrence of its starting letter.
+	seen := make(map[rune]bool)
+	visible := view.list.VisibleItems()
+	for i, li := range visible {
+		if it, ok := li.(item); ok {
+			name := strings.TrimSpace(it.data.Name)
+			if len(name) > 0 {
+				ch := []rune(strings.ToLower(name))[0]
+				if !seen[ch] {
+					seen[ch] = true
+					if !targets[i] {
+						t.Fatalf("expected index %d to be a find target for char %c", i, ch)
+					}
+				}
+			}
+		}
+	}
+}
+
+func keyEsc() bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyEscape}
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }

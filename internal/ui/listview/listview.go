@@ -63,11 +63,13 @@ func (i item) FilterValue() string {
 }
 
 type View struct {
-	resource  resources.ResourceType
-	registry  *resources.Registry
-	list      list.Model
-	columns   []resources.TableColumn
-	sortLabel string
+	resource    resources.ResourceType
+	registry    *resources.Registry
+	list        list.Model
+	columns     []resources.TableColumn
+	sortLabel   string
+	findMode    bool
+	findTargets map[int]bool
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
@@ -84,7 +86,13 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		})
 	}
 
-	delegate := newTableDelegate()
+	v := &View{
+		resource:  resource,
+		registry:  registry,
+		columns:   columns,
+		sortLabel: sortMode(resource),
+	}
+	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -93,13 +101,8 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	model.SetFilteringEnabled(true)
 	filterbar.Setup(&model)
 	model.Paginator.Type = paginator.Arabic
-	return &View{
-		resource:  resource,
-		registry:  registry,
-		list:      model,
-		columns:   columns,
-		sortLabel: sortMode(resource),
-	}
+	v.list = model
+	return v
 }
 
 func (v *View) Init() bubbletea.Cmd {
@@ -112,6 +115,18 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			updated, cmd := v.list.Update(msg)
 			v.list = updated
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+		}
+
+		if v.findMode {
+			v.findMode = false
+			v.findTargets = nil
+			if key.String() == "esc" {
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+			if r := singleRune(key); r != 0 {
+				v.jumpToChar(r)
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
 		switch key.String() {
@@ -178,6 +193,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   describeview.New(selected.data, v.resource),
 				}
 			}
+		case "f":
+			v.findMode = true
+			v.findTargets = v.computeFindTargets()
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 	}
 
@@ -246,6 +265,9 @@ func (v *View) Footer() string {
 	if cycler, ok := v.resource.(resources.ScenarioCycler); ok && cycler.Scenario() != "normal" {
 		indicators = append(indicators, style.B("state", cycler.Scenario()))
 	}
+	if v.findMode {
+		indicators = append(indicators, style.B("f", "…"))
+	}
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
@@ -278,7 +300,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter()
+	return v.list.SettingFilter() || v.findMode
 }
 
 func (v *View) NextBreadcrumb() string {
@@ -467,6 +489,45 @@ func (v *View) bannerMessage() string {
 		return provider.Banner()
 	}
 	return ""
+}
+
+func singleRune(key bubbletea.KeyMsg) rune {
+	if key.Type == bubbletea.KeyRunes && len(key.Runes) == 1 {
+		return key.Runes[0]
+	}
+	return 0
+}
+
+func (v *View) jumpToChar(r rune) {
+	target := unicode.ToLower(r)
+	visible := v.list.VisibleItems()
+	for i, li := range visible {
+		if it, ok := li.(item); ok {
+			name := strings.TrimSpace(it.data.Name)
+			if len(name) > 0 && unicode.ToLower([]rune(name)[0]) == target {
+				v.list.Select(i)
+				return
+			}
+		}
+	}
+}
+
+func (v *View) computeFindTargets() map[int]bool {
+	targets := make(map[int]bool)
+	seen := make(map[rune]bool)
+	for i, li := range v.list.VisibleItems() {
+		if it, ok := li.(item); ok {
+			name := strings.TrimSpace(it.data.Name)
+			if len(name) > 0 {
+				ch := unicode.ToLower([]rune(name)[0])
+				if !seen[ch] {
+					seen[ch] = true
+					targets[i] = true
+				}
+			}
+		}
+	}
+	return targets
 }
 
 func (v *View) forwardView(selected resources.ResourceItem, key string) viewstate.View {
