@@ -71,6 +71,7 @@ type View struct {
 	columns     []resources.TableColumn
 	colWidths   []int
 	sortLabel   string
+	sortTouched bool
 	findMode    bool
 	findTargets map[int]bool
 }
@@ -82,6 +83,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	for _, res := range items {
 		rows = append(rows, tableRow(resource, res))
 	}
+	mode := sortMode(resource)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
 	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
@@ -100,7 +102,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		registry:  registry,
 		columns:   columns,
 		colWidths: widths,
-		sortLabel: sortMode(resource),
+		sortLabel: mode,
 	}
 	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
@@ -165,6 +167,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "s":
 			if sortable, ok := v.resource.(resources.ToggleSortable); ok {
 				sortable.ToggleSort()
+				v.sortTouched = true
 				v.refreshItems()
 				v.sortLabel = sortable.SortMode()
 			}
@@ -230,7 +233,16 @@ func (v *View) View() string {
 
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
-	header := "  " + headerRowWithHint(v.columns, v.colWidths, label, childHint)
+	mode := sortMode(v.resource)
+	activeSortIdx := -1
+	if v.sortTouched || !isDefaultSortMode(v.resource, mode) {
+		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
+	}
+	headerPrefix := "  "
+	if activeSortIdx == 0 {
+		headerPrefix = " " + style.Muted.Render("↑")
+	}
+	header := headerPrefix + headerRowWithHint(v.columns, v.colWidths, label, childHint, activeSortIdx)
 	// Keep the same line budget as the base list view so the footer doesn't
 	// jump, then place our table header into the first two rows.
 	out := make([]string, len(lines))
@@ -387,10 +399,16 @@ func statusStyle(status string) string {
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {
-	return headerRowWithHint(columns, nil, firstLabel, "")
+	return headerRowWithHint(columns, nil, firstLabel, "", -1)
 }
 
-func headerRowWithHint(columns []resources.TableColumn, widths []int, firstLabel string, childHint string) string {
+func headerRowWithHint(
+	columns []resources.TableColumn,
+	widths []int,
+	firstLabel string,
+	childHint string,
+	activeSortIdx int,
+) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
 		width := col.Width
@@ -413,7 +431,20 @@ func headerRowWithHint(columns []resources.TableColumn, widths []int, firstLabel
 		}
 		headers = append(headers, padCell(name, width))
 	}
-	return strings.Join(headers, columnSeparator)
+	if len(headers) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(headers[0])
+	for idx := 1; idx < len(headers); idx++ {
+		sep := columnSeparator
+		if idx == activeSortIdx {
+			sep = " " + style.Muted.Render("↑")
+		}
+		b.WriteString(sep)
+		b.WriteString(headers[idx])
+	}
+	return b.String()
 }
 
 func padCell(value string, width int) string {
@@ -565,6 +596,55 @@ func sortMode(resource resources.ResourceType) string {
 		return sortable.SortMode()
 	}
 	return ""
+}
+
+func activeSortColumn(resource resources.ResourceType, columns []resources.TableColumn, mode string) int {
+	if len(columns) == 0 || mode == "" {
+		return -1
+	}
+
+	switch mode {
+	case "name":
+		return 0
+	case "age":
+		return firstColumnNamed(columns, "AGE")
+	case "kind":
+		if idx := firstColumnNamed(columns, "KIND"); idx >= 0 {
+			return idx
+		}
+		return firstColumnNamed(columns, "TYPE")
+	case "status":
+		if idx := firstColumnNamed(columns, "STATUS"); idx >= 0 {
+			return idx
+		}
+		// Events surface severity in TYPE and also support status sort.
+		if resource != nil && strings.EqualFold(resource.Name(), "events") {
+			return firstColumnNamed(columns, "TYPE")
+		}
+	}
+	return -1
+}
+
+func isDefaultSortMode(resource resources.ResourceType, mode string) bool {
+	if mode == "" {
+		return true
+	}
+	type defaultSortProvider interface {
+		DefaultSortMode() string
+	}
+	if provider, ok := resource.(defaultSortProvider); ok {
+		return mode == provider.DefaultSortMode()
+	}
+	return mode == "name"
+}
+
+func firstColumnNamed(columns []resources.TableColumn, name string) int {
+	for idx, col := range columns {
+		if strings.EqualFold(strings.TrimSpace(col.Name), name) {
+			return idx
+		}
+	}
+	return -1
 }
 
 func (v *View) refreshItems() {
