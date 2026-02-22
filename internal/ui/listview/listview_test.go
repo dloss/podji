@@ -255,6 +255,20 @@ func TestColumnWidthsForRowsShrinkToContent(t *testing.T) {
 	}
 }
 
+func TestColumnWidthsForRowsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "READY", Width: 7},
+	}
+	rows := [][]string{
+		{"configmap"},
+	}
+
+	widths := columnWidthsForRows(columns, rows, 40)
+	if widths[0] != len("configmap") {
+		t.Fatalf("expected width %d, got %v", len("configmap"), widths)
+	}
+}
+
 func TestColumnWidthsForRowsPrioritizesFirstColumnWhenTight(t *testing.T) {
 	columns := []resources.TableColumn{
 		{Name: "NAME", Width: 32},

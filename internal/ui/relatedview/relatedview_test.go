@@ -104,6 +104,20 @@ func TestRelationColumnWidthsForRowsFitsAvailableWidth(t *testing.T) {
 	}
 }
 
+func TestRelationColumnWidthsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "READY", Width: 7},
+	}
+	rows := [][]string{
+		{"configmap"},
+	}
+
+	widths := relationColumnWidthsForRows(columns, rows, 40)
+	if widths[0] != len("configmap") {
+		t.Fatalf("expected width %d, got %v", len("configmap"), widths)
+	}
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }

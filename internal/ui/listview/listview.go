@@ -467,9 +467,6 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 		if maxContent > width {
 			width = maxContent
 		}
-		if col.Width > 0 && width > col.Width {
-			width = col.Width
-		}
 		if width < 1 {
 			width = 1
 		}
