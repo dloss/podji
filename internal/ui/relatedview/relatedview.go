@@ -16,6 +16,8 @@ import (
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
+const relationColumnSeparator = "  "
+
 type entry struct {
 	name        string
 	count       int
@@ -38,6 +40,7 @@ type View struct {
 	registry    *resources.Registry
 	list        list.Model
 	columns     []resources.TableColumn
+	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
 }
@@ -51,21 +54,26 @@ func RelatedCount(source resources.ResourceItem, resource resources.ResourceType
 func New(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
 	items := relatedEntries(source, resource, registry)
 	columns := relatedTableColumns()
-	widths := relationColumnWidths(columns)
-	listItems := make([]list.Item, 0, len(items))
+	rows := make([][]string, 0, len(items))
 	for _, it := range items {
+		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
+	}
+	widths := relationColumnWidthsForRows(columns, rows, 0)
+	listItems := make([]list.Item, 0, len(items))
+	for idx, it := range items {
 		listItems = append(listItems, relatedItem{
 			entry:  it,
-			row:    []string{it.name, relatedCountCell(it.count), it.description},
+			row:    rows[idx],
 			widths: widths,
 		})
 	}
 
 	v := &View{
-		source:   source,
-		resource: resource,
-		registry: registry,
-		columns:  columns,
+		source:    source,
+		resource:  resource,
+		registry:  registry,
+		columns:   columns,
+		colWidths: widths,
 	}
 	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
@@ -137,7 +145,7 @@ func (v *View) View() string {
 		dataStart++
 	}
 
-	header := "  " + relationHeaderRowWithHint(v.columns, "related", v.NextBreadcrumb())
+	header := "  " + relationHeaderRowWithHint(v.columns, v.colWidths, "related", v.NextBreadcrumb())
 	out := make([]string, 0, len(lines)+2)
 	out = append(out, "")
 	out = append(out, header)
@@ -179,6 +187,31 @@ func (v *View) SetSize(width, height int) {
 		return
 	}
 	v.list.SetSize(width, height)
+	v.refreshItems()
+}
+
+func (v *View) refreshItems() {
+	items := relatedEntries(v.source, v.resource, v.registry)
+	rows := make([][]string, 0, len(items))
+	for _, it := range items {
+		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
+	}
+	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2)
+
+	listItems := make([]list.Item, 0, len(items))
+	for idx, it := range items {
+		listItems = append(listItems, relatedItem{
+			entry:  it,
+			row:    rows[idx],
+			widths: v.colWidths,
+		})
+	}
+
+	selected := v.list.Index()
+	v.list.SetItems(listItems)
+	if selected >= 0 && selected < len(listItems) {
+		v.list.Select(selected)
+	}
 }
 
 func (v *View) SuppressGlobalKeys() bool {
@@ -309,25 +342,30 @@ type relationList struct {
 	registry    *resources.Registry
 	list        list.Model
 	columns     []resources.TableColumn
+	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
 	columns := relationTableColumns(resource)
-	widths := relationColumnWidths(columns)
 	items := resource.Items()
-	listItems := make([]list.Item, 0, len(items))
+	rows := make([][]string, 0, len(items))
 	for _, res := range items {
+		rows = append(rows, relationTableRow(resource, res))
+	}
+	widths := relationColumnWidthsForRows(columns, rows, 0)
+	listItems := make([]list.Item, 0, len(items))
+	for idx, res := range items {
 		listItems = append(listItems, relationItem{
 			data:   res,
-			row:    relationTableRow(resource, res),
+			row:    rows[idx],
 			status: res.Status,
 			widths: widths,
 		})
 	}
 
-	v := &relationList{resource: resource, registry: registry, columns: columns}
+	v := &relationList{resource: resource, registry: registry, columns: columns, colWidths: widths}
 	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
@@ -402,7 +440,7 @@ func (v *relationList) View() string {
 
 	label := resources.SingularName(relationBreadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
-	header := "  " + relationHeaderRowWithHint(v.columns, label, childHint)
+	header := "  " + relationHeaderRowWithHint(v.columns, v.colWidths, label, childHint)
 	out := make([]string, 0, len(lines)+2)
 	out = append(out, "")
 	out = append(out, header)
@@ -443,6 +481,32 @@ func (v *relationList) SetSize(width, height int) {
 		return
 	}
 	v.list.SetSize(width, height)
+	v.refreshItems()
+}
+
+func (v *relationList) refreshItems() {
+	items := v.resource.Items()
+	rows := make([][]string, 0, len(items))
+	for _, res := range items {
+		rows = append(rows, relationTableRow(v.resource, res))
+	}
+	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2)
+
+	listItems := make([]list.Item, 0, len(items))
+	for idx, res := range items {
+		listItems = append(listItems, relationItem{
+			data:   res,
+			row:    rows[idx],
+			status: res.Status,
+			widths: v.colWidths,
+		})
+	}
+
+	selected := v.list.Index()
+	v.list.SetItems(listItems)
+	if selected >= 0 && selected < len(listItems) {
+		v.list.Select(selected)
+	}
 }
 
 func (v *relationList) SuppressGlobalKeys() bool {
@@ -468,7 +532,7 @@ func (i relatedItem) Title() string {
 		width := i.widths[idx]
 		cells = append(cells, relationPadCell(value, width))
 	}
-	return strings.Join(cells, " ")
+	return strings.Join(cells, relationColumnSeparator)
 }
 
 func (i relatedItem) Description() string { return "" }
@@ -493,7 +557,7 @@ func (i relationItem) Title() string {
 		}
 		cells = append(cells, cellValue)
 	}
-	return strings.Join(cells, " ")
+	return strings.Join(cells, relationColumnSeparator)
 }
 
 func (i relationItem) Description() string { return "" }
@@ -537,31 +601,131 @@ func relationColumnWidths(columns []resources.TableColumn) []int {
 	return widths
 }
 
-func relationHeaderRow(columns []resources.TableColumn, firstLabel string) string {
-	return relationHeaderRowWithHint(columns, firstLabel, "")
+func relationColumnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int) []int {
+	if len(columns) == 0 {
+		return nil
+	}
+
+	if availableWidth <= 0 {
+		return relationColumnWidths(columns)
+	}
+
+	widths := make([]int, len(columns))
+	for idx, col := range columns {
+		maxContent := 0
+		for _, row := range rows {
+			if idx >= len(row) {
+				continue
+			}
+			cellWidth := len([]rune(strings.TrimSpace(row[idx])))
+			if cellWidth > maxContent {
+				maxContent = cellWidth
+			}
+		}
+
+		headerWidth := len([]rune(strings.TrimSpace(col.Name)))
+		width := headerWidth
+		if maxContent > width {
+			width = maxContent
+		}
+		if col.Width > 0 && width > col.Width {
+			width = col.Width
+		}
+		if width < 1 {
+			width = 1
+		}
+		widths[idx] = width
+	}
+
+	availableContent := availableWidth - ((len(columns) - 1) * len(relationColumnSeparator))
+	if availableContent < len(columns) {
+		availableContent = len(columns)
+	}
+	sum := 0
+	for _, width := range widths {
+		sum += width
+	}
+	if sum <= availableContent {
+		return widths
+	}
+
+	minWidths := make([]int, len(widths))
+	for idx := range minWidths {
+		if idx == 0 {
+			minWidths[idx] = 6
+		} else {
+			minWidths[idx] = 3
+		}
+		if minWidths[idx] > widths[idx] {
+			minWidths[idx] = widths[idx]
+		}
+	}
+
+	over := sum - availableContent
+	for over > 0 {
+		progress := false
+		for idx := len(widths) - 1; idx >= 1 && over > 0; idx-- {
+			if widths[idx] > minWidths[idx] {
+				widths[idx]--
+				over--
+				progress = true
+			}
+		}
+		if over > 0 && widths[0] > minWidths[0] {
+			widths[0]--
+			over--
+			progress = true
+		}
+		if !progress {
+			break
+		}
+	}
+
+	for over > 0 {
+		progress := false
+		for idx := len(widths) - 1; idx >= 0 && over > 0; idx-- {
+			if widths[idx] > 1 {
+				widths[idx]--
+				over--
+				progress = true
+			}
+		}
+		if !progress {
+			break
+		}
+	}
+
+	return widths
 }
 
-func relationHeaderRowWithHint(columns []resources.TableColumn, firstLabel string, childHint string) string {
+func relationHeaderRow(columns []resources.TableColumn, firstLabel string) string {
+	return relationHeaderRowWithHint(columns, nil, firstLabel, "")
+}
+
+func relationHeaderRowWithHint(columns []resources.TableColumn, widths []int, firstLabel string, childHint string) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
+		width := col.Width
+		if idx < len(widths) && widths[idx] > 0 {
+			width = widths[idx]
+		}
 		name := col.Name
 		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
 			label := strings.ToUpper(firstLabel)
 			if childHint != "" {
 				hint := " → " + relationTitleCase(childHint)
 				visibleLen := len([]rune(label)) + len([]rune(hint))
-				padding := col.Width - visibleLen
-				if padding < 0 {
-					padding = 0
+				if visibleLen <= width {
+					padding := width - visibleLen
+					headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
+					continue
 				}
-				headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
-				continue
 			}
 			name = label
 		}
-		headers = append(headers, relationPadCell(name, col.Width))
+		headers = append(headers, relationPadCell(name, width))
 	}
-	return strings.Join(headers, " ")
+	return strings.Join(headers, relationColumnSeparator)
 }
 
 func relationPadCell(value string, width int) string {

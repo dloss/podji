@@ -81,6 +81,29 @@ func TestRelationListFindModeJumpsToMatchingItem(t *testing.T) {
 	}
 }
 
+func TestRelationColumnWidthsForRowsFitsAvailableWidth(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "RELATED", Width: 18},
+		{Name: "COUNT", Width: 5},
+		{Name: "DESCRIPTION", Width: 58},
+	}
+	rows := [][]string{
+		{"pods", "12", "Owned pods and replica set relations"},
+	}
+
+	widths := relationColumnWidthsForRows(columns, rows, 22)
+	sum := 0
+	for _, width := range widths {
+		sum += width
+	}
+	if got := sum + ((len(widths) - 1) * len(relationColumnSeparator)); got > 22 {
+		t.Fatalf("expected widths to fit 22 chars, got total %d (%v)", got, widths)
+	}
+	if widths[0] < 6 {
+		t.Fatalf("expected first column to retain minimum readability, got %v", widths)
+	}
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }

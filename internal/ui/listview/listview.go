@@ -16,10 +16,12 @@ import (
 	"github.com/dloss/podji/internal/ui/logview"
 	"github.com/dloss/podji/internal/ui/podpickerview"
 	"github.com/dloss/podji/internal/ui/relatedview"
-	"github.com/dloss/podji/internal/ui/yamlview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/ui/yamlview"
 )
+
+const columnSeparator = "  "
 
 type item struct {
 	data   resources.ResourceItem
@@ -38,7 +40,7 @@ func (i item) Title() string {
 		}
 		cells = append(cells, cellValue)
 	}
-	return strings.Join(cells, " ")
+	return strings.Join(cells, columnSeparator)
 }
 
 func (i item) Description() string {
@@ -67,6 +69,7 @@ type View struct {
 	registry    *resources.Registry
 	list        list.Model
 	columns     []resources.TableColumn
+	colWidths   []int
 	sortLabel   string
 	findMode    bool
 	findTargets map[int]bool
@@ -75,14 +78,19 @@ type View struct {
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	columns := tableColumns(resource)
 	items := resource.Items()
-	listItems := make([]list.Item, 0, len(items))
+	rows := make([][]string, 0, len(items))
 	for _, res := range items {
-		row := tableRow(resource, res)
+		rows = append(rows, tableRow(resource, res))
+	}
+	widths := columnWidthsForRows(columns, rows, 0)
+	listItems := make([]list.Item, 0, len(items))
+	for idx, res := range items {
+		row := rows[idx]
 		listItems = append(listItems, item{
 			data:   res,
 			row:    row,
 			status: res.Status,
-			widths: columnWidths(columns),
+			widths: widths,
 		})
 	}
 
@@ -90,6 +98,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		resource:  resource,
 		registry:  registry,
 		columns:   columns,
+		colWidths: widths,
 		sortLabel: sortMode(resource),
 	}
 	delegate := newTableDelegate(&v.findMode, &v.findTargets)
@@ -220,7 +229,7 @@ func (v *View) View() string {
 
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
-	header := "  " + headerRowWithHint(v.columns, label, childHint)
+	header := "  " + headerRowWithHint(v.columns, v.colWidths, label, childHint)
 	out := make([]string, 0, len(lines)+2)
 	out = append(out, "")     // blank line separating lens/breadcrumb from table
 	out = append(out, header) // column header
@@ -297,6 +306,7 @@ func (v *View) SetSize(width, height int) {
 		return
 	}
 	v.list.SetSize(width, height)
+	v.refreshItems()
 }
 
 func (v *View) SuppressGlobalKeys() bool {
@@ -355,30 +365,33 @@ func statusStyle(status string) string {
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {
-	return headerRowWithHint(columns, firstLabel, "")
+	return headerRowWithHint(columns, nil, firstLabel, "")
 }
 
-func headerRowWithHint(columns []resources.TableColumn, firstLabel string, childHint string) string {
+func headerRowWithHint(columns []resources.TableColumn, widths []int, firstLabel string, childHint string) string {
 	headers := make([]string, 0, len(columns))
 	for idx, col := range columns {
+		width := col.Width
+		if idx < len(widths) && widths[idx] > 0 {
+			width = widths[idx]
+		}
 		name := col.Name
 		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
 			label := strings.ToUpper(firstLabel)
 			if childHint != "" {
 				hint := " → " + titleCase(childHint)
 				visibleLen := len([]rune(label)) + len([]rune(hint))
-				padding := col.Width - visibleLen
-				if padding < 0 {
-					padding = 0
+				if visibleLen <= width {
+					padding := width - visibleLen
+					headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
+					continue
 				}
-				headers = append(headers, label+style.Muted.Render(hint)+strings.Repeat(" ", padding))
-				continue
 			}
 			name = label
 		}
-		headers = append(headers, padCell(name, col.Width))
+		headers = append(headers, padCell(name, width))
 	}
-	return strings.Join(headers, " ")
+	return strings.Join(headers, columnSeparator)
 }
 
 func padCell(value string, width int) string {
@@ -427,6 +440,103 @@ func columnWidths(columns []resources.TableColumn) []int {
 	return widths
 }
 
+func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int) []int {
+	if len(columns) == 0 {
+		return nil
+	}
+
+	if availableWidth <= 0 {
+		return columnWidths(columns)
+	}
+
+	widths := make([]int, len(columns))
+	for idx, col := range columns {
+		maxContent := 0
+		for _, row := range rows {
+			if idx >= len(row) {
+				continue
+			}
+			cellWidth := len([]rune(strings.TrimSpace(row[idx])))
+			if cellWidth > maxContent {
+				maxContent = cellWidth
+			}
+		}
+
+		headerWidth := len([]rune(strings.TrimSpace(col.Name)))
+		width := headerWidth
+		if maxContent > width {
+			width = maxContent
+		}
+		if col.Width > 0 && width > col.Width {
+			width = col.Width
+		}
+		if width < 1 {
+			width = 1
+		}
+		widths[idx] = width
+	}
+
+	availableContent := availableWidth - ((len(columns) - 1) * len(columnSeparator))
+	if availableContent < len(columns) {
+		availableContent = len(columns)
+	}
+	sum := 0
+	for _, width := range widths {
+		sum += width
+	}
+	if sum <= availableContent {
+		return widths
+	}
+
+	minWidths := make([]int, len(widths))
+	for idx := range minWidths {
+		if idx == 0 {
+			minWidths[idx] = 6
+		} else {
+			minWidths[idx] = 3
+		}
+		if minWidths[idx] > widths[idx] {
+			minWidths[idx] = widths[idx]
+		}
+	}
+
+	over := sum - availableContent
+	for over > 0 {
+		progress := false
+		for idx := len(widths) - 1; idx >= 1 && over > 0; idx-- {
+			if widths[idx] > minWidths[idx] {
+				widths[idx]--
+				over--
+				progress = true
+			}
+		}
+		if over > 0 && widths[0] > minWidths[0] {
+			widths[0]--
+			over--
+			progress = true
+		}
+		if !progress {
+			break
+		}
+	}
+
+	for over > 0 {
+		progress := false
+		for idx := len(widths) - 1; idx >= 0 && over > 0; idx-- {
+			if widths[idx] > 1 {
+				widths[idx]--
+				over--
+				progress = true
+			}
+		}
+		if !progress {
+			break
+		}
+	}
+
+	return widths
+}
+
 func sortMode(resource resources.ResourceType) string {
 	if sortable, ok := resource.(resources.ToggleSortable); ok {
 		return sortable.SortMode()
@@ -436,16 +546,25 @@ func sortMode(resource resources.ResourceType) string {
 
 func (v *View) refreshItems() {
 	items := v.resource.Items()
-	listItems := make([]list.Item, 0, len(items))
+	rows := make([][]string, 0, len(items))
 	for _, res := range items {
+		rows = append(rows, tableRow(v.resource, res))
+	}
+	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2)
+	listItems := make([]list.Item, 0, len(items))
+	for idx, res := range items {
 		listItems = append(listItems, item{
 			data:   res,
-			row:    tableRow(v.resource, res),
+			row:    rows[idx],
 			status: res.Status,
-			widths: columnWidths(v.columns),
+			widths: v.colWidths,
 		})
 	}
+	selected := v.list.Index()
 	v.list.SetItems(listItems)
+	if selected >= 0 && selected < len(listItems) {
+		v.list.Select(selected)
+	}
 }
 
 func breadcrumbLabel(resourceName string) string {

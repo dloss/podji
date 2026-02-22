@@ -100,7 +100,7 @@ func renderRelatedRow(
 		}
 		cells = append(cells, cellValue)
 	}
-	return strings.Join(cells, " ")
+	return strings.Join(cells, relationColumnSeparator)
 }
 
 func renderRelationRow(
@@ -133,7 +133,7 @@ func renderRelationRow(
 		}
 		cells = append(cells, cellValue)
 	}
-	return strings.Join(cells, " ")
+	return strings.Join(cells, relationColumnSeparator)
 }
 
 func underlineFirstChar(value string) string {

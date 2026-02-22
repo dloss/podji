@@ -102,7 +102,7 @@ func renderRowWithNameMatch(
 		cells = append(cells, cellValue)
 	}
 
-	return strings.Join(cells, " ")
+	return strings.Join(cells, columnSeparator)
 }
 
 // underlineFirstChar applies underline + bright foreground to the first

@@ -238,6 +238,47 @@ func TestComputeFindTargets(t *testing.T) {
 	}
 }
 
+func TestColumnWidthsForRowsShrinkToContent(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "STATUS", Width: 12},
+		{Name: "AGE", Width: 6},
+	}
+	rows := [][]string{
+		{"api", "Running", "1d"},
+		{"web", "Pending", "2h"},
+	}
+
+	widths := columnWidthsForRows(columns, rows, 120)
+	if widths[0] != 4 || widths[1] != 7 || widths[2] != 3 {
+		t.Fatalf("expected content-sized widths [4 7 3], got %v", widths)
+	}
+}
+
+func TestColumnWidthsForRowsPrioritizesFirstColumnWhenTight(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "NAME", Width: 32},
+		{Name: "STATUS", Width: 18},
+		{Name: "RESTARTS", Width: 14},
+		{Name: "AGE", Width: 10},
+	}
+	rows := [][]string{
+		{"very-long-workload-name", "CrashLoopBackOff", "1234", "90d"},
+	}
+
+	widths := columnWidthsForRows(columns, rows, 24)
+	sum := 0
+	for _, width := range widths {
+		sum += width
+	}
+	if got := sum + ((len(widths) - 1) * len(columnSeparator)); got > 24 {
+		t.Fatalf("expected widths to fit 24 chars, got total %d (%v)", got, widths)
+	}
+	if widths[0] <= widths[1] {
+		t.Fatalf("expected first column to keep priority over status, got %v", widths)
+	}
+}
+
 func keyEsc() bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyEscape}
 }
