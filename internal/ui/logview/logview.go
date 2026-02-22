@@ -14,6 +14,7 @@ type View struct {
 	item      resources.ResourceItem
 	resource  resources.ResourceType
 	container string
+	lines     []string
 	viewport  viewport.Model
 	follow    bool
 	wrap      bool
@@ -27,15 +28,17 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 func NewWithContainer(item resources.ResourceItem, resource resources.ResourceType, container string) *View {
 	lines := resource.Logs(item)
 	vp := viewport.New(0, 0)
-	vp.SetContent(strings.Join(lines, "\n"))
-	return &View{
+	v := &View{
 		item:      item,
 		resource:  resource,
 		container: container,
+		lines:     lines,
 		viewport:  vp,
 		follow:    true,
 		wrap:      true,
 	}
+	v.refreshContent()
+	return v
 }
 
 func (v *View) Init() bubbletea.Cmd { return nil }
@@ -48,6 +51,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			v.follow = !v.follow
 		case "w":
 			v.wrap = !v.wrap
+			v.refreshContent()
 		case "t":
 			v.previous = !v.previous
 		case "up", "k":
@@ -99,4 +103,53 @@ func (v *View) SetSize(width, height int) {
 	}
 	v.viewport.Width = width
 	v.viewport.Height = height
+	v.refreshContent()
+}
+
+func (v *View) refreshContent() {
+	content := strings.Join(v.lines, "\n")
+	if v.wrap && v.viewport.Width > 0 {
+		content = wrapLines(v.lines, v.viewport.Width)
+	}
+
+	atBottom := v.viewport.AtBottom()
+	yOffset := v.viewport.YOffset
+	v.viewport.SetContent(content)
+	if atBottom {
+		v.viewport.GotoBottom()
+		return
+	}
+	v.viewport.SetYOffset(yOffset)
+}
+
+func wrapLines(lines []string, width int) string {
+	if width <= 0 {
+		return strings.Join(lines, "\n")
+	}
+	wrapped := make([]string, 0, len(lines))
+	for _, line := range lines {
+		wrapped = append(wrapped, wrapLine(line, width)...)
+	}
+	return strings.Join(wrapped, "\n")
+}
+
+func wrapLine(line string, width int) []string {
+	if line == "" || width <= 0 {
+		return []string{line}
+	}
+
+	runes := []rune(line)
+	if len(runes) <= width {
+		return []string{line}
+	}
+
+	out := make([]string, 0, (len(runes)/width)+1)
+	for start := 0; start < len(runes); start += width {
+		end := start + width
+		if end > len(runes) {
+			end = len(runes)
+		}
+		out = append(out, string(runes[start:end]))
+	}
+	return out
 }
