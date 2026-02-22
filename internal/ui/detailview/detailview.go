@@ -34,7 +34,7 @@ func (v *View) Init() bubbletea.Cmd { return nil }
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		switch key.String() {
-		case "L":
+		case "o":
 			containers := v.resource.Detail(v.item).Containers
 			if len(containers) > 1 && v.ContainerViewFactory != nil {
 				return viewstate.Update{Action: viewstate.Push, Next: v.ContainerViewFactory(v.item, v.resource)}
@@ -46,7 +46,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
 			return viewstate.Update{Action: viewstate.Push, Next: yamlview.New(v.item, v.resource)}
-		case "R":
+		case "r":
 			return viewstate.Update{Action: viewstate.Push, Next: relatedview.New(v.item, v.resource, v.registry)}
 		}
 	}
@@ -57,7 +57,7 @@ func (v *View) View() string {
 	detail := v.resource.Detail(v.item)
 	sections := []string{style.Header.Render(detail.StatusLine)}
 	if n := relatedview.RelatedCount(v.item, v.resource, v.registry); n > 0 {
-		sections = append(sections, style.Muted.Render(fmt.Sprintf("R: %d related", n)))
+		sections = append(sections, style.Muted.Render(fmt.Sprintf("r: %d related", n)))
 	}
 
 	if v.width >= 120 {
@@ -90,7 +90,7 @@ func (v *View) Breadcrumb() string {
 
 func (v *View) Footer() string {
 	line1 := ""
-	actions := []style.Binding{style.B("R", "related")}
+	actions := []style.Binding{style.B("o", "logs"), style.B("r", "related")}
 	line2 := style.ActionFooter(actions, v.width)
 	return line1 + "\n" + line2
 }

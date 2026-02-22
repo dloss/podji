@@ -76,7 +76,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "L", "right":
+		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(entry); ok && selected.open != nil {
 				return viewstate.Update{Action: viewstate.Push, Next: selected.open()}
 			}
@@ -287,7 +287,7 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "L", "right":
+		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(relationItem); ok {
 				return viewstate.Update{
 					Action: viewstate.Push,

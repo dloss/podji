@@ -135,7 +135,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
-		case "enter", "l", "L", "right":
+		case "enter", "l", "right", "o":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				if next := v.forwardView(selected.data, key.String()); next != nil {
 					return viewstate.Update{
@@ -172,7 +172,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   yamlview.New(selected.data, v.resource),
 				}
 			}
-		case "R":
+		case "r":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
 					Action: viewstate.Push,
@@ -285,7 +285,7 @@ func (v *View) Footer() string {
 		}
 	}
 	if !isContainers {
-		actions = append(actions, style.B("tab", "lens"), style.B("R", "related"))
+		actions = append(actions, style.B("tab", "lens"), style.B("r", "related"))
 	}
 	line2 := style.ActionFooter(actions, v.list.Width())
 
@@ -534,7 +534,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 	resourceName := strings.ToLower(v.resource.Name())
 
 	if resourceName == "workloads" {
-		if key == "L" {
+		if key == "o" {
 			pods := resources.NewWorkloadPods(selected)
 			items := pods.Items()
 			if len(items) == 0 {

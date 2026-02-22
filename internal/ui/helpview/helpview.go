@@ -36,16 +36,16 @@ LIST VIEWS
   e                    Events
   y                    YAML
   f <char>             Jump to first item starting with char
-  R                    Related resources
-  L                    Logs (direct)
+  r                    Related resources
+  o                    Logs (direct)
   pgup / pgdn          Page up / down
 
 DETAIL VIEW
   d                    Describe
-  L                    Logs
+  o                    Logs
   e                    Events
   y                    YAML
-  R                    Related
+  r                    Related
 
 LOG VIEW
   f                    Toggle follow
