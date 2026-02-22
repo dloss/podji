@@ -58,7 +58,7 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	for _, it := range items {
 		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
 	}
-	widths := relationColumnWidthsForRows(columns, rows, 0)
+	widths := relationColumnWidthsForRows(columns, rows, 0, "RELATED")
 	listItems := make([]list.Item, 0, len(items))
 	for idx, it := range items {
 		listItems = append(listItems, relatedItem{
@@ -196,7 +196,7 @@ func (v *View) refreshItems() {
 	for _, it := range items {
 		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
 	}
-	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2)
+	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2, "RELATED")
 
 	listItems := make([]list.Item, 0, len(items))
 	for idx, it := range items {
@@ -354,7 +354,8 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 	for _, res := range items {
 		rows = append(rows, relationTableRow(resource, res))
 	}
-	widths := relationColumnWidthsForRows(columns, rows, 0)
+	firstHeader := strings.ToUpper(resources.SingularName(relationBreadcrumbLabel(resource.Name())))
+	widths := relationColumnWidthsForRows(columns, rows, 0, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
 		listItems = append(listItems, relationItem{
@@ -490,7 +491,8 @@ func (v *relationList) refreshItems() {
 	for _, res := range items {
 		rows = append(rows, relationTableRow(v.resource, res))
 	}
-	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2)
+	firstHeader := strings.ToUpper(resources.SingularName(relationBreadcrumbLabel(v.resource.Name())))
+	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
 
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
@@ -601,7 +603,7 @@ func relationColumnWidths(columns []resources.TableColumn) []int {
 	return widths
 }
 
-func relationColumnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int) []int {
+func relationColumnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int, firstHeader string) []int {
 	if len(columns) == 0 {
 		return nil
 	}
@@ -623,7 +625,11 @@ func relationColumnWidthsForRows(columns []resources.TableColumn, rows [][]strin
 			}
 		}
 
-		headerWidth := len([]rune(strings.TrimSpace(col.Name)))
+		headerName := strings.TrimSpace(col.Name)
+		if idx == 0 && firstHeader != "" {
+			headerName = firstHeader
+		}
+		headerWidth := len([]rune(headerName))
 		width := headerWidth
 		if maxContent > width {
 			width = maxContent

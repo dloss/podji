@@ -82,7 +82,8 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	for _, res := range items {
 		rows = append(rows, tableRow(resource, res))
 	}
-	widths := columnWidthsForRows(columns, rows, 0)
+	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
+	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
 		row := rows[idx]
@@ -440,7 +441,7 @@ func columnWidths(columns []resources.TableColumn) []int {
 	return widths
 }
 
-func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int) []int {
+func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, availableWidth int, firstHeader string) []int {
 	if len(columns) == 0 {
 		return nil
 	}
@@ -462,7 +463,11 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 			}
 		}
 
-		headerWidth := len([]rune(strings.TrimSpace(col.Name)))
+		headerName := strings.TrimSpace(col.Name)
+		if idx == 0 && firstHeader != "" {
+			headerName = firstHeader
+		}
+		headerWidth := len([]rune(headerName))
 		width := headerWidth
 		if maxContent > width {
 			width = maxContent
@@ -547,7 +552,8 @@ func (v *View) refreshItems() {
 	for _, res := range items {
 		rows = append(rows, tableRow(v.resource, res))
 	}
-	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2)
+	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
+	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
 		listItems = append(listItems, item{
