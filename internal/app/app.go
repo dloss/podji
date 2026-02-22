@@ -240,7 +240,7 @@ func (m Model) View() string {
 	footer := m.top().Footer()
 
 	if m.height > 0 {
-		body = clampViewLines(body, m.bodyHeightLimit())
+		body = fitViewLines(body, m.bodyHeightLimit())
 	}
 
 	sections := []string{head}
@@ -383,16 +383,22 @@ func (m Model) bodyHeightLimit() int {
 	return limit
 }
 
-func clampViewLines(view string, maxLines int) string {
-	if maxLines <= 0 || view == "" {
+func fitViewLines(view string, targetLines int) string {
+	if targetLines <= 0 {
 		return ""
 	}
 
 	lines := strings.Split(view, "\n")
-	if len(lines) <= maxLines {
-		return view
+	if view == "" {
+		lines = nil
 	}
-	return strings.Join(lines[:maxLines], "\n")
+	if len(lines) > targetLines {
+		return strings.Join(lines[:targetLines], "\n")
+	}
+	if len(lines) < targetLines {
+		lines = append(lines, make([]string, targetLines-len(lines))...)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *Model) switchToLensRoot() {

@@ -9,6 +9,7 @@ import (
 )
 
 type overflowView struct{}
+type shortView struct{}
 
 func (overflowView) Init() bubbletea.Cmd { return nil }
 
@@ -25,6 +26,20 @@ func (overflowView) Breadcrumb() string { return "workloads" }
 func (overflowView) Footer() string { return "q quit" }
 
 func (overflowView) SetSize(width, height int) {}
+
+func (shortView) Init() bubbletea.Cmd { return nil }
+
+func (shortView) Update(msg bubbletea.Msg) viewstate.Update {
+	return viewstate.Update{Action: viewstate.None, Next: shortView{}}
+}
+
+func (shortView) View() string { return "line 1\nline 2" }
+
+func (shortView) Breadcrumb() string { return "workloads" }
+
+func (shortView) Footer() string { return "status\nq quit" }
+
+func (shortView) SetSize(width, height int) {}
 
 func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
@@ -47,6 +62,30 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	}
 	if !strings.Contains(lines[1], "[Apps]") {
 		t.Fatalf("expected breadcrumb line with lens tag, got %q", lines[1])
+	}
+}
+
+func TestViewPadsBodyToKeepFooterAtBottom(t *testing.T) {
+	m := Model{
+		stack:     []viewstate.View{shortView{}},
+		crumbs:    []string{"workloads"},
+		lens:      0,
+		scope:     scopeLens,
+		context:   "default",
+		namespace: "default",
+		height:    8,
+	}
+
+	rendered := m.View()
+	lines := strings.Split(rendered, "\n")
+	if len(lines) != m.height {
+		t.Fatalf("expected %d lines, got %d", m.height, len(lines))
+	}
+	if lines[len(lines)-2] != "status" {
+		t.Fatalf("expected footer status on second-to-last line, got %q", lines[len(lines)-2])
+	}
+	if lines[len(lines)-1] != "q quit" {
+		t.Fatalf("expected footer action on last line, got %q", lines[len(lines)-1])
 	}
 }
 
