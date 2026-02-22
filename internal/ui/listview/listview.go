@@ -70,7 +70,6 @@ type View struct {
 	list        list.Model
 	columns     []resources.TableColumn
 	colWidths   []int
-	sortLabel   string
 	sortTouched bool
 	findMode    bool
 	findTargets map[int]bool
@@ -83,7 +82,6 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	for _, res := range items {
 		rows = append(rows, tableRow(resource, res))
 	}
-	mode := sortMode(resource)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
 	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
@@ -102,7 +100,6 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		registry:  registry,
 		columns:   columns,
 		colWidths: widths,
-		sortLabel: mode,
 	}
 	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
@@ -169,7 +166,6 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				sortable.ToggleSort()
 				v.sortTouched = true
 				v.refreshItems()
-				v.sortLabel = sortable.SortMode()
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "v":
@@ -303,9 +299,6 @@ func (v *View) SelectedBreadcrumb() string {
 func (v *View) Footer() string {
 	// Line 1: status indicators + pagination right-aligned.
 	var indicators []style.Binding
-	if v.sortLabel != "" {
-		indicators = append(indicators, style.B("sort", v.sortLabel))
-	}
 	if cycler, ok := v.resource.(resources.ScenarioCycler); ok && cycler.Scenario() != "normal" {
 		indicators = append(indicators, style.B("state", cycler.Scenario()))
 	}
