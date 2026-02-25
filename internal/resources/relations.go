@@ -449,6 +449,24 @@ func NewPodConfig(pod string) ResourceType {
 	}
 }
 
+func NewIngressServices(ingress string) ResourceType {
+	return &relatedResource{
+		name:        "services (" + ingress + ")",
+		items:       []ResourceItem{{Name: ingress, Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
+		description: "Backend services this Ingress routes to",
+		empty:       "No backend services found.",
+	}
+}
+
+func NewRelatedIngresses(service string) ResourceType {
+	return &relatedResource{
+		name:        "ingresses (" + service + ")",
+		items:       []ResourceItem{{Name: service, Status: "Healthy", Ready: service + ".example.com", Restarts: "-", Age: "14d"}},
+		description: "Ingresses exposing this service",
+		empty:       "No Ingresses route to this service.",
+	}
+}
+
 func NewPodStorage(pod string) ResourceType {
 	workload := pod
 	if idx := strings.LastIndex(pod, "-"); idx > 0 {

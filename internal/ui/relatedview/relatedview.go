@@ -316,7 +316,15 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	if name == "services" {
 		return []entry{
 			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
+			{name: "ingresses", count: 1, description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
 			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
+		}
+	}
+
+	if name == "ingresses" {
+		return []entry{
+			{name: "services", count: 1, description: "Backend services this Ingress routes to", open: openResource(resources.NewIngressServices(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
 		}
 	}
 
