@@ -322,7 +322,7 @@ func (v *View) Footer() string {
 		}
 	}
 	if !isContainers {
-		actions = append(actions, style.B("tab", "lens"), style.B("r", "related"))
+		actions = append(actions, style.B("r", "related"))
 	}
 	line2 := style.ActionFooter(actions, v.list.Width())
 

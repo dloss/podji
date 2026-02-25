@@ -66,8 +66,7 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{overflowView{}},
 		crumbs:    []string{"workloads"},
-		lens:      0,
-		scope:     scopeLens,
+		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 		height:    6,
@@ -81,8 +80,8 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	if !strings.Contains(lines[0], "Context:") || !strings.Contains(lines[0], "Namespace:") {
 		t.Fatalf("expected scope line with context and namespace, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "[Apps]") {
-		t.Fatalf("expected breadcrumb line with lens tag, got %q", lines[1])
+	if !strings.Contains(lines[1], "[Workload]") {
+		t.Fatalf("expected breadcrumb line with root resource tag, got %q", lines[1])
 	}
 }
 
@@ -90,8 +89,7 @@ func TestViewPadsBodyToKeepFooterAtBottom(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{shortView{}},
 		crumbs:    []string{"workloads"},
-		lens:      0,
-		scope:     scopeLens,
+		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 		height:    8,
@@ -115,8 +113,7 @@ func TestSpaceMapsToPageDownWhenGlobalsAllowed(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{spy},
 		crumbs:    []string{"workloads"},
-		lens:      0,
-		scope:     scopeLens,
+		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -134,8 +131,7 @@ func TestSpaceDoesNotMapWhenGlobalsSuppressed(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{spy},
 		crumbs:    []string{"workloads"},
-		lens:      0,
-		scope:     scopeLens,
+		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -148,28 +144,6 @@ func TestSpaceDoesNotMapWhenGlobalsSuppressed(t *testing.T) {
 	}
 }
 
-func TestTabCyclesLensForward(t *testing.T) {
-	m := New()
-
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyTab})
-	got := updated.(Model)
-
-	if got.lens != 1 {
-		t.Fatalf("expected lens 1 after tab, got %d", got.lens)
-	}
-}
-
-func TestShiftTabCyclesLensBackwardFromFirst(t *testing.T) {
-	m := New()
-
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyShiftTab})
-	got := updated.(Model)
-
-	want := len(lenses) - 1
-	if got.lens != want {
-		t.Fatalf("expected lens %d after shift+tab from first, got %d", want, got.lens)
-	}
-}
 
 func TestLeftAtLensRootSwitchesToNamespace(t *testing.T) {
 	m := New()
@@ -220,7 +194,7 @@ func TestLeftAtContextIsNoop(t *testing.T) {
 func TestHistorySaveRestoreIncludesScope(t *testing.T) {
 	m := New()
 
-	// Navigate to namespace scope (left saves history with scopeLens)
+	// Navigate to namespace scope (left saves history with scopeResources)
 	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
 	got := updated.(Model)
 
@@ -230,8 +204,8 @@ func TestHistorySaveRestoreIncludesScope(t *testing.T) {
 	if len(got.history) != 1 {
 		t.Fatalf("expected 1 history entry, got %d", len(got.history))
 	}
-	if got.history[0].scope != scopeLens {
-		t.Fatalf("expected history scope = %d (lens), got %d", scopeLens, got.history[0].scope)
+	if got.history[0].scope != scopeResources {
+		t.Fatalf("expected history scope = %d (resources), got %d", scopeResources, got.history[0].scope)
 	}
 }
 

@@ -14,9 +14,6 @@ GLOBAL
   enter / right / l    Selected item
   backspace / left / h Back
   esc                  Clear filter, then back
-  home / 0             Lens root
-  shift+home           Default lens
-  tab / shift+tab      Lens (Apps, Network, Infrastructure)
   N                    Namespace
   X                    Context
   A                    All resource types (built-ins + CRDs)
