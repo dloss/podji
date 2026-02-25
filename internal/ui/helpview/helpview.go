@@ -29,6 +29,7 @@ GLOBAL
   E                    Events (global)
 
 TABLE
+  tab / shift+tab      Cycle columns (sticky first column)
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)

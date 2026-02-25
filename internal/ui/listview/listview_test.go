@@ -15,7 +15,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := ansi.Strip(view.Footer())
-	wants := []string{"s sort", "v state", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
+	wants := []string{"s sort", "v state", "tab cols", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)
@@ -352,8 +352,69 @@ func TestEventsStatusSortArrowUsesTypeColumn(t *testing.T) {
 	}
 }
 
+func TestTabCyclesColumnOffset(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(40, 20)
+
+	if view.colOffset != 0 {
+		t.Fatalf("expected initial colOffset=0, got %d", view.colOffset)
+	}
+	view.Update(keyTab())
+	if view.colOffset != 1 {
+		t.Fatalf("expected colOffset=1 after tab, got %d", view.colOffset)
+	}
+}
+
+func TestShiftTabCyclesColumnOffsetBackward(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(40, 20)
+
+	view.Update(keyTab())
+	view.Update(keyShiftTab())
+	if view.colOffset != 0 {
+		t.Fatalf("expected colOffset=0 after tab then shift+tab, got %d", view.colOffset)
+	}
+}
+
+func TestTabWrapsColumnOffset(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(40, 20)
+
+	extra := len(view.columns) - 1
+	for i := 0; i < extra; i++ {
+		view.Update(keyTab())
+	}
+	if view.colOffset != 0 {
+		t.Fatalf("expected colOffset to wrap to 0 after %d tabs, got %d", extra, view.colOffset)
+	}
+}
+
+func TestTabSticksFirstColumn(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(40, 20)
+
+	firstBefore := view.visibleColumns()[0].Name
+	view.Update(keyTab())
+	firstAfter := view.visibleColumns()[0].Name
+	if firstBefore != firstAfter {
+		t.Fatalf("expected first column to remain %q after tab, got %q", firstBefore, firstAfter)
+	}
+}
+
 func keyEsc() bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyEscape}
+}
+
+func keyTab() bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyTab}
+}
+
+func keyShiftTab() bubbletea.KeyMsg {
+	return bubbletea.KeyMsg{Type: bubbletea.KeyShiftTab}
 }
 
 func keyRunes(r ...rune) bubbletea.KeyMsg {
