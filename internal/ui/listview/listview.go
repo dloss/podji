@@ -3,6 +3,7 @@ package listview
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -22,6 +23,15 @@ import (
 )
 
 const columnSeparator = "  "
+
+type clearCopiedMsg struct{}
+
+func clearCopiedCmd() bubbletea.Cmd {
+	return func() bubbletea.Msg {
+		time.Sleep(1500 * time.Millisecond)
+		return clearCopiedMsg{}
+	}
+}
 
 type item struct {
 	data   resources.ResourceItem
@@ -74,6 +84,8 @@ type View struct {
 	sortTouched bool
 	findMode    bool
 	findTargets map[int]bool
+	copyMode    bool
+	copiedMsg   string
 }
 
 // visibleNonFirstCount returns how many non-first columns currently have width
@@ -171,6 +183,11 @@ func (v *View) Init() bubbletea.Cmd {
 }
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
+	if _, ok := msg.(clearCopiedMsg); ok {
+		v.copiedMsg = ""
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	}
+
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
@@ -186,6 +203,25 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 			if r := singleRune(key); r != 0 {
 				v.jumpToChar(r)
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
+		if v.copyMode {
+			v.copyMode = false
+			if selected, ok := v.list.SelectedItem().(item); ok {
+				switch key.String() {
+				case "n":
+					v.copiedMsg = "copied: " + selected.data.Name
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+				case "k":
+					kind := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+					v.copiedMsg = "copied: " + kind + "/" + selected.data.Name
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+				case "p":
+					v.copiedMsg = "copied: -n " + resources.ActiveNamespace + " " + selected.data.Name
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
@@ -273,6 +309,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "f":
 			v.findMode = true
 			v.findTargets = v.computeFindTargets()
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		case "c":
+			if selected, ok := v.list.SelectedItem().(item); ok && selected.data.Name != "" {
+				v.copyMode = true
+			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 	}
@@ -377,26 +418,45 @@ func (v *View) Footer() string {
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
+	if v.copiedMsg != "" {
+		indicators = append(indicators, style.B(v.copiedMsg, ""))
+	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
 
-	// Line 2: view-specific actions + nav keys + ? help.
-	var actions []style.Binding
-	isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
-	isContainers := strings.EqualFold(v.resource.Name(), "containers")
+	// Line 2: copy mode prompt or normal actions.
+	var line2 string
+	if v.copyMode {
+		copyLabel := style.FooterKey.Render("copy")
+		opts := style.FormatBindings([]style.Binding{
+			style.B("n", "name"),
+			style.B("k", "kind/name"),
+			style.B("p", "-n ns name"),
+			style.B("esc", "cancel"),
+		})
+		line2 = copyLabel + "  " + opts
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else {
+		var actions []style.Binding
+		isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
+		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
-	actions = append(actions, style.B("s", "sort"))
-	if isWorkloads {
-		if _, ok := v.resource.(resources.ScenarioCycler); ok {
-			actions = append(actions, style.B("v", "state"))
+		actions = append(actions, style.B("s", "sort"))
+		if isWorkloads {
+			if _, ok := v.resource.(resources.ScenarioCycler); ok {
+				actions = append(actions, style.B("v", "state"))
+			}
 		}
-	}
-	if !isContainers {
-		if len(v.columns) > 2 {
-			actions = append(actions, style.B("tab", "cols"))
+		if !isContainers {
+			if len(v.columns) > 2 {
+				actions = append(actions, style.B("tab", "cols"))
+			}
+			actions = append(actions, style.B("r", "related"))
 		}
-		actions = append(actions, style.B("r", "related"))
+		actions = append(actions, style.B("c", "copy"))
+		line2 = style.ActionFooter(actions, v.list.Width())
 	}
-	line2 := style.ActionFooter(actions, v.list.Width())
 
 	return line1 + "\n" + line2
 }
@@ -410,7 +470,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode
+	return v.list.SettingFilter() || v.findMode || v.copyMode
 }
 
 func (v *View) NextBreadcrumb() string {
