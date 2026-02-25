@@ -76,6 +76,20 @@ type View struct {
 	findTargets map[int]bool
 }
 
+// visibleNonFirstCount returns how many non-first columns currently have width
+// above the minimum (3), i.e. are genuinely readable. This is the page size used
+// by Tab: on narrow screens it is 1 (shift-by-one); on wide screens it equals
+// len(columns)-1 so Tab wraps immediately and becomes a no-op.
+func (v *View) visibleNonFirstCount() int {
+	count := 0
+	for i := 1; i < len(v.colWidths); i++ {
+		if v.colWidths[i] > 3 {
+			count++
+		}
+	}
+	return count
+}
+
 // visibleColumns returns col[0] plus the non-first columns rotated by colOffset.
 // This lets Tab cycle which columns are shown first (and thus get the most width
 // when the table is too narrow to display all columns).
@@ -178,7 +192,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 
 		if key.Type == bubbletea.KeyShiftTab || key.String() == "shift+tab" || key.String() == "backtab" {
 			if extra := len(v.columns) - 1; extra > 1 {
-				v.colOffset = (v.colOffset - 1 + extra) % extra
+				k := max(1, v.visibleNonFirstCount())
+				v.colOffset = (v.colOffset - k + extra) % extra
 				v.refreshItems()
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
@@ -187,7 +202,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		switch key.String() {
 		case "tab":
 			if extra := len(v.columns) - 1; extra > 1 {
-				v.colOffset = (v.colOffset + 1) % extra
+				k := max(1, v.visibleNonFirstCount())
+				v.colOffset = (v.colOffset + k) % extra
 				v.refreshItems()
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}

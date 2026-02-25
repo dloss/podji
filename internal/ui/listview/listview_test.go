@@ -360,9 +360,12 @@ func TestTabCyclesColumnOffset(t *testing.T) {
 	if view.colOffset != 0 {
 		t.Fatalf("expected initial colOffset=0, got %d", view.colOffset)
 	}
+	extra := len(view.columns) - 1
+	k := max(1, view.visibleNonFirstCount())
+	want := k % extra
 	view.Update(keyTab())
-	if view.colOffset != 1 {
-		t.Fatalf("expected colOffset=1 after tab, got %d", view.colOffset)
+	if view.colOffset != want {
+		t.Fatalf("expected colOffset=%d after tab (page size %d), got %d", want, k, view.colOffset)
 	}
 }
 
@@ -389,6 +392,24 @@ func TestTabWrapsColumnOffset(t *testing.T) {
 	}
 	if view.colOffset != 0 {
 		t.Fatalf("expected colOffset to wrap to 0 after %d tabs, got %d", extra, view.colOffset)
+	}
+}
+
+func TestTabPagesForwardByVisibleColumnCount(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(50, 20) // wide enough for >1 non-first column but not all
+	view.refreshItems()  // ensure colWidths are computed
+
+	k := view.visibleNonFirstCount()
+	if k <= 1 {
+		t.Skipf("screen not narrow enough to test multi-column paging (k=%d); increase width or change resource", k)
+	}
+	extra := len(view.columns) - 1
+	want := k % extra
+	view.Update(keyTab())
+	if view.colOffset != want {
+		t.Fatalf("expected paging by %d to colOffset=%d, got %d", k, want, view.colOffset)
 	}
 }
 
