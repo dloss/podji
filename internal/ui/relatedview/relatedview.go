@@ -912,7 +912,7 @@ func relatedCountCell(count int) string {
 
 func isPodResource(r resources.ResourceType) bool {
 	switch r.(type) {
-	case *resources.Pods, *resources.WorkloadPods:
+	case *resources.Pods, *resources.WorkloadPods, *resources.NodePods:
 		return true
 	}
 	return false

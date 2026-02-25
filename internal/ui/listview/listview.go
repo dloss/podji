@@ -785,6 +785,26 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 		return logview.New(selected, v.resource)
 	}
 
+	if resourceName == "deployments" {
+		return New(resources.NewWorkloadPods(selected), v.registry)
+	}
+
+	if strings.HasPrefix(resourceName, "services") {
+		return New(resources.NewBackends(selected.Name), v.registry)
+	}
+
+	if strings.HasPrefix(resourceName, "ingresses") {
+		return New(resources.NewIngressServices(selected.Name), v.registry)
+	}
+
+	if resourceName == "nodes" {
+		return New(resources.NewNodePods(selected.Name), v.registry)
+	}
+
+	if resourceName == "persistentvolumeclaims" {
+		return New(resources.NewMountedBy(selected.Name), v.registry)
+	}
+
 	if strings.HasPrefix(resourceName, "backends") {
 		podContext := resources.NewWorkloadPods(resources.ResourceItem{Name: "backend", Kind: "DEP"})
 		dv := detailview.New(selected, podContext, v.registry)
@@ -792,6 +812,14 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 			return New(resources.NewContainerResource(item, res), v.registry)
 		}
 		return dv
+	}
+
+	if strings.HasPrefix(resourceName, "mounted-by") {
+		containers := v.resource.Detail(selected).Containers
+		if len(containers) <= 1 {
+			return logview.New(selected, v.resource)
+		}
+		return New(resources.NewContainerResource(selected, v.resource), v.registry)
 	}
 
 	return nil

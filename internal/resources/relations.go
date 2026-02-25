@@ -467,6 +467,102 @@ func NewRelatedIngresses(service string) ResourceType {
 	}
 }
 
+type NodePods struct {
+	node string
+}
+
+func NewNodePods(node string) *NodePods {
+	return &NodePods{node: node}
+}
+
+func (n *NodePods) Name() string { return "pods (node: " + n.node + ")" }
+func (n *NodePods) Key() rune    { return 'P' }
+
+func (n *NodePods) Items() []ResourceItem {
+	switch n.node {
+	case "worker-01":
+		return []ResourceItem{
+			{Name: "api-gateway-7d9c7c9d4f-qwz8p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
+			{Name: "auth-service-6c7e8b-xk2lp", Status: "Running", Ready: "2/2", Restarts: "0", Age: "21d"},
+			{Name: "payment-service-6b8d4f-r52lk", Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
+			{Name: "prometheus-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+		}
+	case "worker-02":
+		return []ResourceItem{
+			{Name: "frontend-7d9c7c9d4f-m8nqp", Status: "Running", Ready: "2/2", Restarts: "0", Age: "7d"},
+			{Name: "notification-worker-5c9f7b-lz3wx", Status: "Running", Ready: "1/1", Restarts: "0", Age: "10d"},
+			{Name: "redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "45d"},
+		}
+	case "worker-03":
+		return []ResourceItem{
+			{Name: "search-indexer-5c9f7b-p7vhn", Status: "Progressing", Ready: "2/3", Restarts: "0", Age: "45m"},
+			{Name: "user-service-7d9c7c9d4f-b4jks", Status: "Running", Ready: "2/2", Restarts: "0", Age: "3d"},
+			{Name: "grafana-59d8f9b4c6-7xkpz", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d"},
+		}
+	case "worker-04":
+		return []ResourceItem{
+			{Name: "search-indexer-5c9f7b-m8nqp", Status: "Unknown", Ready: "0/1", Restarts: "3", Age: "30d"},
+		}
+	default:
+		return []ResourceItem{
+			{Name: n.node + "-system-pod", Status: "Running", Ready: "1/1", Restarts: "0", Age: "180d"},
+		}
+	}
+}
+
+func (n *NodePods) Sort(items []ResourceItem) { problemSort(items) }
+
+func (n *NodePods) Detail(item ResourceItem) DetailData {
+	return DetailData{
+		StatusLine: item.Status + " " + item.Ready + "    node: " + n.node,
+		Containers: []ContainerRow{
+			{Name: "app", Image: "ghcr.io/example/" + item.Name + ":latest", State: "Running", Restarts: "0"},
+		},
+		Events: []string{"2m ago   Normal   Pulled   Pulled container image"},
+	}
+}
+
+func (n *NodePods) Logs(item ResourceItem) []string {
+	return []string{
+		"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Booting",
+		"2026-02-20T15:01:02Z  pod=" + item.Name + "  container=app  Ready",
+	}
+}
+
+func (n *NodePods) Events(item ResourceItem) []string {
+	return []string{"2m ago   Normal   Scheduled   Assigned to node " + n.node}
+}
+
+func (n *NodePods) Describe(item ResourceItem) string {
+	return "Name:             " + item.Name + "\n" +
+		"Namespace:        " + ActiveNamespace + "\n" +
+		"Node:             " + n.node + "\n" +
+		"Status:           " + item.Status + "\n" +
+		"Controlled By:    ReplicaSet/" + item.Name
+}
+
+func (n *NodePods) YAML(item ResourceItem) string {
+	return strings.TrimSpace(`apiVersion: v1
+kind: Pod
+metadata:
+  name: ` + item.Name + `
+  namespace: ` + ActiveNamespace + `
+spec:
+  nodeName: ` + n.node + `
+  containers:
+  - name: app
+    image: ghcr.io/example/` + item.Name + `:latest
+status:
+  phase: ` + item.Status)
+}
+
+func (n *NodePods) EmptyMessage(filtered bool, filter string) string {
+	if filtered {
+		return "No pods match `" + filter + "`."
+	}
+	return "No pods found on node `" + n.node + "`."
+}
+
 func NewPodStorage(pod string) ResourceType {
 	workload := pod
 	if idx := strings.LastIndex(pod, "-"); idx > 0 {
