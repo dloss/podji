@@ -70,9 +70,61 @@ type View struct {
 	list        list.Model
 	columns     []resources.TableColumn
 	colWidths   []int
+	colOffset   int
 	sortTouched bool
 	findMode    bool
 	findTargets map[int]bool
+}
+
+// visibleNonFirstCount returns how many non-first columns currently have width
+// above the minimum (3), i.e. are genuinely readable. This is the page size used
+// by Tab: on narrow screens it is 1 (shift-by-one); on wide screens it equals
+// len(columns)-1 so Tab wraps immediately and becomes a no-op.
+func (v *View) visibleNonFirstCount() int {
+	count := 0
+	for i := 1; i < len(v.colWidths); i++ {
+		if v.colWidths[i] > 3 {
+			count++
+		}
+	}
+	return count
+}
+
+// visibleColumns returns col[0] plus the non-first columns rotated by colOffset.
+// This lets Tab cycle which columns are shown first (and thus get the most width
+// when the table is too narrow to display all columns).
+func (v *View) visibleColumns() []resources.TableColumn {
+	if len(v.columns) <= 1 || v.colOffset == 0 {
+		return v.columns
+	}
+	extra := len(v.columns) - 1
+	result := make([]resources.TableColumn, 1+extra)
+	result[0] = v.columns[0]
+	for i := 0; i < extra; i++ {
+		result[1+i] = v.columns[1+(v.colOffset+i)%extra]
+	}
+	return result
+}
+
+// visibleRow reorders a full row to match visibleColumns.
+func (v *View) visibleRow(fullRow []string) []string {
+	if len(v.columns) <= 1 || v.colOffset == 0 {
+		return fullRow
+	}
+	extra := len(v.columns) - 1
+	result := make([]string, 1+extra)
+	result[0] = safeIndex(fullRow, 0)
+	for i := 0; i < extra; i++ {
+		result[1+i] = safeIndex(fullRow, 1+(v.colOffset+i)%extra)
+	}
+	return result
+}
+
+func safeIndex(row []string, idx int) string {
+	if idx < len(row) {
+		return row[idx]
+	}
+	return ""
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
@@ -138,7 +190,23 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
+		if key.Type == bubbletea.KeyShiftTab || key.String() == "shift+tab" || key.String() == "backtab" {
+			if extra := len(v.columns) - 1; extra > 1 {
+				k := max(1, v.visibleNonFirstCount())
+				v.colOffset = (v.colOffset - k + extra) % extra
+				v.refreshItems()
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
 		switch key.String() {
+		case "tab":
+			if extra := len(v.columns) - 1; extra > 1 {
+				k := max(1, v.visibleNonFirstCount())
+				v.colOffset = (v.colOffset + k) % extra
+				v.refreshItems()
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
 				v.list.ResetFilter()
@@ -231,15 +299,16 @@ func (v *View) View() string {
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	mode := sortMode(v.resource)
 	indicator := sortIndicatorSymbol(mode)
+	visCols := v.visibleColumns()
 	activeSortIdx := -1
 	if v.sortTouched || !isDefaultSortMode(v.resource, mode) {
-		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
+		activeSortIdx = activeSortColumn(v.resource, visCols, mode)
 	}
 	headerPrefix := "  "
 	if activeSortIdx == 0 {
 		headerPrefix = " " + indicator
 	}
-	header := headerPrefix + headerRowWithHint(v.columns, v.colWidths, label, childHint, activeSortIdx, indicator)
+	header := headerPrefix + headerRowWithHint(visCols, v.colWidths, label, childHint, activeSortIdx, indicator)
 	// Keep the same line budget as the base list view so the footer doesn't
 	// jump, then place our table header into the first two rows.
 	out := make([]string, len(lines))
@@ -322,7 +391,10 @@ func (v *View) Footer() string {
 		}
 	}
 	if !isContainers {
-		actions = append(actions, style.B("tab", "lens"), style.B("r", "related"))
+		if len(v.columns) > 2 {
+			actions = append(actions, style.B("tab", "cols"))
+		}
+		actions = append(actions, style.B("r", "related"))
 	}
 	line2 := style.ActionFooter(actions, v.list.Width())
 
@@ -656,12 +728,17 @@ func (v *View) refreshItems() {
 		rows = append(rows, tableRow(v.resource, res))
 	}
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
-	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
+	visCols := v.visibleColumns()
+	visRows := make([][]string, len(rows))
+	for i, row := range rows {
+		visRows[i] = v.visibleRow(row)
+	}
+	v.colWidths = columnWidthsForRows(visCols, visRows, v.list.Width()-2, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
 		listItems = append(listItems, item{
 			data:   res,
-			row:    rows[idx],
+			row:    visRows[idx],
 			status: res.Status,
 			widths: v.colWidths,
 		})

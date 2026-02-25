@@ -16,13 +16,12 @@ import (
 const (
 	scopeContext   = 0
 	scopeNamespace = 1
-	scopeLens      = 2
+	scopeResources = 2
 )
 
 type snapshot struct {
 	stack  []viewstate.View
 	crumbs []string
-	lens   int
 	scope  int
 }
 
@@ -30,7 +29,6 @@ type Model struct {
 	registry  *resources.Registry
 	stack     []viewstate.View
 	crumbs    []string
-	lens      int
 	scope     int
 	history   []snapshot
 	context   string
@@ -38,17 +36,6 @@ type Model struct {
 	errorMsg  string
 	width     int
 	height    int
-}
-
-type lens struct {
-	name       string
-	landingKey rune
-}
-
-var lenses = []lens{
-	{name: "Apps", landingKey: 'W'},
-	{name: "Network", landingKey: 'S'},
-	{name: "Infrastructure", landingKey: 'O'},
 }
 
 type globalKeySuppresser interface {
@@ -70,8 +57,7 @@ func New() Model {
 		registry:  registry,
 		stack:     []viewstate.View{root},
 		crumbs:    []string{rootCrumb},
-		lens:      0,
-		scope:     scopeLens,
+		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -95,36 +81,16 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 		msg = normalizeGlobalKey(msg)
 		routedMsg = msg
-		if msg.Type == bubbletea.KeyShiftTab || msg.String() == "shift+tab" || msg.String() == "backtab" {
-			m.saveHistory()
-			m.lens = (m.lens - 1 + len(lenses)) % len(lenses)
-			m.switchToLensRoot()
-			return m, nil
-		}
 
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
-		case "home", "pos1", "0":
-			m.saveHistory()
-			m.switchToLensRoot()
-			return m, nil
-		case "shift+home", "shift+pos1":
-			m.saveHistory()
-			m.lens = 0
-			m.switchToLensRoot()
-			return m, nil
-		case "tab":
-			m.saveHistory()
-			m.lens = (m.lens + 1) % len(lenses)
-			m.switchToLensRoot()
-			return m, nil
 		case "backspace", "esc":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			} else if m.scope == scopeLens {
+			} else if m.scope == scopeResources {
 				m.saveHistory()
 				m.switchToScope(scopeNamespace)
 			} else if m.scope == scopeNamespace || m.scope == scopeContext {
@@ -136,7 +102,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			} else if m.scope == scopeLens {
+			} else if m.scope == scopeResources {
 				m.saveHistory()
 				m.switchToScope(scopeNamespace)
 			} else if m.scope == scopeNamespace {
@@ -177,9 +143,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				key := runes[0]
 				if res := m.registry.ResourceByKey(key); res != nil {
 					m.saveHistory()
-					if lensIndex, ok := m.lensByLandingKey(key); ok {
-						m.lens = lensIndex
-					}
 					view := listview.New(res, m.registry)
 					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
@@ -208,9 +171,13 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				}
 			}
 			if m.scope == scopeNamespace {
-				// Namespace changes always return to the active lens root.
 				m.restoreHistory()
-				m.switchToLensRoot()
+				if res := m.registry.ResourceByKey('W'); res != nil {
+					view := listview.New(res, m.registry)
+					view.SetSize(m.width, m.availableHeight())
+					m.stack = []viewstate.View{view}
+					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+				}
 				return m, nil
 			}
 			m.restoreHistory()
@@ -288,7 +255,7 @@ func (m *Model) saveHistory() {
 	copy(s, m.stack)
 	c := make([]string, len(m.crumbs))
 	copy(c, m.crumbs)
-	m.history = append(m.history, snapshot{stack: s, crumbs: c, lens: m.lens, scope: m.scope})
+	m.history = append(m.history, snapshot{stack: s, crumbs: c, scope: m.scope})
 }
 
 func (m *Model) restoreHistory() bool {
@@ -299,7 +266,6 @@ func (m *Model) restoreHistory() bool {
 	m.history = m.history[:len(m.history)-1]
 	m.stack = last.stack
 	m.crumbs = last.crumbs
-	m.lens = last.lens
 	m.scope = last.scope
 	m.top().SetSize(m.width, m.availableHeight())
 	return true
@@ -314,7 +280,6 @@ func (m *Model) switchToScope(scope int) {
 	case scopeContext:
 		res = m.registry.ResourceByKey('X')
 	default:
-		m.switchToLensRoot()
 		return
 	}
 	if res == nil {
@@ -347,21 +312,30 @@ func (m Model) scopeLine() string {
 }
 
 func (m Model) breadcrumbLine() string {
-	if m.scope != scopeLens {
+	if m.scope != scopeResources {
 		return style.Scope.Render("[" + m.crumbs[0] + "]")
 	}
 
-	lensTag := style.Scope.Render("[" + lenses[m.lens].name + "]")
-	if len(m.crumbs) <= 1 {
-		return lensTag
+	rootTag := style.Scope.Render("[" + crumbText(m.crumbs[0]) + "]")
+	ancestors := m.crumbs[:len(m.crumbs)-1]
+	if len(ancestors) <= 1 {
+		return rootTag
 	}
 
 	sep := style.NavSep.Render(" > ")
-	segments := make([]string, 0, len(m.crumbs)-1)
-	for _, part := range m.crumbs[:len(m.crumbs)-1] {
+	segments := make([]string, 0, len(ancestors)-1)
+	for _, part := range ancestors[1:] {
 		segments = append(segments, formatCrumb(part))
 	}
-	return lensTag + "  " + strings.Join(segments, sep)
+	return rootTag + "  " + strings.Join(segments, sep)
+}
+
+// crumbText returns the plain display text for a crumb, used inside styled brackets.
+func crumbText(crumb string) string {
+	if idx := strings.Index(crumb, ": "); idx >= 0 {
+		return titleCase(resources.SingularName(crumb[:idx])) + ": " + crumb[idx+2:]
+	}
+	return titleCase(resources.SingularName(crumb))
 }
 
 func formatCrumb(crumb string) string {
@@ -425,27 +399,6 @@ func fitViewLines(view string, targetLines int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m *Model) switchToLensRoot() {
-	m.scope = scopeLens
-	l := lenses[m.lens]
-	res := m.registry.ResourceByKey(l.landingKey)
-	if res == nil {
-		return
-	}
-	view := listview.New(res, m.registry)
-	view.SetSize(m.width, m.availableHeight())
-	m.stack = []viewstate.View{view}
-	m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
-}
-
-func (m Model) lensByLandingKey(key rune) (int, bool) {
-	for idx, l := range lenses {
-		if l.landingKey == key {
-			return idx, true
-		}
-	}
-	return 0, false
-}
 
 func titleCase(value string) string {
 	if value == "" {
