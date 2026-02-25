@@ -100,8 +100,15 @@ func (g *Ingresses) SortMode() string {
 
 func (g *Ingresses) Detail(item ResourceItem) DetailData {
 	statusLine := item.Status + "    host: " + item.Ready + "    class: " + item.Kind + "    address: " + ingressAddress(item.Status)
+	host := item.Ready
+	backend := item.Name
+	conditions := []string{
+		host + " /  →  " + backend + ":80",
+		"TLS: " + item.Name + "-tls",
+	}
 	return DetailData{
 		StatusLine: statusLine,
+		Conditions: conditions,
 		Events:     []string{"—   No recent events"},
 		Labels:     []string{"app.kubernetes.io/managed-by=helm"},
 	}

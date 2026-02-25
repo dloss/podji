@@ -137,8 +137,13 @@ func (p *PersistentVolumeClaims) Detail(item ResourceItem) DetailData {
 			"2m ago   Warning   ProvisioningFailed   waiting for a volume to be created, either due to unresolvable PVC or StorageClass",
 		}
 	}
+	conditions := []string{
+		"Used By:  " + pvcMountedBy(item.Name, item.Status),
+		"Volume:   " + pvcVolumeName(item.Name, item.Status),
+	}
 	return DetailData{
 		StatusLine: statusLine,
+		Conditions: conditions,
 		Events:     events,
 		Labels:     []string{"app.kubernetes.io/managed-by=helm"},
 	}
