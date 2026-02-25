@@ -8,6 +8,7 @@ import (
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
+	"github.com/dloss/podji/internal/ui/resourcebrowser"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -154,6 +155,13 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.saveHistory()
 				m.switchToScope(scopeContext)
 			}
+			return m, nil
+		case "A":
+			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
+			browser.SetSize(m.width, m.availableHeight())
+			m.saveHistory()
+			m.stack = []viewstate.View{browser}
+			m.crumbs = []string{"resources"}
 			return m, nil
 		case "?":
 			if _, isHelp := m.top().(*helpview.View); !isHelp {

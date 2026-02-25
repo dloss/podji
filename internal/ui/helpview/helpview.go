@@ -19,6 +19,7 @@ GLOBAL
   tab / shift+tab      Lens (Apps, Network, Infrastructure)
   N                    Namespace
   X                    Context
+  A                    All resource types (built-ins + CRDs)
   W                    Workloads
   P                    Pods
   D                    Deployments
