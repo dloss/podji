@@ -23,8 +23,10 @@ GLOBAL
   P                    Pods
   D                    Deployments
   S                    Services
+  I                    Ingresses
   C                    ConfigMaps
   K                    Secrets
+  V                    PersistentVolumeClaims
   O                    Nodes
   E                    Events (global)
 
