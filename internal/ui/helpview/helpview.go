@@ -41,6 +41,7 @@ TABLE
   r                    Related resources for selected item
   o                    Logs (or next table)
   space / pgup / pgdn  Page up / down
+  x                    Execute mode (d delete, r restart, s scale, f port-fwd)
 
 LOGS
   f                    Follow on/off
