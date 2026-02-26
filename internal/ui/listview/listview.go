@@ -2,6 +2,7 @@ package listview
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 	"unicode"
@@ -41,6 +42,8 @@ func clearExecResultCmd() bubbletea.Cmd {
 		return clearExecResultMsg{}
 	}
 }
+
+type shellExecResultMsg struct{ err error }
 
 type executeState int
 
@@ -216,6 +219,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	}
 
+	if msg, ok := msg.(shellExecResultMsg); ok {
+		if msg.err != nil {
+			v.execResult = "exec failed: " + msg.err.Error()
+		} else {
+			v.execResult = "exec session ended"
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
+	}
+
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
@@ -273,6 +285,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				if v.supportsPortFwd() {
 					v.execState = execInputPortFwd
 					v.execInput = "8080:8080"
+				}
+			case "x":
+				if v.supportsShellExec() {
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.shellExecCmd()}
 				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
@@ -566,6 +582,9 @@ func (v *View) Footer() string {
 		}
 		if v.supportsPortFwd() {
 			opts = append(opts, style.B("f", "port-fwd"))
+		}
+		if v.supportsShellExec() {
+			opts = append(opts, style.B("x", "shell"))
 		}
 		opts = append(opts, style.B("esc", "cancel"))
 		line2 = execLabel + "  " + style.FormatBindings(opts)
@@ -1175,6 +1194,37 @@ func (v *View) supportsPortFwd() bool {
 	name := strings.ToLower(v.resource.Name())
 	return name == "pods" || strings.HasPrefix(name, "pods") ||
 		strings.HasPrefix(name, "service")
+}
+
+// supportsShellExec reports whether the current resource supports kubectl exec shell.
+func (v *View) supportsShellExec() bool {
+	name := strings.ToLower(v.resource.Name())
+	return name == "pods" || strings.HasPrefix(name, "pods") || name == "containers"
+}
+
+// shellExecCmd returns a bubbletea command that suspends the TUI and runs
+// "kubectl exec -it <pod> [-c <container>] -- sh".
+func (v *View) shellExecCmd() bubbletea.Cmd {
+	selected, ok := v.list.SelectedItem().(item)
+	if !ok {
+		return nil
+	}
+	var podName, containerName string
+	if cr, ok := v.resource.(*resources.ContainerResource); ok {
+		podName = cr.PodItem().Name
+		containerName = selected.data.Name
+	} else {
+		podName = selected.data.Name
+	}
+	args := []string{"exec", "-it", podName}
+	if containerName != "" {
+		args = append(args, "-c", containerName)
+	}
+	args = append(args, "--", "sh")
+	c := exec.Command("kubectl", args...)
+	return bubbletea.ExecProcess(c, func(err error) bubbletea.Msg {
+		return shellExecResultMsg{err: err}
+	})
 }
 
 // currentReplicas extracts the desired replica count from the selected item's
