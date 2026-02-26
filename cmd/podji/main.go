@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	program := bubbletea.NewProgram(app.New())
+	program := bubbletea.NewProgram(app.New(), bubbletea.WithAltScreen())
 	if _, err := program.Run(); err != nil {
 		_, _ = os.Stderr.WriteString(err.Error() + "\n")
 		os.Exit(1)
