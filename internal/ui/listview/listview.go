@@ -33,6 +33,26 @@ func clearCopiedCmd() bubbletea.Cmd {
 	}
 }
 
+type clearExecResultMsg struct{}
+
+func clearExecResultCmd() bubbletea.Cmd {
+	return func() bubbletea.Msg {
+		time.Sleep(2500 * time.Millisecond)
+		return clearExecResultMsg{}
+	}
+}
+
+type executeState int
+
+const (
+	execNone executeState = iota
+	execMenu
+	execConfirmDelete
+	execConfirmRestart
+	execInputScale
+	execInputPortFwd
+)
+
 type item struct {
 	data   resources.ResourceItem
 	row    []string
@@ -86,6 +106,9 @@ type View struct {
 	findTargets map[int]bool
 	copyMode    bool
 	copiedMsg   string
+	execState   executeState
+	execInput   string
+	execResult  string
 }
 
 // visibleNonFirstCount returns how many non-first columns currently have width
@@ -188,6 +211,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	}
 
+	if _, ok := msg.(clearExecResultMsg); ok {
+		v.execResult = ""
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	}
+
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
@@ -221,6 +249,87 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				case "p":
 					v.copiedMsg = "copied: -n " + resources.ActiveNamespace + " " + selected.data.Name
 					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+				}
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
+		// Execute mode: sub-menu (x was pressed; pick an operation).
+		if v.execState == execMenu {
+			v.execState = execNone
+			switch key.String() {
+			case "d":
+				v.execState = execConfirmDelete
+			case "r":
+				if v.supportsRestart() {
+					v.execState = execConfirmRestart
+				}
+			case "s":
+				if v.supportsScale() {
+					v.execState = execInputScale
+					v.execInput = v.currentReplicas()
+				}
+			case "f":
+				if v.supportsPortFwd() {
+					v.execState = execInputPortFwd
+					v.execInput = "8080:8080"
+				}
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
+		// Execute mode: delete / restart confirmation.
+		if v.execState == execConfirmDelete || v.execState == execConfirmRestart {
+			op := v.execState
+			switch key.String() {
+			case "y":
+				v.execState = execNone
+				label := v.execTargetLabel()
+				var resultMsg string
+				if op == execConfirmDelete {
+					resultMsg = "deleted " + label + " (simulated)"
+				} else {
+					resultMsg = "restarted " + label + " (simulated)"
+				}
+				v.execResult = resultMsg
+				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
+			case "esc":
+				v.execState = execNone
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
+		// Execute mode: scale / port-forward text input.
+		if v.execState == execInputScale || v.execState == execInputPortFwd {
+			switch key.String() {
+			case "enter":
+				label := v.execTargetLabel()
+				var resultMsg string
+				if v.execState == execInputScale {
+					resultMsg = "scaled " + label + " to " + v.execInput + " (simulated)"
+				} else {
+					resultMsg = "port-fwd " + label + " " + v.execInput + " (simulated)"
+				}
+				v.execState = execNone
+				v.execResult = resultMsg
+				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
+			case "esc":
+				v.execState = execNone
+			case "backspace", "ctrl+h":
+				runes := []rune(v.execInput)
+				if len(runes) > 0 {
+					v.execInput = string(runes[:len(runes)-1])
+				}
+			default:
+				if key.Type == bubbletea.KeyRunes && len(key.Runes) == 1 {
+					r := key.Runes[0]
+					if v.execState == execInputScale {
+						if r >= '0' && r <= '9' {
+							v.execInput += string(r)
+						}
+					} else {
+						v.execInput += string(r)
+					}
 				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
@@ -313,6 +422,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "c":
 			if selected, ok := v.list.SelectedItem().(item); ok && selected.data.Name != "" {
 				v.copyMode = true
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		case "x":
+			if selected, ok := v.list.SelectedItem().(item); ok && selected.data.Name != "" {
+				v.execState = execMenu
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
@@ -421,9 +535,12 @@ func (v *View) Footer() string {
 	if v.copiedMsg != "" {
 		indicators = append(indicators, style.B(v.copiedMsg, ""))
 	}
+	if v.execResult != "" {
+		indicators = append(indicators, style.B(v.execResult, ""))
+	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
 
-	// Line 2: copy mode prompt or normal actions.
+	// Line 2: mode prompt or normal actions.
 	var line2 string
 	if v.copyMode {
 		copyLabel := style.FooterKey.Render("copy")
@@ -434,6 +551,67 @@ func (v *View) Footer() string {
 			style.B("esc", "cancel"),
 		})
 		line2 = copyLabel + "  " + opts
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else if v.execState == execMenu {
+		execLabel := style.FooterKey.Render("execute")
+		var opts []style.Binding
+		opts = append(opts, style.B("d", "delete"))
+		if v.supportsRestart() {
+			opts = append(opts, style.B("r", "restart"))
+		}
+		if v.supportsScale() {
+			opts = append(opts, style.B("s", "scale"))
+		}
+		if v.supportsPortFwd() {
+			opts = append(opts, style.B("f", "port-fwd"))
+		}
+		opts = append(opts, style.B("esc", "cancel"))
+		line2 = execLabel + "  " + style.FormatBindings(opts)
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else if v.execState == execConfirmDelete || v.execState == execConfirmRestart {
+		var opName string
+		if v.execState == execConfirmDelete {
+			opName = "delete"
+		} else {
+			opName = "restart"
+		}
+		opLabel := style.FooterKey.Render(opName)
+		target := style.FooterLabel.Render(v.execTargetLabel() + "?")
+		opts := style.FormatBindings([]style.Binding{
+			style.B("y", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		line2 = opLabel + " " + target + "  " + opts
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else if v.execState == execInputScale {
+		scaleLabel := style.FooterKey.Render("scale")
+		target := style.FooterLabel.Render(v.execTargetLabel())
+		prompt := style.FooterLabel.Render("  replicas: ")
+		inputVal := style.FooterKey.Render(v.execInput + "█")
+		opts := "  " + style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		line2 = scaleLabel + " " + target + prompt + inputVal + opts
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else if v.execState == execInputPortFwd {
+		fwdLabel := style.FooterKey.Render("port-fwd")
+		target := style.FooterLabel.Render(v.execTargetLabel())
+		prompt := style.FooterLabel.Render("  ports: ")
+		inputVal := style.FooterKey.Render(v.execInput + "█")
+		opts := "  " + style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		line2 = fwdLabel + " " + target + prompt + inputVal + opts
 		if v.list.Width() > 0 {
 			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
@@ -455,6 +633,7 @@ func (v *View) Footer() string {
 			actions = append(actions, style.B("r", "related"))
 		}
 		actions = append(actions, style.B("c", "copy"))
+		actions = append(actions, style.B("x", "execute"))
 		line2 = style.ActionFooter(actions, v.list.Width())
 	}
 
@@ -470,7 +649,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode || v.copyMode
+	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone
 }
 
 func (v *View) NextBreadcrumb() string {
@@ -970,4 +1149,57 @@ func preferredLogPod(items []resources.ResourceItem) resources.ResourceItem {
 		}
 	}
 	return items[0]
+}
+
+// supportsDelete reports whether the current resource type supports deletion.
+// All resource types in the main scope support delete.
+func (v *View) supportsDelete() bool {
+	return true
+}
+
+// supportsRestart reports whether the current resource supports rollout restart.
+func (v *View) supportsRestart() bool {
+	name := strings.ToLower(v.resource.Name())
+	return name == "deployments" || name == "workloads" ||
+		strings.HasPrefix(name, "statefulset")
+}
+
+// supportsScale reports whether the current resource supports replica scaling.
+func (v *View) supportsScale() bool {
+	name := strings.ToLower(v.resource.Name())
+	return name == "deployments" || strings.HasPrefix(name, "statefulset")
+}
+
+// supportsPortFwd reports whether the current resource supports port-forward.
+func (v *View) supportsPortFwd() bool {
+	name := strings.ToLower(v.resource.Name())
+	return name == "pods" || strings.HasPrefix(name, "pods") ||
+		strings.HasPrefix(name, "service")
+}
+
+// currentReplicas extracts the desired replica count from the selected item's
+// Ready field (e.g. "2/3" → "3"). Falls back to "1".
+func (v *View) currentReplicas() string {
+	selected, ok := v.list.SelectedItem().(item)
+	if !ok {
+		return "1"
+	}
+	ready := strings.TrimSpace(selected.data.Ready)
+	if idx := strings.Index(ready, "/"); idx >= 0 {
+		return ready[idx+1:]
+	}
+	if ready != "" {
+		return ready
+	}
+	return "1"
+}
+
+// execTargetLabel returns "kind/name" for the currently selected item.
+func (v *View) execTargetLabel() string {
+	selected, ok := v.list.SelectedItem().(item)
+	if !ok {
+		return ""
+	}
+	kind := resources.SingularName(strings.ToLower(breadcrumbLabel(v.resource.Name())))
+	return kind + "/" + selected.data.Name
 }
