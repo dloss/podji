@@ -23,7 +23,7 @@ func NewNamespaces() *Namespaces {
 }
 
 func (n *Namespaces) Name() string { return "namespaces" }
-func (n *Namespaces) Key() rune   { return 'N' }
+func (n *Namespaces) Key() rune    { return 'N' }
 
 func (n *Namespaces) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -40,6 +40,7 @@ func (n *Namespaces) Items() []ResourceItem {
 		{Name: "dev", Status: "Active", Age: "30d"},
 		{Name: "sandbox", Status: "Terminating", Age: "2d"},
 	}
+	items = expandMockItems(items, 24)
 	n.Sort(items)
 	return items
 }
@@ -100,9 +101,9 @@ func (n *Namespaces) Detail(item ResourceItem) DetailData {
 }
 
 func (n *Namespaces) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for namespaces.",
-	}
+	}, 30)
 }
 
 func (n *Namespaces) Events(item ResourceItem) []string {

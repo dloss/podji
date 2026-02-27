@@ -54,6 +54,7 @@ func ingressPorts(name string) string {
 
 func (g *Ingresses) Items() []ResourceItem {
 	items := ingressItemsForNamespace(ActiveNamespace)
+	items = expandMockItems(items, 22)
 	g.Sort(items)
 	return items
 }
@@ -115,7 +116,7 @@ func (g *Ingresses) Detail(item ResourceItem) DetailData {
 }
 
 func (g *Ingresses) Logs(item ResourceItem) []string {
-	return []string{"Logs are not available for ingresses."}
+	return expandMockLogs([]string{"Logs are not available for ingresses."}, 30)
 }
 
 func (g *Ingresses) Events(item ResourceItem) []string {

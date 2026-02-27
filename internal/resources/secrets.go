@@ -40,7 +40,7 @@ func NewSecrets() *Secrets {
 }
 
 func (s *Secrets) Name() string { return "secrets" }
-func (s *Secrets) Key() rune   { return 'K' }
+func (s *Secrets) Key() rune    { return 'K' }
 
 func (s *Secrets) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -52,6 +52,7 @@ func (s *Secrets) Items() []ResourceItem {
 		{Name: "postgres-credentials", Kind: "Opaque", Status: "Healthy", Age: "30d"},
 		{Name: "redis-password", Kind: "Opaque", Status: "Healthy", Age: "30d"},
 	}
+	items = expandMockItems(items, 24)
 	s.Sort(items)
 	return items
 }
@@ -94,9 +95,9 @@ func (s *Secrets) Detail(item ResourceItem) DetailData {
 }
 
 func (s *Secrets) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for secrets.",
-	}
+	}, 30)
 }
 
 func (s *Secrets) Events(item ResourceItem) []string {

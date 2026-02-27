@@ -39,7 +39,7 @@ func NewConfigMaps() *ConfigMaps {
 }
 
 func (c *ConfigMaps) Name() string { return "configmaps" }
-func (c *ConfigMaps) Key() rune   { return 'C' }
+func (c *ConfigMaps) Key() rune    { return 'C' }
 
 func (c *ConfigMaps) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -51,6 +51,7 @@ func (c *ConfigMaps) Items() []ResourceItem {
 		{Name: "nginx-config", Status: "Healthy", Age: "60d"},
 		{Name: "prometheus-rules", Status: "Healthy", Age: "15d"},
 	}
+	items = expandMockItems(items, 24)
 	c.Sort(items)
 	return items
 }
@@ -87,9 +88,9 @@ func (c *ConfigMaps) Detail(item ResourceItem) DetailData {
 }
 
 func (c *ConfigMaps) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for configmaps.",
-	}
+	}, 30)
 }
 
 func (c *ConfigMaps) Events(item ResourceItem) []string {

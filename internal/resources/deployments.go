@@ -24,10 +24,11 @@ func NewDeployments() *Deployments {
 }
 
 func (d *Deployments) Name() string { return "deployments" }
-func (d *Deployments) Key() rune   { return 'D' }
+func (d *Deployments) Key() rune    { return 'D' }
 
 func (d *Deployments) Items() []ResourceItem {
 	items := deploymentItemsForNamespace(ActiveNamespace)
+	items = expandMockItems(items, 28)
 	d.Sort(items)
 	return items
 }
@@ -103,9 +104,9 @@ func (d *Deployments) Detail(item ResourceItem) DetailData {
 }
 
 func (d *Deployments) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for deployments. View pods instead.",
-	}
+	}, 40)
 }
 
 func (d *Deployments) Events(item ResourceItem) []string {

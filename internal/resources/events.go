@@ -50,7 +50,7 @@ func NewEvents() *Events {
 }
 
 func (e *Events) Name() string { return "events" }
-func (e *Events) Key() rune   { return 'E' }
+func (e *Events) Key() rune    { return 'E' }
 
 func (e *Events) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -64,12 +64,13 @@ func (e *Events) Items() []ResourceItem {
 		{Name: "ingress-external.EnsuredLoadBalancer", Kind: "Normal", Status: "Healthy", Age: "2d"},
 		{Name: "nightly-backup-289173.SuccessfulCreate", Kind: "Normal", Status: "Healthy", Age: "6h"},
 	}
+	items = expandMockItems(items, 42)
 	e.Sort(items)
 	return items
 }
 
 func (e *ScopedEvents) Name() string { return "events" }
-func (e *ScopedEvents) Key() rune   { return 'E' }
+func (e *ScopedEvents) Key() rune    { return 'E' }
 func (e *ScopedEvents) TableColumns() []TableColumn {
 	return e.base.TableColumns()
 }
@@ -118,8 +119,8 @@ func (e *ScopedEvents) Items() []ResourceItem {
 	return items
 }
 func (e *ScopedEvents) Sort(items []ResourceItem) { e.base.Sort(items) }
-func (e *ScopedEvents) ToggleSort()              { e.base.ToggleSort() }
-func (e *ScopedEvents) SortMode() string         { return e.base.SortMode() }
+func (e *ScopedEvents) ToggleSort()               { e.base.ToggleSort() }
+func (e *ScopedEvents) SortMode() string          { return e.base.SortMode() }
 func (e *ScopedEvents) Detail(item ResourceItem) DetailData {
 	return e.base.Detail(item)
 }
@@ -197,9 +198,9 @@ func (e *Events) Detail(item ResourceItem) DetailData {
 }
 
 func (e *Events) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for events.",
-	}
+	}, 30)
 }
 
 func (e *Events) Events(item ResourceItem) []string {

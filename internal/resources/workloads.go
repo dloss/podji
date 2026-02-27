@@ -29,6 +29,9 @@ func (w *Workloads) Items() []ResourceItem {
 		items = nil
 	}
 
+	if w.scenario == "normal" {
+		items = expandMockItems(items, 40)
+	}
 	w.Sort(items)
 	return items
 }
@@ -228,10 +231,10 @@ func (w *Workloads) Detail(item ResourceItem) DetailData {
 }
 
 func (w *Workloads) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Selecting logs for workload " + item.Name + "...",
 		"Use related views for per-pod details.",
-	}
+	}, 80)
 }
 
 func (w *Workloads) Events(item ResourceItem) []string {

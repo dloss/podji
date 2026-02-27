@@ -20,6 +20,7 @@ func (r *relatedResource) Key() rune    { return r.key }
 func (r *relatedResource) Items() []ResourceItem {
 	items := make([]ResourceItem, len(r.items))
 	copy(items, r.items)
+	items = expandMockItems(items, 18)
 	defaultSort(items)
 	return items
 }
@@ -48,11 +49,11 @@ func (r *relatedResource) Logs(item ResourceItem) []string {
 	if prefix == "" {
 		prefix = "Related view"
 	}
-	return []string{
+	return expandMockLogs([]string{
 		fmt.Sprintf("%s log stream for %s", prefix, item.Name),
 		"mock line: connected",
 		"mock line: healthy",
-	}
+	}, 50)
 }
 func (r *relatedResource) Events(item ResourceItem) []string {
 	return []string{
@@ -196,36 +197,38 @@ func (w *WorkloadPods) Name() string {
 func (w *WorkloadPods) Key() rune { return 'P' }
 
 func (w *WorkloadPods) Items() []ResourceItem {
+	var items []ResourceItem
 	switch w.workload.Kind {
 	case "CJ":
 		switch w.workload.Name {
 		case "sync-reports":
 			return nil
 		case "nightly-backup":
-			return []ResourceItem{
+			items = []ResourceItem{
 				{Name: "nightly-backup-289173-7m2kq", Status: "Running", Ready: "1/1", Restarts: "0", Age: "2m"},
 			}
 		default:
-			return []ResourceItem{
+			items = []ResourceItem{
 				{Name: w.workload.Name + "-job-99211-fx8qz", Status: "Completed", Ready: "0/1", Restarts: "0", Age: "8m"},
 			}
 		}
 	case "JOB":
-		return []ResourceItem{
+		items = []ResourceItem{
 			{Name: w.workload.Name + "-6l4mh", Status: "Error", Ready: "0/1", Restarts: "3", Age: "17m"},
 		}
 	case "DS":
-		return []ResourceItem{
+		items = []ResourceItem{
 			{Name: w.workload.Name + "-node-a", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3d"},
 			{Name: w.workload.Name + "-node-b", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3d"},
 			{Name: w.workload.Name + "-node-c", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "4m"},
 		}
 	default:
-		return []ResourceItem{
+		items = []ResourceItem{
 			{Name: w.workload.Name + "-7d9c7c9d4f-qwz8p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
 			{Name: w.workload.Name + "-7d9c7c9d4f-r52lk", Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
 		}
 	}
+	return expandMockItems(items, 22)
 }
 
 func (w *WorkloadPods) Sort(items []ResourceItem) { defaultSort(items) }
@@ -240,11 +243,11 @@ func (w *WorkloadPods) Detail(item ResourceItem) DetailData {
 	}
 }
 func (w *WorkloadPods) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Booting",
 		"2026-02-20T15:01:02Z  pod=" + item.Name + "  container=app  Ready",
 		"2026-02-20T15:01:09Z  pod=" + item.Name + "  container=sidecar  Sync complete",
-	}
+	}, 120)
 }
 func (w *WorkloadPods) Events(item ResourceItem) []string {
 	return []string{"2m ago   Normal   Scheduled   Assigned to node worker-01"}

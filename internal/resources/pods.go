@@ -20,6 +20,7 @@ func (p *Pods) Key() rune {
 
 func (p *Pods) Items() []ResourceItem {
 	items := podItemsForNamespace(ActiveNamespace)
+	items = expandMockItems(items, 36)
 	p.Sort(items)
 	return items
 }
@@ -107,14 +108,14 @@ func (p *Pods) Detail(item ResourceItem) DetailData {
 }
 
 func (p *Pods) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"2025-06-15T12:03:01Z  Starting envoy proxy...",
 		"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
 		"2025-06-15T12:03:02Z  Listener 0.0.0.0:8080 created",
 		"2025-06-15T12:03:02Z  Allocating buffer pool (128Mi limit)",
 		"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
 		"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
-	}
+	}, 120)
 }
 
 func (p *Pods) Events(item ResourceItem) []string {

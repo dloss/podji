@@ -44,10 +44,11 @@ func NewServices() *Services {
 }
 
 func (s *Services) Name() string { return "services" }
-func (s *Services) Key() rune   { return 'S' }
+func (s *Services) Key() rune    { return 'S' }
 
 func (s *Services) Items() []ResourceItem {
 	items := serviceItemsForNamespace(ActiveNamespace)
+	items = expandMockItems(items, 26)
 	s.Sort(items)
 	return items
 }
@@ -129,9 +130,9 @@ func (s *Services) Detail(item ResourceItem) DetailData {
 }
 
 func (s *Services) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for services.",
-	}
+	}, 32)
 }
 
 func (s *Services) Events(item ResourceItem) []string {

@@ -83,6 +83,7 @@ func min(a, b int) int {
 
 func (p *PersistentVolumeClaims) Items() []ResourceItem {
 	items := pvcItemsForNamespace(ActiveNamespace)
+	items = expandMockItems(items, 20)
 	p.Sort(items)
 	return items
 }
@@ -150,7 +151,7 @@ func (p *PersistentVolumeClaims) Detail(item ResourceItem) DetailData {
 }
 
 func (p *PersistentVolumeClaims) Logs(item ResourceItem) []string {
-	return []string{"Logs are not available for persistentvolumeclaims."}
+	return expandMockLogs([]string{"Logs are not available for persistentvolumeclaims."}, 30)
 }
 
 func (p *PersistentVolumeClaims) Events(item ResourceItem) []string {

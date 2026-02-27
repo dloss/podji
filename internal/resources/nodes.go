@@ -30,7 +30,7 @@ func NewNodes() *Nodes {
 }
 
 func (n *Nodes) Name() string { return "nodes" }
-func (n *Nodes) Key() rune   { return 'O' }
+func (n *Nodes) Key() rune    { return 'O' }
 
 func (n *Nodes) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -41,6 +41,7 @@ func (n *Nodes) Items() []ResourceItem {
 		{Name: "control-plane-01", Status: "Ready", Ready: "12/110", Age: "180d"},
 		{Name: "control-plane-02", Status: "Ready", Ready: "11/110", Age: "180d"},
 	}
+	items = expandMockItems(items, 20)
 	n.Sort(items)
 	return items
 }
@@ -116,9 +117,9 @@ func (n *Nodes) Detail(item ResourceItem) DetailData {
 }
 
 func (n *Nodes) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for nodes directly. Check kubelet logs on the host.",
-	}
+	}, 40)
 }
 
 func (n *Nodes) Events(item ResourceItem) []string {

@@ -47,7 +47,7 @@ func NewContexts() *Contexts {
 }
 
 func (c *Contexts) Name() string { return "contexts" }
-func (c *Contexts) Key() rune   { return 'X' }
+func (c *Contexts) Key() rune    { return 'X' }
 
 func (c *Contexts) Items() []ResourceItem {
 	items := []ResourceItem{
@@ -58,6 +58,7 @@ func (c *Contexts) Items() []ResourceItem {
 		{Name: "minikube", Status: "Available", Age: "30d"},
 		{Name: "docker-desktop", Status: "Unreachable", Age: "60d"},
 	}
+	items = expandMockItems(items, 20)
 	c.Sort(items)
 	return items
 }
@@ -124,9 +125,9 @@ func (c *Contexts) Detail(item ResourceItem) DetailData {
 }
 
 func (c *Contexts) Logs(item ResourceItem) []string {
-	return []string{
+	return expandMockLogs([]string{
 		"Logs are not available for contexts.",
-	}
+	}, 30)
 }
 
 func (c *Contexts) Events(item ResourceItem) []string {
