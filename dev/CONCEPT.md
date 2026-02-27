@@ -35,24 +35,16 @@ Podji is a read-focused navigation and debugging tool.
 6. Color indicates status only (no decorative color).
 7. Whitespace over borders and dim non-essential noise.
 
-## Top-Level Navigation
-
-Podji provides three task-oriented lenses. Press `Tab` to cycle.
-
-- Apps: debug applications
-- Network: debug traffic and services
-- Infrastructure: debug nodes and scheduling
-
-Namespace context persists across lens switches.
-
 ## Global Navigation Keys
 
-- Right / Enter / `l`: drill down
+- Right / Enter: drill down
 - Left / Backspace / `h`: back
-- `Tab`: switch lens
-- `r`: related panel
+- `Tab`: focus main ↔ related panel (when panel is open)
+- `r`: toggle related panel
+- `N`: namespace picker
+- `X`: context picker
 - `/`: filter current list
-- `l`: open logs from current context when meaningful
+- `l`: open logs directly (skip pod list)
 
 ## Primary Drill-Down Model
 
@@ -185,7 +177,7 @@ To preserve a single obvious forward path:
 
 - CronJob -> Pods of newest owned Job
 - Newest Job by `.status.startTime`, fallback `creationTimestamp`
-- If no Jobs exist: show empty pods list and hint to use Related (`r`) for Jobs/Events
+- If no Jobs exist: show empty pods list and auto-open the related panel (Jobs, Events, Config)
 
 Pods header should include context, for example: `CronJob pods (newest job: <job-name>)`.
 
@@ -193,13 +185,15 @@ Pods header should include context, for example: `CronJob pods (newest job: <job
 
 Example:
 
-`-> pods   l logs   r related   / filter   Tab view   s sort`
+`→ pods   l logs   r related   / filter   s sort`
 
-Show `s sort` only if sorting is implemented.
+Show `s sort` only if sorting is implemented. Show `Tab related` instead of `r related` when the related panel is already open.
 
 ## Related Panel (`r`)
 
-Related exposes curated graph relationships without becoming a full graph browser.
+Related exposes curated graph relationships without becoming a full graph browser. It opens as a **persistent side panel** (≈40% width) alongside the main view. `Tab` moves focus between panels; `Esc` closes the panel.
+
+When drilling down into a resource with no results (e.g. a CronJob with no jobs), the related panel opens automatically with focus on the side panel.
 
 Order:
 
@@ -214,7 +208,7 @@ Order:
 Rules:
 
 - show counts when possible
-- selecting an item navigates to that list
+- pressing Enter on a side-panel item pushes to the **main** navigation stack; focus returns to main
 - drill-down remains consistent from there
 
 ## Relationship Pages
@@ -318,7 +312,8 @@ Goal: crashloop logs reachable in <= 4 steps.
 ## Namespace Model
 
 - Default: single namespace
-- Fast namespace switching
+- Fast namespace switching via `N` overlay picker (floating over current view; does not affect navigation stack)
+- Context switching via `X` overlay picker
 - Optional future mode: all namespaces
 
 ## Empty and Error States
@@ -333,7 +328,7 @@ Goal: crashloop logs reachable in <= 4 steps.
 
 ### Workload -> Pods Page
 
-- No pods found: show workload-specific hint to use `r` for Events/Config/Network
+- No pods found: auto-open related panel for Events/Config/Network
 
 ## Architecture (High Level)
 
@@ -371,7 +366,8 @@ Users can:
 - reach crash logs in <= 4 steps
 - diagnose "Service has no backends" in one view + one drill-down
 - find ConfigMap consumers quickly
-- navigate with arrows + `Tab` + `r` + `l`
+- navigate with arrows + `r` + `Tab` + `l`
+- switch namespace without losing their place in the navigation stack
 
 ## Future Extensions
 

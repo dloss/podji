@@ -37,8 +37,10 @@ Use VHS when you need to verify colors, styling, or visual layout. Use tmux for 
 
 - **Framework**: Bubbletea (charmbracelet/bubbletea)
 - **Entry point**: `cmd/podji/main.go`
-- **Main model**: `internal/app/app.go` - stack-based navigation with scope/lens abstraction
+- **Main model**: `internal/app/app.go` - stack-based navigation; Enter/Right pushes, Backspace/Left pops
 - **Views** implement `viewstate.View` interface (Init, Update, View, Breadcrumb, Footer, SetSize)
 - **Resources**: `internal/resources/` - each resource type registered with a single-letter hotkey
-- **Three lenses**: Apps, Network, Infrastructure (cycle with Tab)
-- **Three scopes**: Context, Namespace, Lens (navigate with N/X or left arrow)
+- **Scope switching**: `N` navigates to namespace list, `X` to context list (scope state machine in `app.go`)
+- **Tab**: cycles visible columns in list views (column offset stored in `listview.View`)
+
+> **Planned redesign**: `dev/redesign.md` — scope → overlay pickers, related panel → persistent side panel, Tab → panel focus. Implementation plans in `dev/plan-phase1.md`, `dev/plan-phase2.md`, `dev/plan-phase3.md`.
