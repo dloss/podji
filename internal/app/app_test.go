@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/dloss/podji/internal/ui/overlaypicker"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
@@ -54,7 +55,7 @@ func (v *keySpyView) Update(msg bubbletea.Msg) viewstate.Update {
 	return viewstate.Update{Action: viewstate.None, Next: v}
 }
 
-func (*keySpyView) View() string      { return "" }
+func (*keySpyView) View() string       { return "" }
 func (*keySpyView) Breadcrumb() string { return "workloads" }
 func (*keySpyView) Footer() string     { return "status\nq quit" }
 func (*keySpyView) SetSize(width, height int) {}
@@ -66,7 +67,6 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{overflowView{}},
 		crumbs:    []string{"workloads"},
-		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 		height:    6,
@@ -89,7 +89,6 @@ func TestViewPadsBodyToKeepFooterAtBottom(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{shortView{}},
 		crumbs:    []string{"workloads"},
-		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 		height:    8,
@@ -113,7 +112,6 @@ func TestSpaceMapsToPageDownWhenGlobalsAllowed(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{spy},
 		crumbs:    []string{"workloads"},
-		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -131,7 +129,6 @@ func TestSpaceDoesNotMapWhenGlobalsSuppressed(t *testing.T) {
 	m := Model{
 		stack:     []viewstate.View{spy},
 		crumbs:    []string{"workloads"},
-		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -144,104 +141,80 @@ func TestSpaceDoesNotMapWhenGlobalsSuppressed(t *testing.T) {
 	}
 }
 
-
-func TestLeftAtLensRootSwitchesToNamespace(t *testing.T) {
+func TestNKeyOpensNamespaceOverlay(t *testing.T) {
 	m := New()
 
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'N'}})
 	got := updated.(Model)
 
-	if got.scope != scopeNamespace {
-		t.Fatalf("expected scope %d (namespace) after left at lens root, got %d", scopeNamespace, got.scope)
-	}
-	if got.crumbs[0] != "namespaces" {
-		t.Fatalf("expected crumbs[0] = 'namespaces', got %q", got.crumbs[0])
+	if got.overlay == nil {
+		t.Fatal("expected overlay to be non-nil after pressing N")
 	}
 }
 
-func TestLeftAtNamespaceSwitchesToContext(t *testing.T) {
+func TestXKeyOpensContextOverlay(t *testing.T) {
 	m := New()
 
-	// First left → namespace
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	// Second left → context
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'X'}})
 	got := updated.(Model)
 
-	if got.scope != scopeContext {
-		t.Fatalf("expected scope %d (context) after second left, got %d", scopeContext, got.scope)
-	}
-	if got.crumbs[0] != "contexts" {
-		t.Fatalf("expected crumbs[0] = 'contexts', got %q", got.crumbs[0])
+	if got.overlay == nil {
+		t.Fatal("expected overlay to be non-nil after pressing X")
 	}
 }
 
-func TestLeftAtContextIsNoop(t *testing.T) {
+func TestSelectedNamespaceMsgUpdatesNamespaceAndReloads(t *testing.T) {
 	m := New()
 
-	// Navigate to context scope
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	// Third left → should stay at context
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	updated, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
 	got := updated.(Model)
 
-	if got.scope != scopeContext {
-		t.Fatalf("expected scope to remain %d (context), got %d", scopeContext, got.scope)
+	if got.namespace != "staging" {
+		t.Fatalf("expected namespace=staging, got %q", got.namespace)
+	}
+	if got.crumbs[0] != "workloads" {
+		t.Fatalf("expected workloads crumb after namespace switch, got %q", got.crumbs[0])
 	}
 }
 
-func TestHistorySaveRestoreIncludesScope(t *testing.T) {
-	m := New()
+func TestInputRoutedToOverlayWhenActive(t *testing.T) {
+	spy := &keySpyView{}
+	m := Model{
+		stack:   []viewstate.View{spy},
+		crumbs:  []string{"workloads"},
+		overlay: overlaypicker.New("namespace", []string{"default", "staging"}),
+		context: "default",
+		namespace: "default",
+	}
+	m.overlay.SetSize(120, 40)
 
-	// Navigate to namespace scope (left saves history with scopeResources)
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
+	// Send a key — should be consumed by overlay, not reach spy.
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'a'}})
 	got := updated.(Model)
-
-	if got.scope != scopeNamespace {
-		t.Fatalf("expected namespace scope, got %d", got.scope)
-	}
-	if len(got.history) != 1 {
-		t.Fatalf("expected 1 history entry, got %d", len(got.history))
-	}
-	if got.history[0].scope != scopeResources {
-		t.Fatalf("expected history scope = %d (resources), got %d", scopeResources, got.history[0].scope)
+	nextSpy := got.top().(*keySpyView)
+	if nextSpy.lastKey != "" {
+		t.Fatalf("expected spy not to receive key when overlay is active, but got %q", nextSpy.lastKey)
 	}
 }
 
-func TestNamespaceScopeYOpensYamlWithoutSelectingNamespace(t *testing.T) {
+func TestBackspaceWithSingleStackIsNoop(t *testing.T) {
 	m := New()
 
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'y'}})
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyBackspace})
 	got := updated.(Model)
 
-	if got.scope != scopeNamespace {
-		t.Fatalf("expected to remain in namespace scope, got %d", got.scope)
-	}
-	if len(got.stack) != 2 {
-		t.Fatalf("expected yaml view to be pushed, stack len=%d", len(got.stack))
-	}
-	if got.top().Breadcrumb() != "yaml" {
-		t.Fatalf("expected top breadcrumb yaml, got %q", got.top().Breadcrumb())
+	if len(got.stack) != 1 {
+		t.Fatalf("expected stack len 1 after backspace at root, got %d", len(got.stack))
 	}
 }
 
-func TestContextScopeROpensRelatedWithoutSelectingContext(t *testing.T) {
+func TestTabWithNoSideIsNoop(t *testing.T) {
 	m := New()
 
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyLeft})
-	updated, _ = updated.(Model).Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyTab})
 	got := updated.(Model)
 
-	if got.scope != scopeContext {
-		t.Fatalf("expected to remain in context scope, got %d", got.scope)
-	}
-	if len(got.stack) != 2 {
-		t.Fatalf("expected related view to be pushed, stack len=%d", len(got.stack))
-	}
-	if got.top().Breadcrumb() != "related" {
-		t.Fatalf("expected top breadcrumb related, got %q", got.top().Breadcrumb())
+	if got.sideActive {
+		t.Fatal("expected sideActive=false when no side panel")
 	}
 }

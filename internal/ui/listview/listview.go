@@ -17,7 +17,6 @@ import (
 	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
-	"github.com/dloss/podji/internal/ui/relatedview"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 	"github.com/dloss/podji/internal/ui/yamlview"
@@ -103,7 +102,6 @@ type View struct {
 	list        list.Model
 	columns     []resources.TableColumn
 	colWidths   []int
-	colOffset   int
 	sortTouched bool
 	findMode    bool
 	findTargets map[int]bool
@@ -112,57 +110,7 @@ type View struct {
 	execState   executeState
 	execInput   string
 	execResult  string
-}
-
-// visibleNonFirstCount returns how many non-first columns currently have width
-// above the minimum (3), i.e. are genuinely readable. This is the page size used
-// by Tab: on narrow screens it is 1 (shift-by-one); on wide screens it equals
-// len(columns)-1 so Tab wraps immediately and becomes a no-op.
-func (v *View) visibleNonFirstCount() int {
-	count := 0
-	for i := 1; i < len(v.colWidths); i++ {
-		if v.colWidths[i] > 3 {
-			count++
-		}
-	}
-	return count
-}
-
-// visibleColumns returns col[0] plus the non-first columns rotated by colOffset.
-// This lets Tab cycle which columns are shown first (and thus get the most width
-// when the table is too narrow to display all columns).
-func (v *View) visibleColumns() []resources.TableColumn {
-	if len(v.columns) <= 1 || v.colOffset == 0 {
-		return v.columns
-	}
-	extra := len(v.columns) - 1
-	result := make([]resources.TableColumn, 1+extra)
-	result[0] = v.columns[0]
-	for i := 0; i < extra; i++ {
-		result[1+i] = v.columns[1+(v.colOffset+i)%extra]
-	}
-	return result
-}
-
-// visibleRow reorders a full row to match visibleColumns.
-func (v *View) visibleRow(fullRow []string) []string {
-	if len(v.columns) <= 1 || v.colOffset == 0 {
-		return fullRow
-	}
-	extra := len(v.columns) - 1
-	result := make([]string, 1+extra)
-	result[0] = safeIndex(fullRow, 0)
-	for i := 0; i < extra; i++ {
-		result[1+i] = safeIndex(fullRow, 1+(v.colOffset+i)%extra)
-	}
-	return result
-}
-
-func safeIndex(row []string, idx int) string {
-	if idx < len(row) {
-		return row[idx]
-	}
-	return ""
+	sideOpen    bool
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
@@ -351,23 +299,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
-		if key.Type == bubbletea.KeyShiftTab || key.String() == "shift+tab" || key.String() == "backtab" {
-			if extra := len(v.columns) - 1; extra > 1 {
-				k := max(1, v.visibleNonFirstCount())
-				v.colOffset = (v.colOffset - k + extra) % extra
-				v.refreshItems()
-			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
-		}
-
 		switch key.String() {
-		case "tab":
-			if extra := len(v.columns) - 1; extra > 1 {
-				k := max(1, v.visibleNonFirstCount())
-				v.colOffset = (v.colOffset + k) % extra
-				v.refreshItems()
-			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
 				v.list.ResetFilter()
@@ -375,7 +307,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "enter", "l", "right", "o":
 			if selected, ok := v.list.SelectedItem().(item); ok {
-				if next := v.forwardView(selected.data, key.String()); next != nil {
+				action, next := v.forwardView(selected.data, key.String())
+				if action == viewstate.OpenRelated {
+					return viewstate.Update{Action: viewstate.OpenRelated}
+				}
+				if next != nil {
 					return viewstate.Update{
 						Action: viewstate.Push,
 						Next:   next,
@@ -411,12 +347,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				}
 			}
 		case "r":
-			if selected, ok := v.list.SelectedItem().(item); ok {
-				return viewstate.Update{
-					Action: viewstate.Push,
-					Next:   relatedview.New(selected.data, v.resource, v.registry),
-				}
-			}
+			// Handled by app.go (opens/closes the side panel).
 		case "e":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
@@ -470,16 +401,15 @@ func (v *View) View() string {
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	mode := sortMode(v.resource)
 	indicator := sortIndicatorSymbol(mode)
-	visCols := v.visibleColumns()
 	activeSortIdx := -1
 	if v.sortTouched || !isDefaultSortMode(v.resource, mode) {
-		activeSortIdx = activeSortColumn(v.resource, visCols, mode)
+		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
 	}
 	headerPrefix := "  "
 	if activeSortIdx == 0 {
 		headerPrefix = " " + indicator
 	}
-	header := headerPrefix + headerRowWithHint(visCols, v.colWidths, label, childHint, activeSortIdx, indicator)
+	header := headerPrefix + headerRowWithHint(v.columns, v.colWidths, label, childHint, activeSortIdx, indicator)
 	// Keep the same line budget as the base list view so the footer doesn't
 	// jump, then place our table header into the first two rows.
 	out := make([]string, len(lines))
@@ -646,10 +576,11 @@ func (v *View) Footer() string {
 			}
 		}
 		if !isContainers {
-			if len(v.columns) > 2 {
-				actions = append(actions, style.B("tab", "cols"))
+			if v.sideOpen {
+				actions = append(actions, style.B("tab", "related"))
+			} else {
+				actions = append(actions, style.B("r", "related"))
 			}
-			actions = append(actions, style.B("r", "related"))
 		}
 		actions = append(actions, style.B("c", "copy"))
 		actions = append(actions, style.B("x", "execute"))
@@ -669,6 +600,25 @@ func (v *View) SetSize(width, height int) {
 
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone
+}
+
+// SelectedItem returns the currently highlighted resource item.
+func (v *View) SelectedItem() resources.ResourceItem {
+	if selected, ok := v.list.SelectedItem().(item); ok {
+		return selected.data
+	}
+	return resources.ResourceItem{}
+}
+
+// SetSideOpen informs the view whether the side panel is currently open,
+// allowing the footer hints to update accordingly.
+func (v *View) SetSideOpen(open bool) {
+	v.sideOpen = open
+}
+
+// Resource returns the underlying resource type for this view.
+func (v *View) Resource() resources.ResourceType {
+	return v.resource
 }
 
 func (v *View) NextBreadcrumb() string {
@@ -986,17 +936,12 @@ func (v *View) refreshItems() {
 		rows = append(rows, tableRow(v.resource, res))
 	}
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
-	visCols := v.visibleColumns()
-	visRows := make([][]string, len(rows))
-	for i, row := range rows {
-		visRows[i] = v.visibleRow(row)
-	}
-	v.colWidths = columnWidthsForRows(visCols, visRows, v.list.Width()-2, firstHeader)
+	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
 	listItems := make([]list.Item, 0, len(items))
 	for idx, res := range items {
 		listItems = append(listItems, item{
 			data:   res,
-			row:    visRows[idx],
+			row:    rows[idx],
 			status: res.Status,
 			widths: v.colWidths,
 		})
@@ -1090,54 +1035,58 @@ func (v *View) computeFindTargets() map[int]bool {
 	return targets
 }
 
-func (v *View) forwardView(selected resources.ResourceItem, key string) viewstate.View {
+func (v *View) forwardView(selected resources.ResourceItem, key string) (viewstate.Action, viewstate.View) {
 	resourceName := strings.ToLower(v.resource.Name())
 
 	if resourceName == "workloads" {
-		if key == "o" {
-			pods := resources.NewWorkloadPods(selected)
-			items := pods.Items()
-			if len(items) == 0 {
-				return New(pods, v.registry)
-			}
-			return logview.New(preferredLogPod(items), pods)
+		pods := resources.NewWorkloadPods(selected)
+		items := pods.Items()
+		if len(items) == 0 {
+			return viewstate.OpenRelated, nil
 		}
-		return New(resources.NewWorkloadPods(selected), v.registry)
+		if key == "o" {
+			return viewstate.Push, logview.New(preferredLogPod(items), pods)
+		}
+		return viewstate.Push, New(pods, v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "pods") || resourceName == "pods" {
 		containers := v.resource.Detail(selected).Containers
 		if len(containers) <= 1 {
-			return logview.New(selected, v.resource)
+			return viewstate.Push, logview.New(selected, v.resource)
 		}
-		return New(resources.NewContainerResource(selected, v.resource), v.registry)
+		return viewstate.Push, New(resources.NewContainerResource(selected, v.resource), v.registry)
 	}
 
 	if resourceName == "containers" {
 		if cRes, ok := v.resource.(*resources.ContainerResource); ok {
-			return logview.NewWithContainer(cRes.PodItem(), cRes.ParentResource(), selected.Name)
+			return viewstate.Push, logview.NewWithContainer(cRes.PodItem(), cRes.ParentResource(), selected.Name)
 		}
-		return logview.New(selected, v.resource)
+		return viewstate.Push, logview.New(selected, v.resource)
 	}
 
 	if resourceName == "deployments" {
-		return New(resources.NewWorkloadPods(selected), v.registry)
+		pods := resources.NewWorkloadPods(selected)
+		if len(pods.Items()) == 0 {
+			return viewstate.OpenRelated, nil
+		}
+		return viewstate.Push, New(pods, v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "services") {
-		return New(resources.NewBackends(selected.Name), v.registry)
+		return viewstate.Push, New(resources.NewBackends(selected.Name), v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "ingresses") {
-		return New(resources.NewIngressServices(selected.Name), v.registry)
+		return viewstate.Push, New(resources.NewIngressServices(selected.Name), v.registry)
 	}
 
 	if resourceName == "nodes" {
-		return New(resources.NewNodePods(selected.Name), v.registry)
+		return viewstate.Push, New(resources.NewNodePods(selected.Name), v.registry)
 	}
 
 	if resourceName == "persistentvolumeclaims" {
-		return New(resources.NewMountedBy(selected.Name), v.registry)
+		return viewstate.Push, New(resources.NewMountedBy(selected.Name), v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "backends") {
@@ -1146,18 +1095,18 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) viewstat
 		dv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
 			return New(resources.NewContainerResource(item, res), v.registry)
 		}
-		return dv
+		return viewstate.Push, dv
 	}
 
 	if strings.HasPrefix(resourceName, "mounted-by") {
 		containers := v.resource.Detail(selected).Containers
 		if len(containers) <= 1 {
-			return logview.New(selected, v.resource)
+			return viewstate.Push, logview.New(selected, v.resource)
 		}
-		return New(resources.NewContainerResource(selected, v.resource), v.registry)
+		return viewstate.Push, New(resources.NewContainerResource(selected, v.resource), v.registry)
 	}
 
-	return nil
+	return viewstate.None, nil
 }
 
 func preferredLogPod(items []resources.ResourceItem) resources.ResourceItem {

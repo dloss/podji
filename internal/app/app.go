@@ -5,47 +5,34 @@ import (
 	"unicode"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
+	"github.com/dloss/podji/internal/ui/overlaypicker"
+	"github.com/dloss/podji/internal/ui/relatedview"
 	"github.com/dloss/podji/internal/ui/resourcebrowser"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
-const (
-	scopeContext   = 0
-	scopeNamespace = 1
-	scopeResources = 2
-)
-
-type snapshot struct {
-	stack  []viewstate.View
-	crumbs []string
-	scope  int
-}
-
 type Model struct {
-	registry  *resources.Registry
-	stack     []viewstate.View
-	crumbs    []string
-	scope     int
-	history   []snapshot
-	context   string
-	namespace string
-	errorMsg  string
-	width     int
-	height    int
+	registry   *resources.Registry
+	stack      []viewstate.View
+	crumbs     []string
+	overlay    *overlaypicker.Picker
+	side       viewstate.View
+	sideActive bool
+	context    string
+	namespace  string
+	errorMsg   string
+	width      int
+	height     int
 }
 
 type globalKeySuppresser interface {
 	SuppressGlobalKeys() bool
 }
-
-type selectedBreadcrumbProvider interface {
-	SelectedBreadcrumb() string
-}
-
 
 func New() Model {
 	registry := resources.DefaultRegistry()
@@ -57,7 +44,6 @@ func New() Model {
 		registry:  registry,
 		stack:     []viewstate.View{root},
 		crumbs:    []string{rootCrumb},
-		scope:     scopeResources,
 		context:   "default",
 		namespace: "default",
 	}
@@ -69,12 +55,45 @@ func (m Model) Init() bubbletea.Cmd {
 
 func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	routedMsg := msg
+
+	// Route all input to overlay when active.
+	if m.overlay != nil {
+		if _, ok := msg.(bubbletea.KeyMsg); ok {
+			update := m.overlay.Update(msg)
+			if update.Action == viewstate.Pop {
+				m.overlay = nil
+			}
+			return m, update.Cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.top().SetSize(m.width, m.availableHeight())
+		m.top().SetSize(m.mainWidth(), m.availableHeight())
+		if m.side != nil {
+			m.side.SetSize(m.sideWidth(), m.availableHeight())
+		}
 		return m, nil
+
+	case overlaypicker.SelectedMsg:
+		m.overlay = nil
+		if msg.Kind == "namespace" {
+			m.namespace = msg.Value
+			resources.ActiveNamespace = msg.Value
+		} else {
+			m.context = msg.Value
+		}
+		// Reload workloads so the new namespace/context takes effect.
+		if res := m.registry.ResourceByKey('W'); res != nil {
+			view := listview.New(res, m.registry)
+			view.SetSize(m.mainWidth(), m.availableHeight())
+			m.stack = []viewstate.View{view}
+			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+		}
+		return m, nil
+
 	case bubbletea.KeyMsg:
 		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
 			break
@@ -90,11 +109,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			} else if m.scope == scopeResources {
-				m.saveHistory()
-				m.switchToScope(scopeNamespace)
-			} else if m.scope == scopeNamespace || m.scope == scopeContext {
-				m.restoreHistory()
 			}
 			return m, nil
 		case "h", "left":
@@ -102,37 +116,50 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			} else if m.scope == scopeResources {
-				m.saveHistory()
-				m.switchToScope(scopeNamespace)
-			} else if m.scope == scopeNamespace {
-				m.saveHistory()
-				m.switchToScope(scopeContext)
 			}
 			return m, nil
 		case "N":
-			if m.scope != scopeNamespace {
-				m.saveHistory()
-				m.switchToScope(scopeNamespace)
-			}
+			items := resources.NamespaceNames()
+			m.overlay = overlaypicker.New("namespace", items)
+			m.overlay.SetSize(m.width, m.height)
 			return m, nil
 		case "X":
-			if m.scope != scopeContext {
-				m.saveHistory()
-				m.switchToScope(scopeContext)
-			}
+			items := resources.ContextNames()
+			m.overlay = overlaypicker.New("context", items)
+			m.overlay.SetSize(m.width, m.height)
 			return m, nil
 		case "A":
 			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
-			browser.SetSize(m.width, m.availableHeight())
-			m.saveHistory()
+			browser.SetSize(m.mainWidth(), m.availableHeight())
 			m.stack = []viewstate.View{browser}
 			m.crumbs = []string{"resources"}
+			return m, nil
+		case "r":
+			if m.side != nil {
+				// Close side panel, restore full width to main.
+				m.side = nil
+				m.sideActive = false
+				m.top().SetSize(m.width, m.availableHeight())
+			} else {
+				// Open side panel. Assign m.side first so that sideWidth() /
+				// mainWidth() return the correct 40/60 split when SetSize is called.
+				m.side = relatedview.NewForSelection(m.top())
+				m.side.SetSize(m.sideWidth(), m.availableHeight())
+				m.top().SetSize(m.mainWidth(), m.availableHeight())
+			}
+			return m, nil
+		case "tab":
+			if m.side != nil {
+				m.sideActive = !m.sideActive
+				if f, ok := m.side.(viewstate.Focusable); ok {
+					f.SetFocused(m.sideActive)
+				}
+			}
 			return m, nil
 		case "?":
 			if _, isHelp := m.top().(*helpview.View); !isHelp {
 				help := helpview.New()
-				help.SetSize(m.width, m.availableHeight())
+				help.SetSize(m.mainWidth(), m.availableHeight())
 				m.stack = append(m.stack, help)
 				m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
 			}
@@ -142,9 +169,8 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if len(runes) == 1 {
 				key := runes[0]
 				if res := m.registry.ResourceByKey(key); res != nil {
-					m.saveHistory()
 					view := listview.New(res, m.registry)
-					view.SetSize(m.width, m.availableHeight())
+					view.SetSize(m.mainWidth(), m.availableHeight())
 					m.stack = []viewstate.View{view}
 					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 					return m, nil
@@ -153,46 +179,61 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 	}
 
-	update := m.top().Update(routedMsg)
-	switch update.Action {
-	case viewstate.Push:
-		if (m.scope == scopeNamespace || m.scope == scopeContext) && isScopeSelectionMsg(routedMsg) {
-			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
-				if value := normalizeBreadcrumbPart(selected.SelectedBreadcrumb()); value != "" {
-					if idx := strings.Index(value, ": "); idx >= 0 {
-						name := value[idx+2:]
-						if m.scope == scopeNamespace {
-							m.namespace = name
-							resources.ActiveNamespace = name
-						} else {
-							m.context = name
+	// Route to side panel when it's focused.
+	if m.sideActive && m.side != nil {
+		update := m.side.Update(routedMsg)
+		switch update.Action {
+		case viewstate.Push:
+			// Navigation from side panel goes to the main stack.
+			if len(m.crumbs) > 0 {
+				if sel, ok := m.side.(viewstate.SelectionProvider); ok {
+					if item := sel.SelectedItem(); item.Name != "" {
+						kind := item.Kind
+						if kind == "" {
+							kind = "item"
+						}
+						val := normalizeBreadcrumbPart(strings.ToLower(kind) + ": " + item.Name)
+						if val != "" {
+							m.crumbs[len(m.crumbs)-1] = val
 						}
 					}
 				}
 			}
-			if m.scope == scopeNamespace {
-				m.restoreHistory()
-				if res := m.registry.ResourceByKey('W'); res != nil {
-					view := listview.New(res, m.registry)
-					view.SetSize(m.width, m.availableHeight())
-					m.stack = []viewstate.View{view}
-					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
-				}
-				return m, nil
-			}
-			m.restoreHistory()
-			return m, nil
+			update.Next.SetSize(m.mainWidth(), m.availableHeight())
+			m.stack = append(m.stack, update.Next)
+			m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
+			m.sideActive = false // focus follows to main
+		case viewstate.Pop:
+			// Side panel closed itself (Esc).
+			m.side = nil
+			m.sideActive = false
+			m.top().SetSize(m.width, m.availableHeight())
+		case viewstate.Replace:
+			update.Next.SetSize(m.sideWidth(), m.availableHeight())
+			m.side = update.Next
+		case viewstate.OpenRelated:
+			// Side panel requested a related panel for a sub-item — ignore.
+		default:
+			m.side = update.Next
 		}
+		return m, update.Cmd
+	}
+
+	update := m.top().Update(routedMsg)
+	switch update.Action {
+	case viewstate.Push:
 		if len(m.crumbs) > 0 {
 			committed := m.crumbs[len(m.crumbs)-1]
-			if selected, ok := m.top().(selectedBreadcrumbProvider); ok {
-				if value := normalizeBreadcrumbPart(selected.SelectedBreadcrumb()); value != "" {
-					committed = value
+			if selected, ok := m.top().(viewstate.SelectionProvider); ok {
+				item := selected.SelectedItem()
+				if item.Name != "" {
+					label := breadcrumbLabel(m.top())
+					committed = normalizeBreadcrumbPart(label + ": " + item.Name)
 				}
 			}
 			m.crumbs[len(m.crumbs)-1] = committed
 		}
-		update.Next.SetSize(m.width, m.availableHeight())
+		update.Next.SetSize(m.mainWidth(), m.availableHeight())
 		m.stack = append(m.stack, update.Next)
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
 	case viewstate.Pop:
@@ -202,9 +243,20 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 		}
 	case viewstate.Replace:
-		update.Next.SetSize(m.width, m.availableHeight())
+		update.Next.SetSize(m.mainWidth(), m.availableHeight())
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
+	case viewstate.OpenRelated:
+		if m.side == nil {
+			// Assign m.side first so sideWidth()/mainWidth() use the 40/60 split.
+			m.side = relatedview.NewForSelection(m.top())
+			m.side.SetSize(m.sideWidth(), m.availableHeight())
+			m.top().SetSize(m.mainWidth(), m.availableHeight())
+		}
+		m.sideActive = true
+		if f, ok := m.side.(viewstate.Focusable); ok {
+			f.SetFocused(true)
+		}
 	default:
 		m.stack[len(m.stack)-1] = update.Next
 	}
@@ -212,20 +264,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	return m, update.Cmd
 }
 
-func isScopeSelectionMsg(msg bubbletea.Msg) bool {
-	key, ok := msg.(bubbletea.KeyMsg)
-	if !ok {
-		return false
-	}
-	switch key.String() {
-	case "enter", "l", "right", "o":
-		return true
-	default:
-		return false
-	}
-}
-
-func (m Model) View() string {
+func (m Model) renderMain() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	body := m.top().View()
 	footer := m.top().Footer()
@@ -246,49 +285,40 @@ func (m Model) View() string {
 	return strings.Join(sections, "\n")
 }
 
+func (m Model) View() string {
+	main := m.renderMain()
+	if m.overlay != nil {
+		return overlayOnTop(main, m.overlay.View(), m.width, m.height)
+	}
+	if m.side != nil {
+		side := m.side.View()
+		return lipgloss.JoinHorizontal(lipgloss.Top, main, side)
+	}
+	return main
+}
+
+func overlayOnTop(main, overlay string, width, height int) string {
+	// The overlay view already uses lipgloss.Place to center itself at full
+	// terminal size, so we can just return it directly.
+	_ = main
+	_ = width
+	_ = height
+	return overlay
+}
+
 func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
-func (m *Model) saveHistory() {
-	s := make([]viewstate.View, len(m.stack))
-	copy(s, m.stack)
-	c := make([]string, len(m.crumbs))
-	copy(c, m.crumbs)
-	m.history = append(m.history, snapshot{stack: s, crumbs: c, scope: m.scope})
+func (m Model) mainWidth() int {
+	if m.side != nil {
+		return (m.width * 60) / 100
+	}
+	return m.width
 }
 
-func (m *Model) restoreHistory() bool {
-	if len(m.history) == 0 {
-		return false
-	}
-	last := m.history[len(m.history)-1]
-	m.history = m.history[:len(m.history)-1]
-	m.stack = last.stack
-	m.crumbs = last.crumbs
-	m.scope = last.scope
-	m.top().SetSize(m.width, m.availableHeight())
-	return true
-}
-
-func (m *Model) switchToScope(scope int) {
-	m.scope = scope
-	var res resources.ResourceType
-	switch scope {
-	case scopeNamespace:
-		res = m.registry.ResourceByKey('N')
-	case scopeContext:
-		res = m.registry.ResourceByKey('X')
-	default:
-		return
-	}
-	if res == nil {
-		return
-	}
-	view := listview.New(res, m.registry)
-	view.SetSize(m.width, m.availableHeight())
-	m.stack = []viewstate.View{view}
-	m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+func (m Model) sideWidth() int {
+	return m.width - m.mainWidth()
 }
 
 func (m Model) scopeLine() string {
@@ -296,26 +326,14 @@ func (m Model) scopeLine() string {
 
 	contextLabel := style.Scope.Render("Context: ")
 	contextValue := style.ScopeValue.Render(m.context)
-	if m.scope == scopeContext {
-		contextLabel = style.ScopeActive.Render("Context: ")
-		contextValue = style.ScopeActiveValue.Render(m.context)
-	}
 
 	nsLabel := style.Scope.Render("Namespace: ")
 	nsValue := style.ScopeValue.Render(m.namespace)
-	if m.scope == scopeNamespace {
-		nsLabel = style.ScopeActive.Render("Namespace: ")
-		nsValue = style.ScopeActiveValue.Render(m.namespace)
-	}
 
 	return contextLabel + contextValue + sep + nsLabel + nsValue
 }
 
 func (m Model) breadcrumbLine() string {
-	if m.scope != scopeResources {
-		return style.Scope.Render("[" + m.crumbs[0] + "]")
-	}
-
 	rootTag := style.Scope.Render("[" + crumbText(m.crumbs[0]) + "]")
 	ancestors := m.crumbs[:len(m.crumbs)-1]
 	if len(ancestors) <= 1 {
@@ -399,7 +417,6 @@ func fitViewLines(view string, targetLines int) string {
 	return strings.Join(lines, "\n")
 }
 
-
 func titleCase(value string) string {
 	if value == "" {
 		return value
@@ -433,4 +450,14 @@ func normalizeGlobalKey(msg bubbletea.KeyMsg) bubbletea.KeyMsg {
 		return bubbletea.KeyMsg{Type: bubbletea.KeyPgDown}
 	}
 	return msg
+}
+
+// breadcrumbLabel returns a short label for the view, used when updating crumbs on push.
+func breadcrumbLabel(v viewstate.View) string {
+	crumb := v.Breadcrumb()
+	label := strings.TrimSpace(crumb)
+	if open := strings.Index(label, "("); open > 0 {
+		label = strings.TrimSpace(label[:open])
+	}
+	return label
 }
