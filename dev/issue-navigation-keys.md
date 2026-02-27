@@ -91,8 +91,6 @@ case "esc":
 
 The bubbles list `SettingFilter()` returns false when the filter input is open but empty (it depends on whether the filter value is non-empty). Verify this edge case and ensure `Esc` always closes an open (even empty) filter bar on the first press.
 
-## `Tab` cycles columns but footer says `cols` inconsistently
+## `Tab` column cycling is being removed
 
-On lists with >2 columns, the footer shows `tab cols`. On shorter lists (≤2 columns) the hint disappears but Tab still technically exists as a key — it just does nothing visible. This is fine. However, the related view shows `tab lens` (wrong, see `issue-footer-hints.md`), while the list view says `tab cols`. The two contexts are inconsistent in vocabulary and behavior.
-
-No fix needed for the list-side — `tab cols` is correct and the guard `len(v.columns) > 2` is appropriate. The fix belongs in relatedview (see other doc).
+> **Superseded by `dev/plan-phase2.md`.** Column cycling (`tab cols` / `shift+tab`) is being removed from `listview.go`. Tab will be intercepted by `app.go` and used as a panel-focus switcher. Remove all `tab cols` / `tab view` hints from list footers as part of that phase.

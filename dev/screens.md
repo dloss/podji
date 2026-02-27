@@ -9,7 +9,7 @@ Below is a concrete, scan-friendly mock that reflects:
 * **footer key hints**
 
 ```
-Apps › Workloads                           ns: payments     (23)     filter: —
+Workloads                                  ns: payments     (23)     filter: —
 ────────────────────────────────────────────────────────────────────────────────
 NAME                         KIND  READY      STATUS        RESTARTS   AGE
 api                           DEP   2/3        Degraded      14         3d
@@ -21,7 +21,7 @@ nightly-backup                CJ    Last: 6h   Healthy       —          90d
 sync-reports                  CJ    Last: —    Healthy       —          2d
 cleanup-tmp                   CJ    Last: 22m  Degraded      —          15d
 ────────────────────────────────────────────────────────────────────────────────
-→ pods   l logs   r related   / filter   Tab view   s sort   ← back
+→ pods   l logs   r related   / filter   s sort   ← back
 ```
 
 #### Notes embodied by the mock
@@ -42,7 +42,7 @@ cleanup-tmp                   CJ    Last: 22m  Degraded      —          15d
 When selecting `nightly-backup (CJ)` and pressing `→`:
 
 ```
-Apps › Pods (CronJob: nightly-backup)     newest job: nightly-backup-289173
+Pods (CronJob: nightly-backup)            newest job: nightly-backup-289173
 ns: payments     (1)     filter: —
 ────────────────────────────────────────────────────────────────────────────────
 NAME                                    READY   STATUS      RESTARTS   AGE
@@ -51,16 +51,19 @@ nightly-backup-289173-7m2kq             1/1     Running     0          2m
 → logs   l logs   r related   / filter   ← back
 ```
 
-If the CronJob has **no Jobs yet**:
+If the CronJob has **no Jobs yet** — Phase 3 auto-opens the related panel:
 
 ```
-Apps › Pods (CronJob: sync-reports)      newest job: —
-ns: payments     (0)     filter: —
-────────────────────────────────────────────────────────────────────────────────
-No pods found for workload "sync-reports".
-Hint: press r to view Related (Jobs, Events, Config, Network).
-────────────────────────────────────────────────────────────────────────────────
-r related   / filter   ← back
+Pods (CronJob: sync-reports)             newest job: —
+ns: payments     (0)     filter: —        ┌─ Related ──────────────────────────┐
+────────────────────────────────────────  │  Jobs                           0  │
+No jobs have run for CronJob              │> Events                         2  │
+"sync-reports" yet.                       │  Config                         1  │
+                                          │  Network                        1  │
+                                          │                                    │
+                                          │  Tab main   Esc close              │
+──────────────────────────────────────    └────────────────────────────────────┘
+/ filter   ← back
 ```
 
 ---

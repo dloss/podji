@@ -26,7 +26,7 @@ if _, ok := v.resource.(resources.ToggleSortable); ok {
 
 **Spec says:** `/ filter` should appear in the workloads footer.
 
-**Current footer (workloads):** `s sort   v state   tab cols   r related   c copy   x execute`
+**Current footer (workloads):** `s sort   v state   tab cols   r related   c copy   x execute` (`tab cols` will be removed in Phase 2)
 
 The filter is one of the most-used actions and is completely invisible. The list model supports filtering via the built-in bubbles filter — it just isn't surfaced.
 
@@ -67,26 +67,8 @@ Currently `l` and `enter` are treated identically in workloads — both navigate
 
 This is entangled with the `l` vs `o` key confusion (see `issue-navigation-keys.md`). Once the key mapping is resolved, add the appropriate hint.
 
-## Related view footer shows `tab lens` but Tab does nothing there
+## Related view footer shows `tab lens` — replace with `Tab main`
 
-**File:** `internal/ui/relatedview/relatedview.go:180`
+**File:** `internal/ui/relatedview/relatedview.go:180` and `~:492`
 
-```go
-line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
-```
-
-Tab is not handled in `relatedview.Update()`. It falls through to the list model, which cycles columns (if any) — not lenses. The hint is wrong and misleading.
-
-### Fix
-
-Either:
-1. Handle `tab` in relatedview by returning a `viewstate.Pop` so the app-level handler can switch lens, or
-2. Remove the hint from the related view footer entirely, since lens-switching is a global concern that doesn't need to be advertised from every sub-view.
-
-Option 2 is simpler and less surprising. The help screen (`?`) is the right place for global keys.
-
-## Related list footer (drill-down from related) has the same problem
-
-**File:** `internal/ui/relatedview/relatedview.go` (relation list view footer, ~line 492)
-
-Same `tab lens` hint, same issue. Apply the same fix.
+`tab lens` is wrong — there are no lenses. After Phase 3, the related view is a side panel and Tab means "return focus to main panel". Replace the hint with `Tab main` in both footer methods. See `issue-relatedview.md` for full details and `dev/plan-phase3.md` for the Phase 3 footer spec (`→ open   Tab main   Esc close`).

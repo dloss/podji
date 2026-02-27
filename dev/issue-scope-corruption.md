@@ -1,5 +1,7 @@
 # Issue: Scope State Corruption (Bugs 1, 2, 3)
 
+> **Superseded by `dev/plan-phase1.md`.** The scope system is being removed entirely — `N`/`X` will open overlay pickers instead of navigating into a scope level, eliminating this bug class at the design level. The root cause analysis below is preserved as context.
+
 These three reported bugs share a single root cause in `internal/app/app.go`.
 
 ## Root cause

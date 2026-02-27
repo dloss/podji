@@ -33,7 +33,7 @@ func (w *WorkloadPods) Name() string {
 
 This propagates into the breadcrumb automatically since the app renders `resource.Name()` there.
 
-## Empty state for CronJob with no jobs doesn't hint at `r`
+## Empty state for CronJob with no jobs should trigger auto-open
 
 **Spec says** (`dev/CONCEPT.md`):
 > "If no Jobs exist: show empty pods list and hint to use Related (`r`) for Jobs/Events"
@@ -49,11 +49,13 @@ func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
 }
 ```
 
-The CronJob-specific case (no jobs ever run) is not distinguished from the generic empty state. A user landing here has no idea where to go next.
+The CronJob-specific case (no jobs ever run) is not distinguished from the generic empty state.
+
+> **Updated by redesign:** Phase 3 (`dev/plan-phase3.md`) makes empty drill-down auto-open the related side panel via a new `viewstate.OpenRelated` action from `forwardView()`. When the related panel opens automatically, a message is still useful for context. The fix below provides both.
 
 ### Fix
 
-Detect the CronJob-with-no-jobs case and add a hint:
+In `forwardView()` (`listview.go`), when the result set is empty, return `viewstate.OpenRelated` (Phase 3 adds this). In `EmptyMessage`, distinguish the CronJob-with-no-jobs case for when the user sees the empty view momentarily before the panel opens, or when filtering is active:
 
 ```go
 func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
@@ -61,12 +63,10 @@ func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
         return "No pods match `" + filter + "`."
     }
     if w.workload.Kind == "CJ" && w.NewestJobName() == "—" {
-        return "No jobs have run for CronJob `" + w.workload.Name + "` yet.\n" +
-            "Press r to view Related (Jobs, Events, Config)."
+        return "No jobs have run for CronJob `" + w.workload.Name + "` yet."
     }
-    return "No pods found for workload `" + w.workload.Name + "`.\n" +
-        "Press r to view Related (Events, Config, Network)."
+    return "No pods found for workload `" + w.workload.Name + "`."
 }
 ```
 
-The second paragraph ("Press r…") is also useful for non-CronJob workloads that have no pods, so it's worth adding generally.
+The "press r" hint is dropped — Phase 3 opens the panel automatically, making the hint redundant.

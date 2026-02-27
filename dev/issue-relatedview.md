@@ -1,6 +1,8 @@
 # Issue: Related View Footer and Navigation Problems
 
-## `tab lens` shown but Tab is not handled
+> **Note:** Phase 3 (`dev/plan-phase3.md`) moves the related view from a full-screen stack view to a persistent side panel. The footer hints and Tab behaviour described here are updated in that plan.
+
+## `tab lens` hint is wrong and must be replaced
 
 Both the category view (`relatedview.View`) and the drill-down resource list (`relatedview.relationList`) show a `tab lens` footer hint:
 
@@ -12,24 +14,19 @@ line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Widt
 actions := []style.Binding{style.B("tab", "lens")}
 ```
 
-Neither `Update()` function handles the `tab` key. It falls through to the bubbles list model which may do nothing or cycle its own internal state — it does not switch the app lens.
+There are no lenses. Tab doesn't switch them.
 
-### Fix option A — remove the hint
+After Phase 2, `app.go` intercepts Tab before any child view sees it — the related view never receives it regardless. After Phase 3, the related view runs as a persistent side panel, and Tab means "return focus to the main panel". The hint should say `Tab main`.
 
-Lens switching is a global concern; it works by the app-level handler receiving Tab before child views do. If the child views don't intercept Tab, the bubbles model swallows it before the app sees it, so the hint is both wrong and actively prevents the global binding from working.
+### Fix (applicable after Phase 3)
 
-Remove `tab lens` from both footers. If a global key guide is needed, the help screen (`?`) is the right place.
-
-### Fix option B — forward Tab upward
-
-Return a `viewstate.Pop` on Tab so the app regains focus and processes its own Tab handler:
+Replace `tab lens` with `Tab main` in both footer methods:
 
 ```go
-case "tab":
-    return viewstate.Update{Action: viewstate.Pop}
+style.B("tab", "main")
 ```
 
-This would pop back to the list, switch lens, and lose the related context — probably not the right UX. Option A is simpler.
+The Phase 3 plan specifies the full side-panel footer as: `→ open   Tab main   Esc close`.
 
 ## Category view footer missing Enter hint
 

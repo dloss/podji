@@ -83,7 +83,7 @@ The TABLE section of the help text:
 
 ```
 TABLE
-  tab / shift+tab      Cycle columns (sticky first column)
+  tab                  Focus related panel (when open)
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)
@@ -92,9 +92,10 @@ TABLE
   d                    Describe
   y                    YAML
   e                    Events for selected item
-  r                    Related resources for selected item
+  r                    Toggle related panel
   o                    Logs (or next table)
   space / pgup / pgdn  Page up / down
+  c                    Copy mode (n name, k kind/name, p -n ns name)
   x                    Execute mode (d delete, r restart, s scale, f port-fwd, x shell)
 ```
 
@@ -127,7 +128,7 @@ line2 := style.ActionFooter(actions, v.list.Width())
 
 The `f` find-by-first-char mode is also implemented in the browser (lines 127-137, `computeFindTargets`) but undocumented in the footer and the help overlay. Add it to both.
 
-The help overlay currently mentions only `Tab` for the browser section (which it doesn't have). Update:
+The help overlay currently mentions only `Tab` for the browser section (which it doesn't have, and Tab no longer cycles columns). Update:
 
 ```
 RESOURCE BROWSER (A)
