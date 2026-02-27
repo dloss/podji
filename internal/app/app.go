@@ -75,6 +75,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if m.side != nil {
 			m.side.SetSize(m.sideWidth(), m.availableHeight())
 		}
+		if m.overlay != nil {
+			m.overlay.SetSize(m.width, m.height-1)
+		}
 		return m, nil
 
 	case overlaypicker.SelectedMsg:
@@ -121,12 +124,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		case "N":
 			items := resources.NamespaceNames()
 			m.overlay = overlaypicker.New("namespace", items)
-			m.overlay.SetSize(m.width, m.height)
+			m.overlay.SetAnchor(m.namespaceLabelX())
+			m.overlay.SetSize(m.width, m.height-1)
 			return m, nil
 		case "X":
 			items := resources.ContextNames()
 			m.overlay = overlaypicker.New("context", items)
-			m.overlay.SetSize(m.width, m.height)
+			m.overlay.SetAnchor(0)
+			m.overlay.SetSize(m.width, m.height-1)
 			return m, nil
 		case "A":
 			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
@@ -286,24 +291,17 @@ func (m Model) renderMain() string {
 }
 
 func (m Model) View() string {
-	main := m.renderMain()
 	if m.overlay != nil {
-		return overlayOnTop(main, m.overlay.View(), m.width, m.height)
+		// Keep the scope line visible so the user sees what they're changing,
+		// then let the dropdown open directly below it.
+		return m.scopeLine() + "\n" + m.overlay.View()
 	}
+	main := m.renderMain()
 	if m.side != nil {
 		side := m.side.View()
 		return lipgloss.JoinHorizontal(lipgloss.Top, main, side)
 	}
 	return main
-}
-
-func overlayOnTop(main, overlay string, width, height int) string {
-	// The overlay view already uses lipgloss.Place to center itself at full
-	// terminal size, so we can just return it directly.
-	_ = main
-	_ = width
-	_ = height
-	return overlay
 }
 
 func (m Model) top() viewstate.View {
@@ -332,6 +330,14 @@ func (m Model) scopeLine() string {
 
 	return contextLabel + contextValue + sep + nsLabel + nsValue
 }
+
+// namespaceLabelX returns the visual column where "Namespace:" starts in the scope line.
+func (m Model) namespaceLabelX() int {
+	return lipgloss.Width(style.Scope.Render("Context: ") +
+		style.ScopeValue.Render(m.context) +
+		style.NavSep.Render(" > "))
+}
+
 
 func (m Model) breadcrumbLine() string {
 	rootTag := style.Scope.Render("[" + crumbText(m.crumbs[0]) + "]")
