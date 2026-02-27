@@ -11,7 +11,7 @@ import (
 	"github.com/dloss/podji/internal/ui/style"
 )
 
-func newRelatedTableDelegate(findMode *bool, findTargets *map[int]bool) relatedTableDelegate {
+func newRelatedTableDelegate(findMode *bool, findTargets *map[int]bool, focused *bool) relatedTableDelegate {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.SetSpacing(0)
@@ -22,13 +22,14 @@ func newRelatedTableDelegate(findMode *bool, findTargets *map[int]bool) relatedT
 		Background(lipgloss.Color("236")).
 		BorderLeft(true).
 		BorderStyle(lipgloss.Border{Left: "▌"})
-	return relatedTableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets}
+	return relatedTableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets, focused: focused}
 }
 
 type relatedTableDelegate struct {
 	list.DefaultDelegate
 	findMode    *bool
 	findTargets *map[int]bool
+	focused     *bool
 }
 
 func (d relatedTableDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
@@ -44,6 +45,9 @@ func (d relatedTableDelegate) Render(w io.Writer, m list.Model, index int, listI
 		titleStyle = d.Styles.DimmedTitle
 	case isSelected && m.FilterState() != list.Filtering:
 		titleStyle = d.Styles.SelectedTitle
+		if d.focused != nil && !*d.focused {
+			titleStyle = titleStyle.BorderForeground(lipgloss.Color("241"))
+		}
 	}
 
 	var matches []int

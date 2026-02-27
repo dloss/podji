@@ -39,3 +39,10 @@ type SelectionProvider interface {
 type Focusable interface {
 	SetFocused(bool)
 }
+
+// FooterWidthSetter is implemented by views whose footer can be rendered at a
+// different width than the view body (e.g. full terminal width when in a split).
+// Pass 0 to reset to the view's own width.
+type FooterWidthSetter interface {
+	SetFooterWidth(int)
+}

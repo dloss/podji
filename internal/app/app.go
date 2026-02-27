@@ -148,6 +148,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				// Close side panel, restore full width to main.
 				m.side = nil
 				m.sideActive = false
+				if f, ok := m.top().(viewstate.Focusable); ok {
+					f.SetFocused(true)
+				}
 				m.top().SetSize(m.width, m.availableHeight())
 				m.notifySideState()
 			} else {
@@ -157,6 +160,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.sideActive = true
 				if f, ok := m.side.(viewstate.Focusable); ok {
 					f.SetFocused(true)
+				}
+				if f, ok := m.top().(viewstate.Focusable); ok {
+					f.SetFocused(false)
 				}
 				m.side.SetSize(m.sideContentWidth(), m.availableHeight())
 				m.top().SetSize(m.mainWidth(), m.availableHeight())
@@ -168,6 +174,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.sideActive = !m.sideActive
 				if f, ok := m.side.(viewstate.Focusable); ok {
 					f.SetFocused(m.sideActive)
+				}
+				if f, ok := m.top().(viewstate.Focusable); ok {
+					f.SetFocused(!m.sideActive)
 				}
 			}
 			return m, nil
@@ -219,14 +228,23 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.stack = append(m.stack, update.Next)
 			m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
 			m.sideActive = false // focus follows to main
+			if f, ok := m.top().(viewstate.Focusable); ok {
+				f.SetFocused(true)
+			}
 		case viewstate.Pop:
 			// Side panel closed itself (Esc).
 			m.side = nil
 			m.sideActive = false
+			if f, ok := m.top().(viewstate.Focusable); ok {
+				f.SetFocused(true)
+			}
 			m.top().SetSize(m.width, m.availableHeight())
 			m.notifySideState()
 		case viewstate.Replace:
 			update.Next.SetSize(m.sideWidth(), m.availableHeight())
+			if f, ok := update.Next.(viewstate.Focusable); ok {
+				f.SetFocused(m.sideActive)
+			}
 			m.side = update.Next
 		case viewstate.OpenRelated:
 			// Side panel requested a related panel for a sub-item — ignore.
@@ -286,6 +304,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if f, ok := m.side.(viewstate.Focusable); ok {
 			f.SetFocused(true)
 		}
+		if f, ok := m.top().(viewstate.Focusable); ok {
+			f.SetFocused(false)
+		}
 		m.notifySideState()
 	default:
 		m.stack[len(m.stack)-1] = update.Next
@@ -301,23 +322,39 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	return m, update.Cmd
 }
 
-func (m Model) renderMain() string {
+func (m Model) renderHeader() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
-	body := m.top().View()
-	footer := m.top().Footer()
+	if m.errorMsg != "" {
+		return style.ErrorBanner.Render(m.errorMsg) + "\n" + head
+	}
+	return head
+}
 
+func (m Model) renderBody() string {
+	body := m.top().View()
 	if m.height > 0 {
 		body = fitViewLines(body, m.bodyHeightLimit())
 	}
+	return body
+}
 
-	sections := []string{head}
+func (m Model) renderFooter() string {
+	if m.sideActive && m.side != nil {
+		return m.side.Footer()
+	}
+	return m.top().Footer()
+}
+
+func (m Model) renderMain() string {
+	header := m.renderHeader()
+	body := m.renderBody()
+	footer := m.renderFooter()
+
+	sections := []string{header}
 	if body != "" {
 		sections = append(sections, body)
 	}
 	sections = append(sections, footer)
-	if m.errorMsg != "" {
-		sections = append([]string{style.ErrorBanner.Render(m.errorMsg)}, sections...)
-	}
 
 	return strings.Join(sections, "\n")
 }
@@ -329,11 +366,20 @@ func (m Model) View() string {
 		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
 	}
 	if m.side != nil {
-		sep := sideSeparator(m.height)
-		// Offset side panel down by 2 rows so its column header aligns with the
-		// main table header (which sits below the scope + breadcrumb header lines).
-		side := "\n\n" + m.side.View()
-		return lipgloss.JoinHorizontal(lipgloss.Top, main, sep, side)
+		header := m.renderHeader()
+		mainBody := m.renderBody()
+		bodyHeight := m.bodyHeightLimit()
+		sideBody := fitViewLines(m.side.View(), bodyHeight)
+		sep := sideSeparator(bodyHeight)
+		splitBody := lipgloss.JoinHorizontal(lipgloss.Top, mainBody, sep, sideBody)
+		// Set footer width to full terminal width so the footer isn't truncated
+		// at the panel's narrower width.
+		setFooterWidth(m.top(), m.width)
+		setFooterWidth(m.side, m.width)
+		footer := m.renderFooter()
+		setFooterWidth(m.top(), 0)
+		setFooterWidth(m.side, 0)
+		return header + "\n" + splitBody + "\n" + footer
 	}
 	return main
 }
@@ -408,6 +454,13 @@ func (m Model) sideContentWidth() int {
 		return 1
 	}
 	return w
+}
+
+// setFooterWidth sets the footer width override on views that support it.
+func setFooterWidth(v viewstate.View, w int) {
+	if f, ok := v.(viewstate.FooterWidthSetter); ok {
+		f.SetFooterWidth(w)
+	}
 }
 
 // notifySideState tells the top-of-stack view whether the side panel is

@@ -44,6 +44,7 @@ type View struct {
 	findTargets map[int]bool
 	focused     bool
 	empty       bool // true when opened with no selection available
+	footerW     int  // override width for footer rendering; 0 = use list width
 }
 
 // RelatedCount returns the number of related-resource categories available for
@@ -75,8 +76,9 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 		registry:  registry,
 		columns:   columns,
 		colWidths: widths,
+		focused:   true,
 	}
-	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
+	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets, &v.focused)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -244,7 +246,7 @@ func (v *View) Footer() string {
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
-	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
 	var actions []style.Binding
 	if v.focused {
 		actions = append(actions, style.B("→", "open"))
@@ -253,7 +255,7 @@ func (v *View) Footer() string {
 	} else {
 		actions = append(actions, style.B("tab", "focus"))
 	}
-	line2 := style.ActionFooter(actions, v.list.Width())
+	line2 := style.ActionFooter(actions, v.footerWidth())
 	return line1 + "\n" + line2
 }
 
@@ -263,6 +265,15 @@ func (v *View) SetSize(width, height int) {
 	}
 	v.list.SetSize(width, height)
 	v.refreshItems()
+}
+
+func (v *View) SetFooterWidth(w int) { v.footerW = w }
+
+func (v *View) footerWidth() int {
+	if v.footerW > 0 {
+		return v.footerW
+	}
+	return v.list.Width()
 }
 
 func (v *View) refreshItems() {
@@ -431,6 +442,8 @@ type relationList struct {
 	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
+	focused     bool // true when this panel has input focus
+	footerW     int  // override width for footer rendering; 0 = use list width
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
@@ -452,8 +465,8 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 		})
 	}
 
-	v := &relationList{resource: resource, registry: registry, columns: columns, colWidths: widths}
-	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
+	v := &relationList{resource: resource, registry: registry, columns: columns, colWidths: widths, focused: true}
+	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets, &v.focused)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -564,12 +577,12 @@ func (v *relationList) Footer() string {
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
-	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
 	actions := []style.Binding{style.B("tab", "lens")}
 	if _, ok := v.resource.(resources.ToggleSortable); ok {
 		actions = append(actions, style.B("s", "sort"))
 	}
-	line2 := style.ActionFooter(actions, v.list.Width())
+	line2 := style.ActionFooter(actions, v.footerWidth())
 	return line1 + "\n" + line2
 }
 
@@ -579,6 +592,15 @@ func (v *relationList) SetSize(width, height int) {
 	}
 	v.list.SetSize(width, height)
 	v.refreshItems()
+}
+
+func (v *relationList) SetFooterWidth(w int) { v.footerW = w }
+
+func (v *relationList) footerWidth() int {
+	if v.footerW > 0 {
+		return v.footerW
+	}
+	return v.list.Width()
 }
 
 func (v *relationList) refreshItems() {
