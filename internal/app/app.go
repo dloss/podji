@@ -241,6 +241,9 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.stack = append(m.stack, update.Next)
 			m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
 			m.sideActive = false // focus follows to main
+			if f, ok := m.side.(viewstate.Focusable); ok {
+				f.SetFocused(false)
+			}
 			if f, ok := m.top().(viewstate.Focusable); ok {
 				f.SetFocused(true)
 			}

@@ -118,6 +118,42 @@ func TestRelationListFooterShowsPanelIndicatorOnlyWhenFocused(t *testing.T) {
 	}
 }
 
+func TestRelatedSelectionMarkerHiddenWhenUnfocused(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	workloads := resources.NewWorkloads()
+	source := workloads.Items()[0]
+	view := New(source, workloads, registry)
+	view.SetSize(120, 40)
+
+	focusedView := ansi.Strip(view.View())
+	if !strings.Contains(focusedView, "▌") {
+		t.Fatalf("expected focused related view to show selection marker, got: %s", focusedView)
+	}
+
+	view.SetFocused(false)
+	unfocusedView := ansi.Strip(view.View())
+	if strings.Contains(unfocusedView, "▌") {
+		t.Fatalf("expected unfocused related view to hide selection marker, got: %s", unfocusedView)
+	}
+}
+
+func TestRelationListSelectionMarkerHiddenWhenUnfocused(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	related := newRelationList(resources.NewRelatedConfig("api"), registry)
+	related.SetSize(120, 40)
+
+	focusedView := ansi.Strip(related.View())
+	if !strings.Contains(focusedView, "▌") {
+		t.Fatalf("expected focused relation list to show selection marker, got: %s", focusedView)
+	}
+
+	related.SetFocused(false)
+	unfocusedView := ansi.Strip(related.View())
+	if strings.Contains(unfocusedView, "▌") {
+		t.Fatalf("expected unfocused relation list to hide selection marker, got: %s", unfocusedView)
+	}
+}
+
 func TestPodRelatedEventsOpenEventsResourceList(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	pods := resources.NewPods()

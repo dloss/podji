@@ -37,17 +37,15 @@ func (d relatedTableDelegate) Render(w io.Writer, m list.Model, index int, listI
 		return
 	}
 
+	isFocused := d.focused == nil || *d.focused
 	isSelected := index == m.Index()
 	isFiltered := m.FilterState() == list.Filtering || m.FilterState() == list.FilterApplied
 	titleStyle := d.Styles.NormalTitle
 	switch {
 	case m.FilterState() == list.Filtering && m.FilterValue() == "":
 		titleStyle = d.Styles.DimmedTitle
-	case isSelected && m.FilterState() != list.Filtering:
+	case isSelected && isFocused && m.FilterState() != list.Filtering:
 		titleStyle = d.Styles.SelectedTitle
-		if d.focused != nil && !*d.focused {
-			titleStyle = titleStyle.BorderForeground(lipgloss.Color("241"))
-		}
 	}
 
 	var matches []int
@@ -55,7 +53,7 @@ func (d relatedTableDelegate) Render(w io.Writer, m list.Model, index int, listI
 		matches = m.MatchesForItem(index)
 	}
 	matchBase := d.Styles.NormalTitle.Inline(true)
-	if isSelected {
+	if isSelected && isFocused {
 		matchBase = d.Styles.SelectedTitle.Inline(true)
 	}
 	matchStyle := matchBase.Inherit(d.Styles.FilterMatch)

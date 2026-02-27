@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/ui/overlaypicker"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -235,5 +236,27 @@ func TestEscWhenRelatedFocusedClosesSidePanel(t *testing.T) {
 	}
 	if got.sideActive {
 		t.Fatal("expected sideActive=false after closing side panel")
+	}
+}
+
+func TestEnterFromRelatedFocusMovesFocusToMainWithoutClosingSide(t *testing.T) {
+	m := New()
+
+	opened, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	withSide := opened.(Model)
+	if withSide.side == nil || !withSide.sideActive {
+		t.Fatal("expected side panel to be open and focused after r")
+	}
+
+	updated, _ := withSide.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	got := updated.(Model)
+	if got.side == nil {
+		t.Fatal("expected side panel to remain open after Enter from related")
+	}
+	if got.sideActive {
+		t.Fatal("expected focus to move to main after Enter from related")
+	}
+	if strings.Contains(ansi.Strip(got.side.Footer()), "Panel: Related") {
+		t.Fatal("expected side panel footer to indicate unfocused state after Enter")
 	}
 }
