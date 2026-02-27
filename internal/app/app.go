@@ -154,6 +154,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				// Open side panel. Assign m.side first so that sideWidth() /
 				// mainWidth() return the correct 40/60 split when SetSize is called.
 				m.side = relatedview.NewForSelection(m.top())
+				m.sideActive = true
+				if f, ok := m.side.(viewstate.Focusable); ok {
+					f.SetFocused(true)
+				}
 				m.side.SetSize(m.sideContentWidth(), m.availableHeight())
 				m.top().SetSize(m.mainWidth(), m.availableHeight())
 				m.notifySideState()
@@ -232,6 +236,15 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		return m, update.Cmd
 	}
 
+	// Capture the selected item name before the update so we can detect
+	// cursor movement and refresh the side panel.
+	prevName := ""
+	if m.side != nil {
+		if sel, ok := m.top().(viewstate.SelectionProvider); ok {
+			prevName = sel.SelectedItem().Name
+		}
+	}
+
 	update := m.top().Update(routedMsg)
 	switch update.Action {
 	case viewstate.Push:
@@ -275,12 +288,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 		m.notifySideState()
 	default:
-		prevName := ""
-		if m.side != nil {
-			if sel, ok := m.top().(viewstate.SelectionProvider); ok {
-				prevName = sel.SelectedItem().Name
-			}
-		}
 		m.stack[len(m.stack)-1] = update.Next
 		if m.side != nil {
 			if sel, ok := m.top().(viewstate.SelectionProvider); ok {
