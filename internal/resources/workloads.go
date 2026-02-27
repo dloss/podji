@@ -67,6 +67,44 @@ func workloadItemsForNamespace(ns string) []ResourceItem {
 			{Name: "kube-proxy", Kind: "DS", Ready: "6/6", Status: "Healthy", Restarts: "0", Age: "180d"},
 			{Name: "kube-apiserver", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d"},
 		}
+	case "kube-public":
+		return []ResourceItem{
+			{Name: "cluster-info-publisher", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d"},
+		}
+	case "kube-node-lease":
+		return []ResourceItem{
+			{Name: "lease-heartbeat-sync", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d"},
+		}
+	case "ingress-nginx":
+		return []ResourceItem{
+			{Name: "ingress-nginx-controller", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "60d"},
+			{Name: "ingress-nginx-admission", Kind: "JOB", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "60d"},
+		}
+	case "cert-manager":
+		return []ResourceItem{
+			{Name: "cert-manager", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
+			{Name: "cert-manager-cainjector", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
+			{Name: "cert-manager-webhook", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
+		}
+	case "argocd":
+		return []ResourceItem{
+			{Name: "argocd-application-controller", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
+			{Name: "argocd-repo-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "1", Age: "45d"},
+			{Name: "argocd-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
+			{Name: "argocd-dex-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
+		}
+	case "dev":
+		return []ResourceItem{
+			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3d"},
+			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "1d"},
+			{Name: "feature-flags-sync", Kind: "CJ", Ready: "Last: 14m", Status: "Healthy", Restarts: "—", Age: "12d"},
+			{Name: "seed-demo-data", Kind: "JOB", Ready: "0/1", Status: "Failed", Restarts: "1", Age: "6m"},
+		}
+	case "sandbox":
+		return []ResourceItem{
+			{Name: "playground-api", Kind: "DEP", Ready: "0/1", Status: "Pending", Restarts: "0", Age: "5m"},
+			{Name: "playground-ui", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "2h"},
+		}
 	default:
 		return []ResourceItem{
 			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
@@ -147,7 +185,7 @@ func (w *Workloads) Scenario() string {
 func (w *Workloads) Banner() string {
 	switch w.scenario {
 	case "forbidden":
-		return "Access denied: cannot list workloads in namespace `default` (need get/list on deployments,statefulsets,daemonsets,jobs,cronjobs)."
+		return "Access denied: cannot list workloads in namespace `" + ActiveNamespace + "` (need get/list on deployments,statefulsets,daemonsets,jobs,cronjobs)."
 	case "partial":
 		return "Partial access: Jobs and CronJobs are hidden by RBAC."
 	case "offline":
@@ -166,9 +204,9 @@ func (w *Workloads) EmptyMessage(filtered bool, filter string) string {
 	case "forbidden":
 		return "No workloads visible due to RBAC restrictions."
 	case "empty":
-		return "No workloads found in namespace `default`. Switch namespace or clear filter."
+		return "No workloads found in namespace `" + ActiveNamespace + "`. Switch namespace or clear filter."
 	default:
-		return "No workloads found in namespace `default`."
+		return "No workloads found in namespace `" + ActiveNamespace + "`."
 	}
 }
 
