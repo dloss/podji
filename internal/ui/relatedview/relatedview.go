@@ -42,6 +42,8 @@ type View struct {
 	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
+	focused     bool
+	empty       bool // true when opened with no selection available
 }
 
 // RelatedCount returns the number of related-resource categories available for
@@ -88,9 +90,53 @@ func New(source resources.ResourceItem, resource resources.ResourceType, registr
 	return v
 }
 
+// NewForSelection creates a related view for the currently selected item in a
+// parent view. If the parent implements viewstate.SelectionProvider, the
+// selected item is used; otherwise an empty view is returned.
+func NewForSelection(parent interface{}) *View {
+	type selectionProvider interface {
+		SelectedItem() resources.ResourceItem
+	}
+	type resourceProvider interface {
+		Resource() resources.ResourceType
+	}
+	if sel, ok := parent.(selectionProvider); ok {
+		item := sel.SelectedItem()
+		if item.Name != "" {
+			// We need the resource type too. Try to get it from the parent.
+			if rp, ok2 := parent.(resourceProvider); ok2 {
+				return New(item, rp.Resource(), nil)
+			}
+			// Fallback: create a minimal workload-style view.
+			return New(item, &fallbackResource{name: "workloads"}, nil)
+		}
+	}
+	return NewEmpty()
+}
+
+// NewEmpty creates a related view with a placeholder message.
+func NewEmpty() *View {
+	v := &View{empty: true}
+	return v
+}
+
+// SetFocused updates the visual focus state of the side panel.
+func (v *View) SetFocused(focused bool) {
+	v.focused = focused
+}
+
 func (v *View) Init() bubbletea.Cmd { return nil }
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
+	if v.empty {
+		if key, ok := msg.(bubbletea.KeyMsg); ok {
+			if key.String() == "esc" {
+				return viewstate.Update{Action: viewstate.Pop}
+			}
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	}
+
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
@@ -116,6 +162,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.list.ResetFilter()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
+			// Close the side panel.
+			return viewstate.Update{Action: viewstate.Pop}
 		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(relatedItem); ok && selected.entry.open != nil {
 				return viewstate.Update{Action: viewstate.Push, Next: selected.entry.open()}
@@ -133,6 +181,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 }
 
 func (v *View) View() string {
+	if v.empty {
+		return relatedTitle(v.focused, "  related  ") + "\n" +
+			style.Muted.Render("  No selection.")
+	}
+
 	base := v.list.View()
 	lines := strings.Split(base, "\n")
 	if len(lines) < 2 {
@@ -144,13 +197,14 @@ func (v *View) View() string {
 		dataStart++
 	}
 
+	title := relatedTitle(v.focused, "  related  ")
 	header := "  " + relationHeaderRowWithHint(v.columns, v.colWidths, "related", v.NextBreadcrumb())
-	out := make([]string, 0, len(lines)+2)
-	out = append(out, "")
+	out := make([]string, 0, len(lines)+3)
+	out = append(out, title)
 	out = append(out, header)
 	out = append(out, lines[dataStart:]...)
 
-	for len(out) > len(lines) && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+	for len(out) > len(lines)+1 && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
 		out = out[:len(out)-1]
 	}
 
@@ -166,9 +220,19 @@ func (v *View) View() string {
 	return filterbar.Append(view, v.list)
 }
 
+func relatedTitle(focused bool, text string) string {
+	if focused {
+		return style.FooterKey.Render(text)
+	}
+	return style.Muted.Render(text)
+}
+
 func (v *View) Breadcrumb() string { return "related" }
 
 func (v *View) Footer() string {
+	if v.empty {
+		return "\n"
+	}
 	indicators := []style.Binding{}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
@@ -177,12 +241,20 @@ func (v *View) Footer() string {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
-	line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
+	var actions []style.Binding
+	if v.focused {
+		actions = append(actions, style.B("→", "open"))
+		actions = append(actions, style.B("tab", "main"))
+		actions = append(actions, style.B("esc", "close"))
+	} else {
+		actions = append(actions, style.B("tab", "focus"))
+	}
+	line2 := style.ActionFooter(actions, v.list.Width())
 	return line1 + "\n" + line2
 }
 
 func (v *View) SetSize(width, height int) {
-	if width == 0 || height == 0 {
+	if v.empty || width == 0 || height == 0 {
 		return
 	}
 	v.list.SetSize(width, height)
@@ -917,3 +989,22 @@ func isPodResource(r resources.ResourceType) bool {
 	}
 	return false
 }
+
+// fallbackResource is a minimal ResourceType used when we have an item but
+// no resource type context. It causes relatedEntries to fall through to the
+// default events-only entry list.
+type fallbackResource struct {
+	name string
+}
+
+func (f *fallbackResource) Name() string                         { return f.name }
+func (f *fallbackResource) Key() rune                            { return 0 }
+func (f *fallbackResource) Items() []resources.ResourceItem      { return nil }
+func (f *fallbackResource) Sort([]resources.ResourceItem)        {}
+func (f *fallbackResource) Detail(resources.ResourceItem) resources.DetailData {
+	return resources.DetailData{}
+}
+func (f *fallbackResource) Logs(resources.ResourceItem) []string      { return nil }
+func (f *fallbackResource) Events(resources.ResourceItem) []string     { return nil }
+func (f *fallbackResource) Describe(resources.ResourceItem) string     { return "" }
+func (f *fallbackResource) YAML(resources.ResourceItem) string         { return "" }
