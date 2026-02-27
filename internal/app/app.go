@@ -109,7 +109,20 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
-		case "backspace", "esc":
+		case "esc":
+			// When the related side panel has focus, Esc should be handled there
+			// first (filter clear or close panel), not by main-stack back nav.
+			if m.sideActive && m.side != nil {
+				break
+			}
+			if len(m.stack) > 1 {
+				m.stack = m.stack[:len(m.stack)-1]
+				m.crumbs = m.crumbs[:len(m.crumbs)-1]
+				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+			}
+			m = m.withRefreshedSide()
+			return m, nil
+		case "backspace":
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]

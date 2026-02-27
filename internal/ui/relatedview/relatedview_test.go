@@ -82,6 +82,42 @@ func TestRelationListFindModeJumpsToMatchingItem(t *testing.T) {
 	}
 }
 
+func TestRelatedFooterShowsPanelIndicatorOnlyWhenFocused(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	workloads := resources.NewWorkloads()
+	source := workloads.Items()[0]
+	view := New(source, workloads, registry)
+	view.SetSize(120, 40)
+
+	focusedFooter := ansi.Strip(view.Footer())
+	if !strings.Contains(focusedFooter, "Panel: Related") {
+		t.Fatalf("expected focused footer to show panel indicator, got: %s", focusedFooter)
+	}
+
+	view.SetFocused(false)
+	unfocusedFooter := ansi.Strip(view.Footer())
+	if strings.Contains(unfocusedFooter, "Panel: Related") {
+		t.Fatalf("expected unfocused footer to hide panel indicator, got: %s", unfocusedFooter)
+	}
+}
+
+func TestRelationListFooterShowsPanelIndicatorOnlyWhenFocused(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	related := newRelationList(resources.NewRelatedConfig("api"), registry)
+	related.SetSize(120, 40)
+
+	focusedFooter := ansi.Strip(related.Footer())
+	if !strings.Contains(focusedFooter, "Panel: Related") {
+		t.Fatalf("expected focused footer to show panel indicator, got: %s", focusedFooter)
+	}
+
+	related.SetFocused(false)
+	unfocusedFooter := ansi.Strip(related.Footer())
+	if strings.Contains(unfocusedFooter, "Panel: Related") {
+		t.Fatalf("expected unfocused footer to hide panel indicator, got: %s", unfocusedFooter)
+	}
+}
+
 func TestPodRelatedEventsOpenEventsResourceList(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	pods := resources.NewPods()

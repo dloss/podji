@@ -218,3 +218,22 @@ func TestTabWithNoSideIsNoop(t *testing.T) {
 		t.Fatal("expected sideActive=false when no side panel")
 	}
 }
+
+func TestEscWhenRelatedFocusedClosesSidePanel(t *testing.T) {
+	m := New()
+
+	opened, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	withSide := opened.(Model)
+	if withSide.side == nil || !withSide.sideActive {
+		t.Fatal("expected side panel to be open and focused after r")
+	}
+
+	updated, _ := withSide.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
+	got := updated.(Model)
+	if got.side != nil {
+		t.Fatal("expected Esc from related focus to close side panel")
+	}
+	if got.sideActive {
+		t.Fatal("expected sideActive=false after closing side panel")
+	}
+}

@@ -240,6 +240,9 @@ func (v *View) Footer() string {
 		return "\n"
 	}
 	indicators := []style.Binding{}
+	if v.focused {
+		indicators = append(indicators, style.B("Panel:", "Related"))
+	}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
@@ -571,6 +574,9 @@ func (v *relationList) Breadcrumb() string { return v.resource.Name() }
 
 func (v *relationList) Footer() string {
 	indicators := []style.Binding{}
+	if v.focused {
+		indicators = append(indicators, style.B("Panel:", "Related"))
+	}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
@@ -595,6 +601,10 @@ func (v *relationList) SetSize(width, height int) {
 }
 
 func (v *relationList) SetFooterWidth(w int) { v.footerW = w }
+
+func (v *relationList) SetFocused(focused bool) {
+	v.focused = focused
+}
 
 func (v *relationList) footerWidth() int {
 	if v.footerW > 0 {
