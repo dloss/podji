@@ -6,6 +6,7 @@ import (
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
@@ -291,17 +292,49 @@ func (m Model) renderMain() string {
 }
 
 func (m Model) View() string {
-	if m.overlay != nil {
-		// Keep the scope line visible so the user sees what they're changing,
-		// then let the dropdown open directly below it.
-		return m.scopeLine() + "\n" + m.overlay.View()
-	}
 	main := m.renderMain()
+	if m.overlay != nil {
+		// Composite the picker box over the full main view so the table stays visible.
+		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
+	}
 	if m.side != nil {
 		side := m.side.View()
 		return lipgloss.JoinHorizontal(lipgloss.Top, main, side)
 	}
 	return main
+}
+
+// compositeOverlay overlays box over bg, placing the first line of box at
+// startRow in the bg string, with the box's left edge at anchorX visual columns.
+func compositeOverlay(bg, box string, anchorX, startRow int) string {
+	bgLines := strings.Split(bg, "\n")
+	boxLines := strings.Split(box, "\n")
+
+	result := make([]string, len(bgLines))
+	for i, bgLine := range bgLines {
+		boxIdx := i - startRow
+		if boxIdx >= 0 && boxIdx < len(boxLines) {
+			result[i] = mergeLine(bgLine, boxLines[boxIdx], anchorX)
+		} else {
+			result[i] = bgLine
+		}
+	}
+	return strings.Join(result, "\n")
+}
+
+// mergeLine places boxLine at anchorX visual columns over bgLine.
+// The portion of bgLine to the left of anchorX is preserved with its ANSI
+// styling. Text to the right of the box is shown as plain text.
+func mergeLine(bgLine, boxLine string, anchorX int) string {
+	left := ansi.Truncate(bgLine, anchorX, "")
+	boxWidth := lipgloss.Width(boxLine)
+	plainBg := ansi.Strip(bgLine)
+	bgRunes := []rune(plainBg)
+	rightStart := anchorX + boxWidth
+	if rightStart < len(bgRunes) {
+		return left + boxLine + string(bgRunes[rightStart:])
+	}
+	return left + boxLine
 }
 
 func (m Model) top() viewstate.View {

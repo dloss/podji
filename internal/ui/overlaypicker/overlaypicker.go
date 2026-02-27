@@ -121,19 +121,24 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 	return viewstate.Update{Action: viewstate.None, Next: p}
 }
 
+// AnchorX returns the clamped visual column where the left edge of the dropdown is placed.
+func (p *Picker) AnchorX() int {
+	a := p.anchorX
+	minBoxWidth := 22 // box border + inner content minimum
+	if p.width > 0 && a > p.width-minBoxWidth {
+		a = p.width - minBoxWidth
+	}
+	if a < 0 {
+		a = 0
+	}
+	return a
+}
+
 func (p *Picker) View() string {
 	filtered := p.filtered()
 	p.clampCursor(filtered)
 
-	// Clamp anchorX so the box always fits within the terminal width.
-	anchorX := p.anchorX
-	minBoxWidth := 22 // box border + inner content minimum
-	if anchorX > p.width-minBoxWidth {
-		anchorX = p.width - minBoxWidth
-	}
-	if anchorX < 0 {
-		anchorX = 0
-	}
+	anchorX := p.AnchorX()
 
 	boxWidth := p.width - anchorX - 4
 	if boxWidth < 20 {
@@ -204,9 +209,7 @@ func (p *Picker) View() string {
 		Width(innerWidth).
 		Render(strings.Join(lines, "\n"))
 
-	// Place the box at the top of the available space, indented to anchorX.
-	indented := lipgloss.NewStyle().PaddingLeft(anchorX).Render(box)
-	return lipgloss.Place(p.width, p.height, lipgloss.Left, lipgloss.Top, indented)
+	return box
 }
 
 func (p *Picker) Breadcrumb() string { return "" }
