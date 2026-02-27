@@ -67,8 +67,8 @@ Currently `l` and `enter` are treated identically in workloads — both navigate
 
 This is entangled with the `l` vs `o` key confusion (see `issue-navigation-keys.md`). Once the key mapping is resolved, add the appropriate hint.
 
-## Related view footer shows `tab lens` — replace with `Tab main`
+## Related view footer should use `Tab main`
 
 **File:** `internal/ui/relatedview/relatedview.go:180` and `~:492`
 
-`tab lens` is wrong — there are no lenses. After Phase 3, the related view is a side panel and Tab means "return focus to main panel". Replace the hint with `Tab main` in both footer methods. See `issue-relatedview.md` for full details and `dev/plan-phase3.md` for the Phase 3 footer spec (`→ open   Tab main   Esc close`).
+`Tab main` matches the current model. In the related side panel, Tab means "return focus to main panel". Use `Tab main` in both footer methods. See `issue-relatedview.md` for full details and `dev/plan-phase3.md` for the Phase 3 footer spec (`→ open   Tab main   Esc close`).

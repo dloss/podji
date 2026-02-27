@@ -108,15 +108,15 @@ TABLE
 
 ---
 
-## 3. Resource browser footer shows `tab lens` instead of `/ filter`
+## 3. Resource browser footer should show `/ filter`
 
 **File:** `internal/ui/resourcebrowser/resourcebrowser.go:217`
 
 ```go
-line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
+line2 := style.ActionFooter([]style.Binding{style.B("/", "filter")}, v.list.Width())
 ```
 
-The resource browser already supports filtering (`model.SetFilteringEnabled(true)` at line 110), and `FilterValue()` is implemented on `browserItem` to search by kind and group. The footer should surface this instead of the broken `tab lens` hint:
+The resource browser already supports filtering (`model.SetFilteringEnabled(true)` at line 110), and `FilterValue()` is implemented on `browserItem` to search by kind and group. The footer should surface this directly:
 
 ```go
 actions := []style.Binding{

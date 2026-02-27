@@ -208,7 +208,7 @@ The simplest approach: add `SetSideOpen(bool)` to listview.View or pass it throu
 ```
 When unfocused: no footer (or just `Tab focus`).
 
-Replace the existing `tab lens` hints in relatedview (issue-relatedview.md §1) with the above.
+Replace outdated relatedview focus hints with the above (`Tab main`).
 
 ## 11. Tests
 

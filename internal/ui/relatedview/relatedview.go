@@ -578,7 +578,7 @@ func (v *relationList) Footer() string {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
-	actions := []style.Binding{style.B("tab", "lens")}
+	actions := []style.Binding{style.B("tab", "main")}
 	if _, ok := v.resource.(resources.ToggleSortable); ok {
 		actions = append(actions, style.B("s", "sort"))
 	}

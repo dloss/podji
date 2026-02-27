@@ -64,7 +64,7 @@ Every object has one default next step.
 
 Drill-down is predictable and reversible.
 
-## Apps Lens
+## Apps View
 
 ### Workloads (Landing Page)
 
@@ -373,6 +373,6 @@ Users can:
 
 - all-namespaces mode
 - graph overlay
-- NetworkPolicy lens
-- RBAC lens
+- NetworkPolicy view
+- RBAC view
 - bookmarks/pins

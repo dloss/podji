@@ -37,7 +37,7 @@ func FormatKeys(keys []string) string {
 	return strings.Join(parts, " ")
 }
 
-// NavKeys is the standard navigation shortcut cluster ordered by lens grouping.
+// NavKeys is the standard navigation shortcut cluster ordered by resource grouping.
 var NavKeys = []string{"A", "W", "P", "D", "S", "I", "C", "K", "V", "O", "E"}
 
 // FormatFooter renders bindings left-aligned with optional pagination right-aligned.

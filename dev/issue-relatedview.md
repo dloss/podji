@@ -2,25 +2,25 @@
 
 > **Note:** Phase 3 (`dev/plan-phase3.md`) moves the related view from a full-screen stack view to a persistent side panel. The footer hints and Tab behaviour described here are updated in that plan.
 
-## `tab lens` hint is wrong and must be replaced
+## Related footer focus hint should be `Tab main`
 
-Both the category view (`relatedview.View`) and the drill-down resource list (`relatedview.relationList`) show a `tab lens` footer hint:
+Both the category view (`relatedview.View`) and the drill-down resource list (`relatedview.relationList`) show an outdated footer hint:
 
 ```go
 // relatedview.go:180
-line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
+line2 := style.ActionFooter([]style.Binding{style.B("tab", "main")}, v.list.Width())
 
 // relatedview.go:492
-actions := []style.Binding{style.B("tab", "lens")}
+actions := []style.Binding{style.B("tab", "main")}
 ```
 
-There are no lenses. Tab doesn't switch them.
+Tab should indicate panel focus, not a nonexistent view mode.
 
 After Phase 2, `app.go` intercepts Tab before any child view sees it — the related view never receives it regardless. After Phase 3, the related view runs as a persistent side panel, and Tab means "return focus to the main panel". The hint should say `Tab main`.
 
 ### Fix (applicable after Phase 3)
 
-Replace `tab lens` with `Tab main` in both footer methods:
+Use `Tab main` in both footer methods:
 
 ```go
 style.B("tab", "main")
@@ -30,19 +30,19 @@ The Phase 3 plan specifies the full side-panel footer as: `→ open   Tab main  
 
 ## Category view footer missing Enter hint
 
-The related category list (`relatedview.View`) footer shows only `tab lens`. There is no hint that `enter` / `→` opens the selected category.
+The related category list (`relatedview.View`) footer shows only `Tab main`. There is no hint that `enter` / `→` opens the selected category.
 
 ```go
 func (v *View) Footer() string {
     // ...
-    line2 := style.ActionFooter([]style.Binding{style.B("tab", "lens")}, v.list.Width())
+    line2 := style.ActionFooter([]style.Binding{style.B("tab", "main")}, v.list.Width())
     return line1 + "\n" + line2
 }
 ```
 
 ### Fix
 
-Add an Enter hint (after removing the broken `tab lens`):
+Add an Enter hint:
 
 ```go
 actions := []style.Binding{

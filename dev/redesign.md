@@ -8,7 +8,7 @@ The current navigation model has accumulated two structural problems that compou
 
 **Scope as a navigation destination.** `N` and `X` make namespace/context a *place you navigate to* — a third scope level in the hierarchy. This forces a save/restore state machine (the `snapshot` struct), and creates the question "which scope am I in?" that the user has no way to answer. It also breaks the arrow-key navigation model: Left from workloads is supposed to go "up", but what "up" means depends on invisible scope state.
 
-**Tab wasted on column cycling.** After the lens concept was removed, Tab was reassigned to column cycling. This is non-standard, undiscoverable, and burns the most universal "move focus" key in any UI. It also requires the bubbles list component to consume Tab before app.go can intercept it, which makes Tab unavailable as a global key.
+**Tab wasted on column cycling.** After the old view-mode concept was removed, Tab was reassigned to column cycling. This is non-standard, undiscoverable, and burns the most universal "move focus" key in any UI. It also requires the bubbles list component to consume Tab before app.go can intercept it, which makes Tab unavailable as a global key.
 
 The redesign fixes all three by making the navigation model uniform:
 
