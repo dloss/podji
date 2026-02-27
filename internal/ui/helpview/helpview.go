@@ -29,7 +29,7 @@ GLOBAL
   E                    Events (global)
 
 TABLE
-  tab / shift+tab      Cycle columns (sticky first column)
+  tab                  Focus related panel (when open)
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)
@@ -38,15 +38,25 @@ TABLE
   d                    Describe
   y                    YAML
   e                    Events for selected item
-  r                    Related resources for selected item
+  r                    Toggle related panel
   o                    Logs (or next table)
   space / pgup / pgdn  Page up / down
+  c                    Copy mode (n name, k kind/name, p -n ns name)
   x                    Execute mode (d delete, r restart, s scale, f port-fwd, x shell)
+
+RESOURCE BROWSER (A)
+  / (slash)            Filter by kind or group
+  f <char>             Jump to first resource by char
+  enter / right        Open resource list
 
 LOGS
   f                    Follow on/off
   w                    Wrap on/off
   t                    Current/previous
+  /                    Search
+  n / N                Next / previous match
+  [ / ]                Cycle since window
+  c                    Container picker (from container logs)
   up / down / j / k    Scroll
   space / pgup / pgdn  Page up / down
 

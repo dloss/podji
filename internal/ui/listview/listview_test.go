@@ -15,11 +15,26 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := ansi.Strip(view.Footer())
-	wants := []string{"s sort", "v state", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
+	wants := []string{"/ filter", "s sort", "v state", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)
 		}
+	}
+}
+
+func TestContainersFooterHidesSortHint(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	pods := resources.NewPods()
+	podItems := pods.Items()
+	if len(podItems) == 0 {
+		t.Fatal("expected stub pods")
+	}
+	view := New(resources.NewContainerResource(podItems[0], pods), registry)
+
+	footer := ansi.Strip(view.Footer())
+	if strings.Contains(footer, "s sort") {
+		t.Fatalf("expected containers footer not to show sort hint, got: %s", footer)
 	}
 }
 
@@ -200,6 +215,44 @@ func TestFindModeSuppressesGlobalKeys(t *testing.T) {
 	view.Update(keyRunes('z'))
 	if view.SuppressGlobalKeys() {
 		t.Fatal("expected SuppressGlobalKeys to be false after exiting find mode")
+	}
+}
+
+func TestExecMenuIgnoresUnrecognizedKey(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('x'))
+	if view.execState != execMenu {
+		t.Fatalf("expected exec menu open, got %v", view.execState)
+	}
+
+	view.Update(keyRunes('z'))
+	if view.execState != execMenu {
+		t.Fatalf("expected exec menu to remain open on unknown key, got %v", view.execState)
+	}
+}
+
+func TestExecMenuKeepsStateForUnsupportedAction(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	pods := resources.NewPods()
+	podItems := pods.Items()
+	if len(podItems) == 0 {
+		t.Fatal("expected stub pods")
+	}
+	view := New(resources.NewContainerResource(podItems[0], pods), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('x'))
+	if view.execState != execMenu {
+		t.Fatalf("expected exec menu open, got %v", view.execState)
+	}
+
+	// scale is unsupported for container resources; menu should remain open.
+	view.Update(keyRunes('s'))
+	if view.execState != execMenu {
+		t.Fatalf("expected exec menu to remain open when action unsupported, got %v", view.execState)
 	}
 }
 

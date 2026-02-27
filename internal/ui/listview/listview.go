@@ -219,26 +219,32 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 
 		// Execute mode: sub-menu (x was pressed; pick an operation).
 		if v.execState == execMenu {
-			v.execState = execNone
 			switch key.String() {
+			case "esc":
+				v.execState = execNone
 			case "d":
+				v.execState = execNone
 				v.execState = execConfirmDelete
 			case "r":
 				if v.supportsRestart() {
+					v.execState = execNone
 					v.execState = execConfirmRestart
 				}
 			case "s":
 				if v.supportsScale() {
+					v.execState = execNone
 					v.execState = execInputScale
 					v.execInput = v.currentReplicas()
 				}
 			case "f":
 				if v.supportsPortFwd() {
+					v.execState = execNone
 					v.execState = execInputPortFwd
 					v.execInput = "8080:8080"
 				}
 			case "x":
 				if v.supportsShellExec() {
+					v.execState = execNone
 					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.shellExecCmd()}
 				}
 			}
@@ -572,7 +578,10 @@ func (v *View) Footer() string {
 		isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
-		actions = append(actions, style.B("s", "sort"))
+		actions = append(actions, style.B("/", "filter"))
+		if _, ok := v.resource.(resources.ToggleSortable); ok {
+			actions = append(actions, style.B("s", "sort"))
+		}
 		if isWorkloads {
 			if _, ok := v.resource.(resources.ScenarioCycler); ok {
 				actions = append(actions, style.B("v", "state"))

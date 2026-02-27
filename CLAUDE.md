@@ -40,7 +40,7 @@ Use VHS when you need to verify colors, styling, or visual layout. Use tmux for 
 - **Main model**: `internal/app/app.go` - stack-based navigation; Enter/Right pushes, Backspace/Left pops
 - **Views** implement `viewstate.View` interface (Init, Update, View, Breadcrumb, Footer, SetSize)
 - **Resources**: `internal/resources/` - each resource type registered with a single-letter hotkey
-- **Scope switching**: `N` navigates to namespace list, `X` to context list (scope state machine in `app.go`)
-- **Tab**: cycles visible columns in list views (column offset stored in `listview.View`)
+- **Scope switching**: `N`/`X` open overlay pickers for namespace/context; selecting applies scope without changing stack depth
+- **Related panel**: `r` toggles a persistent related side panel; `Tab` switches focus between main and side panels
 
 > **Planned redesign**: `dev/redesign.md` — scope → overlay pickers, related panel → persistent side panel, Tab → panel focus. Implementation plans in `dev/plan-phase1.md`, `dev/plan-phase2.md`, `dev/plan-phase3.md`.

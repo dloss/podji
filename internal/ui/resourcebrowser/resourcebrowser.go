@@ -214,7 +214,10 @@ func (v *View) Footer() string {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
-	line2 := style.ActionFooter([]style.Binding{style.B("/", "filter")}, v.list.Width())
+	line2 := style.ActionFooter([]style.Binding{
+		style.B("/", "filter"),
+		style.B("f", "find"),
+	}, v.list.Width())
 	return line1 + "\n" + line2
 }
 
