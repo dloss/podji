@@ -201,7 +201,7 @@ func (v *View) View() string {
 
 	titleText := "  related  "
 	if v.source.Name != "" {
-		titleText = "  related: " + v.source.Name + "  "
+		titleText = "  Related to: " + v.source.Name + "  "
 	}
 	title := relatedTitle(v.focused, titleText)
 	header := "  " + relationHeaderRowWithHint(v.columns, v.colWidths, "related", v.NextBreadcrumb())
