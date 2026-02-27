@@ -44,7 +44,9 @@ type View struct {
 	findTargets map[int]bool
 	focused     bool
 	empty       bool // true when opened with no selection available
-	footerW     int  // override width for footer rendering; 0 = use list width
+	width       int
+	height      int
+	footerW     int // override width for footer rendering; 0 = use list width
 }
 
 // RelatedCount returns the number of related-resource categories available for
@@ -118,7 +120,7 @@ func NewForSelection(parent interface{}) *View {
 
 // NewEmpty creates a related view with a placeholder message.
 func NewEmpty() *View {
-	v := &View{empty: true}
+	v := &View{empty: true, focused: true}
 	return v
 }
 
@@ -184,8 +186,9 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 
 func (v *View) View() string {
 	if v.empty {
-		return relatedTitle(v.focused, "  related  ") + "\n" +
-			style.Muted.Render("  No selection.")
+		return relatedTitle(v.focused, "  Related to: none  ") + "\n" +
+			"\n" +
+			style.Muted.Render("  No selection in main panel.")
 	}
 
 	base := v.list.View()
@@ -237,7 +240,20 @@ func (v *View) Breadcrumb() string { return "related" }
 
 func (v *View) Footer() string {
 	if v.empty {
-		return "\n"
+		indicators := []style.Binding{}
+		if v.focused {
+			indicators = append(indicators, style.B("Panel:", "Related"))
+		}
+		line1 := style.StatusFooter(indicators, "No item selected", v.footerWidth())
+		var actions []style.Binding
+		if v.focused {
+			actions = append(actions, style.B("tab", "main"))
+			actions = append(actions, style.B("esc", "close"))
+		} else {
+			actions = append(actions, style.B("tab", "focus"))
+		}
+		line2 := style.ActionFooter(actions, v.footerWidth())
+		return line1 + "\n" + line2
 	}
 	indicators := []style.Binding{}
 	if v.focused {
@@ -263,7 +279,12 @@ func (v *View) Footer() string {
 }
 
 func (v *View) SetSize(width, height int) {
-	if v.empty || width == 0 || height == 0 {
+	if width == 0 || height == 0 {
+		return
+	}
+	v.width = width
+	v.height = height
+	if v.empty {
 		return
 	}
 	v.list.SetSize(width, height)
@@ -275,6 +296,9 @@ func (v *View) SetFooterWidth(w int) { v.footerW = w }
 func (v *View) footerWidth() int {
 	if v.footerW > 0 {
 		return v.footerW
+	}
+	if v.empty {
+		return v.width
 	}
 	return v.list.Width()
 }
@@ -1033,14 +1057,14 @@ type fallbackResource struct {
 	name string
 }
 
-func (f *fallbackResource) Name() string                         { return f.name }
-func (f *fallbackResource) Key() rune                            { return 0 }
-func (f *fallbackResource) Items() []resources.ResourceItem      { return nil }
-func (f *fallbackResource) Sort([]resources.ResourceItem)        {}
+func (f *fallbackResource) Name() string                    { return f.name }
+func (f *fallbackResource) Key() rune                       { return 0 }
+func (f *fallbackResource) Items() []resources.ResourceItem { return nil }
+func (f *fallbackResource) Sort([]resources.ResourceItem)   {}
 func (f *fallbackResource) Detail(resources.ResourceItem) resources.DetailData {
 	return resources.DetailData{}
 }
-func (f *fallbackResource) Logs(resources.ResourceItem) []string      { return nil }
-func (f *fallbackResource) Events(resources.ResourceItem) []string     { return nil }
-func (f *fallbackResource) Describe(resources.ResourceItem) string     { return "" }
-func (f *fallbackResource) YAML(resources.ResourceItem) string         { return "" }
+func (f *fallbackResource) Logs(resources.ResourceItem) []string   { return nil }
+func (f *fallbackResource) Events(resources.ResourceItem) []string { return nil }
+func (f *fallbackResource) Describe(resources.ResourceItem) string { return "" }
+func (f *fallbackResource) YAML(resources.ResourceItem) string     { return "" }

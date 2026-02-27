@@ -206,6 +206,30 @@ func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
 	}
 }
 
+func TestEmptyViewShowsConsistentBodyAndFooter(t *testing.T) {
+	view := NewEmpty()
+	view.SetSize(120, 40)
+
+	body := ansi.Strip(view.View())
+	if !strings.Contains(body, "Related to: none") {
+		t.Fatalf("expected empty view to include Related to: none title, got: %s", body)
+	}
+	if !strings.Contains(body, "No selection in main panel.") {
+		t.Fatalf("expected empty view guidance, got: %s", body)
+	}
+
+	footer := ansi.Strip(view.Footer())
+	if !strings.Contains(footer, "Panel: Related") {
+		t.Fatalf("expected panel indicator in empty view footer, got: %s", footer)
+	}
+	if !strings.Contains(footer, "tab main") {
+		t.Fatalf("expected tab main action in empty view footer, got: %s", footer)
+	}
+	if !strings.Contains(footer, "esc close") {
+		t.Fatalf("expected esc close action in empty view footer, got: %s", footer)
+	}
+}
+
 func TestRelationColumnWidthsForRowsFitsAvailableWidth(t *testing.T) {
 	columns := []resources.TableColumn{
 		{Name: "RELATED", Width: 18},
