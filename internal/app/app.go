@@ -275,7 +275,20 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 		m.notifySideState()
 	default:
+		prevName := ""
+		if m.side != nil {
+			if sel, ok := m.top().(viewstate.SelectionProvider); ok {
+				prevName = sel.SelectedItem().Name
+			}
+		}
 		m.stack[len(m.stack)-1] = update.Next
+		if m.side != nil {
+			if sel, ok := m.top().(viewstate.SelectionProvider); ok {
+				if sel.SelectedItem().Name != prevName {
+					m = m.withRefreshedSide()
+				}
+			}
+		}
 	}
 
 	return m, update.Cmd
