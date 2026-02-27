@@ -22,6 +22,7 @@ type Picker struct {
 	cursor  int
 	width   int
 	height  int
+	anchorX int // column to align the left edge of the dropdown box
 }
 
 func New(kind string, items []string) *Picker {
@@ -34,6 +35,10 @@ func New(kind string, items []string) *Picker {
 func (p *Picker) SetSize(w, h int) {
 	p.width = w
 	p.height = h
+}
+
+func (p *Picker) SetAnchor(x int) {
+	p.anchorX = x
 }
 
 func (p *Picker) filtered() []string {
@@ -120,7 +125,17 @@ func (p *Picker) View() string {
 	filtered := p.filtered()
 	p.clampCursor(filtered)
 
-	boxWidth := p.width - 4
+	// Clamp anchorX so the box always fits within the terminal width.
+	anchorX := p.anchorX
+	minBoxWidth := 22 // box border + inner content minimum
+	if anchorX > p.width-minBoxWidth {
+		anchorX = p.width - minBoxWidth
+	}
+	if anchorX < 0 {
+		anchorX = 0
+	}
+
+	boxWidth := p.width - anchorX - 4
 	if boxWidth < 20 {
 		boxWidth = 20
 	}
@@ -189,7 +204,9 @@ func (p *Picker) View() string {
 		Width(innerWidth).
 		Render(strings.Join(lines, "\n"))
 
-	return lipgloss.Place(p.width, p.height, lipgloss.Center, lipgloss.Center, box)
+	// Place the box at the top of the available space, indented to anchorX.
+	indented := lipgloss.NewStyle().PaddingLeft(anchorX).Render(box)
+	return lipgloss.Place(p.width, p.height, lipgloss.Left, lipgloss.Top, indented)
 }
 
 func (p *Picker) Breadcrumb() string { return "" }
