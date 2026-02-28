@@ -20,8 +20,13 @@ func (p *Pods) Key() rune {
 }
 
 func (p *Pods) Items() []ResourceItem {
-	items := podItemsForNamespace(ActiveNamespace)
-	items = expandMockItems(items, 36)
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(podItemsForNamespace)
+	} else {
+		items = podItemsForNamespace(ActiveNamespace)
+		items = expandMockItems(items, 36)
+	}
 	p.Sort(items)
 	return items
 }
@@ -63,6 +68,20 @@ func podItemsForNamespace(ns string) []ResourceItem {
 			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d"},
 		}
 	}
+}
+
+func (p *Pods) TableColumns() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{Name: "NAME", Width: 48},
+		{Name: "STATUS", Width: 12},
+		{Name: "READY", Width: 7},
+		{Name: "RESTARTS", Width: 14},
+		{Name: "AGE", Width: 6},
+	})
+}
+
+func (p *Pods) TableRow(item ResourceItem) []string {
+	return namespacedRow(item.Namespace, []string{item.Name, item.Status, item.Ready, item.Restarts, item.Age})
 }
 
 func (p *Pods) Sort(items []ResourceItem) {

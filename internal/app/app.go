@@ -321,7 +321,12 @@ func (m Model) scopeLine() string {
 	contextValue := style.ScopeValue.Render(m.context)
 
 	nsLabel := style.Scope.Render("Namespace: ")
-	nsValue := style.ScopeValue.Render(m.namespace)
+	var nsValue string
+	if m.namespace == resources.AllNamespaces {
+		nsValue = style.Muted.Render(m.namespace)
+	} else {
+		nsValue = style.ScopeValue.Render(m.namespace)
+	}
 
 	return contextLabel + contextValue + sep + nsLabel + nsValue
 }

@@ -20,18 +20,22 @@ func (w *Workloads) Items() []ResourceItem {
 		return nil
 	}
 
-	items := workloadItemsForNamespace(ActiveNamespace)
-	switch w.scenario {
-	case "partial":
-		if len(items) > 4 {
-			items = items[:4]
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(workloadItemsForNamespace)
+	} else {
+		items = workloadItemsForNamespace(ActiveNamespace)
+		switch w.scenario {
+		case "partial":
+			if len(items) > 4 {
+				items = items[:4]
+			}
+		case "empty":
+			items = nil
 		}
-	case "empty":
-		items = nil
-	}
-
-	if w.scenario == "normal" {
-		items = expandMockItems(items, 40)
+		if w.scenario == "normal" {
+			items = expandMockItems(items, 40)
+		}
 	}
 	w.Sort(items)
 	return items
@@ -138,25 +142,25 @@ func (w *Workloads) Sort(items []ResourceItem) {
 }
 
 func (w *Workloads) TableColumns() []TableColumn {
-	return []TableColumn{
+	return namespacedColumns([]TableColumn{
 		{Name: "NAME", Width: 35},
 		{Name: "KIND", Width: 4},
 		{Name: "READY", Width: 11},
 		{Name: "STATUS", Width: 12},
 		{Name: "RESTARTS", Width: 8},
 		{Name: "AGE", Width: 6},
-	}
+	})
 }
 
 func (w *Workloads) TableRow(item ResourceItem) []string {
-	return []string{
+	return namespacedRow(item.Namespace, []string{
 		item.Name,
 		item.Kind,
 		item.Ready,
 		item.Status,
 		item.Restarts,
 		item.Age,
-	}
+	})
 }
 
 func (w *Workloads) SetSort(mode string, desc bool) {

@@ -18,14 +18,14 @@ func (g *Ingresses) Name() string { return "ingresses" }
 func (g *Ingresses) Key() rune    { return 'I' }
 
 func (g *Ingresses) TableColumns() []TableColumn {
-	return []TableColumn{
+	return namespacedColumns([]TableColumn{
 		{Name: "NAME", Width: 24},
 		{Name: "CLASS", Width: 10},
 		{Name: "HOSTS", Width: 30},
 		{Name: "ADDRESS", Width: 16},
 		{Name: "PORTS", Width: 10},
 		{Name: "AGE", Width: 6},
-	}
+	})
 }
 
 func (g *Ingresses) TableRow(item ResourceItem) []string {
@@ -34,7 +34,7 @@ func (g *Ingresses) TableRow(item ResourceItem) []string {
 	if class == "" {
 		class = "nginx"
 	}
-	return []string{item.Name, class, item.Ready, ingressAddress(item.Status), ingressPorts(item.Name), item.Age}
+	return namespacedRow(item.Namespace, []string{item.Name, class, item.Ready, ingressAddress(item.Status), ingressPorts(item.Name), item.Age})
 }
 
 func ingressAddress(status string) string {
@@ -54,8 +54,13 @@ func ingressPorts(name string) string {
 }
 
 func (g *Ingresses) Items() []ResourceItem {
-	items := ingressItemsForNamespace(ActiveNamespace)
-	items = expandMockItems(items, 22)
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(ingressItemsForNamespace)
+	} else {
+		items = ingressItemsForNamespace(ActiveNamespace)
+		items = expandMockItems(items, 22)
+	}
 	g.Sort(items)
 	return items
 }

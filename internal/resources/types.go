@@ -1,12 +1,13 @@
 package resources
 
 type ResourceItem struct {
-	Name     string
-	Kind     string
-	Status   string
-	Ready    string
-	Restarts string
-	Age      string
+	Name      string
+	Namespace string
+	Kind      string
+	Status    string
+	Ready     string
+	Restarts  string
+	Age       string
 }
 
 type DetailData struct {
