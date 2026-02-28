@@ -18,17 +18,16 @@ import (
 )
 
 type Model struct {
-	registry   *resources.Registry
-	stack      []viewstate.View
-	crumbs     []string
-	overlay    *overlaypicker.Picker
-	side       viewstate.View
-	sideActive bool
-	context    string
-	namespace  string
-	errorMsg   string
-	width      int
-	height     int
+	registry      *resources.Registry
+	stack         []viewstate.View
+	crumbs        []string
+	overlay       *overlaypicker.Picker
+	relatedPicker *relatedview.Picker
+	context       string
+	namespace     string
+	errorMsg      string
+	width         int
+	height        int
 }
 
 type globalKeySuppresser interface {
@@ -57,7 +56,7 @@ func (m Model) Init() bubbletea.Cmd {
 func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	routedMsg := msg
 
-	// Route all input to overlay when active.
+	// Route all input to the overlay pickers when active.
 	if m.overlay != nil {
 		if _, ok := msg.(bubbletea.KeyMsg); ok {
 			update := m.overlay.Update(msg)
@@ -67,17 +66,26 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, update.Cmd
 		}
 	}
+	if m.relatedPicker != nil {
+		if _, ok := msg.(bubbletea.KeyMsg); ok {
+			update := m.relatedPicker.Update(msg)
+			if update.Action == viewstate.Pop {
+				m.relatedPicker = nil
+			}
+			return m, update.Cmd
+		}
+	}
 
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.top().SetSize(m.mainWidth(), m.availableHeight())
-		if m.side != nil {
-			m.side.SetSize(m.sideContentWidth(), m.availableHeight())
-		}
+		m.top().SetSize(m.width, m.availableHeight())
 		if m.overlay != nil {
 			m.overlay.SetSize(m.width, m.height-1)
+		}
+		if m.relatedPicker != nil {
+			m.relatedPicker.SetSize(m.width, m.height-1)
 		}
 		return m, nil
 
@@ -92,11 +100,27 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		// Reload workloads so the new namespace/context takes effect.
 		if res := m.registry.ResourceByKey('W'); res != nil {
 			view := listview.New(res, m.registry)
-			view.SetSize(m.mainWidth(), m.availableHeight())
+			view.SetSize(m.width, m.availableHeight())
 			m.stack = []viewstate.View{view}
 			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 		}
-		m = m.withRefreshedSide()
+		return m, nil
+
+	case relatedview.SelectedMsg:
+		m.relatedPicker = nil
+		next := msg.Open()
+		next.SetSize(m.width, m.availableHeight())
+		if len(m.crumbs) > 0 {
+			if selected, ok := m.top().(viewstate.SelectionProvider); ok {
+				item := selected.SelectedItem()
+				if item.Name != "" {
+					label := breadcrumbLabel(m.top())
+					m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(label + ": " + item.Name)
+				}
+			}
+		}
+		m.stack = append(m.stack, next)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(next.Breadcrumb()))
 		return m, nil
 
 	case bubbletea.KeyMsg:
@@ -110,17 +134,11 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
 		case "esc":
-			// When the related side panel has focus, Esc should be handled there
-			// first (filter clear or close panel), not by main-stack back nav.
-			if m.sideActive && m.side != nil {
-				break
-			}
 			if len(m.stack) > 1 {
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 			}
-			m = m.withRefreshedSide()
 			return m, nil
 		case "backspace":
 			if len(m.stack) > 1 {
@@ -128,7 +146,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 			}
-			m = m.withRefreshedSide()
 			return m, nil
 		case "h", "left":
 			if len(m.stack) > 1 {
@@ -136,7 +153,6 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 			}
-			m = m.withRefreshedSide()
 			return m, nil
 		case "N":
 			items := resources.NamespaceNames()
@@ -152,51 +168,18 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, nil
 		case "A":
 			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
-			browser.SetSize(m.mainWidth(), m.availableHeight())
+			browser.SetSize(m.width, m.availableHeight())
 			m.stack = []viewstate.View{browser}
 			m.crumbs = []string{"resources"}
 			return m, nil
 		case "r":
-			if m.side != nil {
-				// Close side panel, restore full width to main.
-				m.side = nil
-				m.sideActive = false
-				if f, ok := m.top().(viewstate.Focusable); ok {
-					f.SetFocused(true)
-				}
-				m.top().SetSize(m.width, m.availableHeight())
-				m.notifySideState()
-			} else {
-				// Open side panel. Assign m.side first so that sideWidth() /
-				// mainWidth() return the correct 40/60 split when SetSize is called.
-				m.side = relatedview.NewForSelection(m.top())
-				m.sideActive = true
-				if f, ok := m.side.(viewstate.Focusable); ok {
-					f.SetFocused(true)
-				}
-				if f, ok := m.top().(viewstate.Focusable); ok {
-					f.SetFocused(false)
-				}
-				m.side.SetSize(m.sideContentWidth(), m.availableHeight())
-				m.top().SetSize(m.mainWidth(), m.availableHeight())
-				m.notifySideState()
-			}
-			return m, nil
-		case "tab":
-			if m.side != nil {
-				m.sideActive = !m.sideActive
-				if f, ok := m.side.(viewstate.Focusable); ok {
-					f.SetFocused(m.sideActive)
-				}
-				if f, ok := m.top().(viewstate.Focusable); ok {
-					f.SetFocused(!m.sideActive)
-				}
-			}
+			m.relatedPicker = relatedview.NewPickerForSelection(m.top())
+			m.relatedPicker.SetSize(m.width, m.height-1)
 			return m, nil
 		case "?":
 			if _, isHelp := m.top().(*helpview.View); !isHelp {
 				help := helpview.New()
-				help.SetSize(m.mainWidth(), m.availableHeight())
+				help.SetSize(m.width, m.availableHeight())
 				m.stack = append(m.stack, help)
 				m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
 			}
@@ -207,75 +190,12 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				key := runes[0]
 				if res := m.registry.ResourceByKey(key); res != nil {
 					view := listview.New(res, m.registry)
-					view.SetSize(m.mainWidth(), m.availableHeight())
+					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
 					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
-					m = m.withRefreshedSide()
 					return m, nil
 				}
 			}
-		}
-	}
-
-	// Route to side panel when it's focused.
-	if m.sideActive && m.side != nil {
-		update := m.side.Update(routedMsg)
-		switch update.Action {
-		case viewstate.Push:
-			// Navigation from side panel goes to the main stack.
-			if len(m.crumbs) > 0 {
-				if sel, ok := m.side.(viewstate.SelectionProvider); ok {
-					if item := sel.SelectedItem(); item.Name != "" {
-						kind := item.Kind
-						if kind == "" {
-							kind = "item"
-						}
-						val := normalizeBreadcrumbPart(strings.ToLower(kind) + ": " + item.Name)
-						if val != "" {
-							m.crumbs[len(m.crumbs)-1] = val
-						}
-					}
-				}
-			}
-			update.Next.SetSize(m.mainWidth(), m.availableHeight())
-			m.stack = append(m.stack, update.Next)
-			m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
-			m.sideActive = false // focus follows to main
-			if f, ok := m.side.(viewstate.Focusable); ok {
-				f.SetFocused(false)
-			}
-			if f, ok := m.top().(viewstate.Focusable); ok {
-				f.SetFocused(true)
-			}
-		case viewstate.Pop:
-			// Side panel closed itself (Esc).
-			m.side = nil
-			m.sideActive = false
-			if f, ok := m.top().(viewstate.Focusable); ok {
-				f.SetFocused(true)
-			}
-			m.top().SetSize(m.width, m.availableHeight())
-			m.notifySideState()
-		case viewstate.Replace:
-			update.Next.SetSize(m.sideWidth(), m.availableHeight())
-			if f, ok := update.Next.(viewstate.Focusable); ok {
-				f.SetFocused(m.sideActive)
-			}
-			m.side = update.Next
-		case viewstate.OpenRelated:
-			// Side panel requested a related panel for a sub-item — ignore.
-		default:
-			m.side = update.Next
-		}
-		return m, update.Cmd
-	}
-
-	// Capture the selected item name before the update so we can detect
-	// cursor movement and refresh the side panel.
-	prevName := ""
-	if m.side != nil {
-		if sel, ok := m.top().(viewstate.SelectionProvider); ok {
-			prevName = sel.SelectedItem().Name
 		}
 	}
 
@@ -293,46 +213,24 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			}
 			m.crumbs[len(m.crumbs)-1] = committed
 		}
-		update.Next.SetSize(m.mainWidth(), m.availableHeight())
+		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, update.Next)
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
-		m = m.withRefreshedSide()
 	case viewstate.Pop:
 		if len(m.stack) > 1 {
 			m.stack = m.stack[:len(m.stack)-1]
 			m.crumbs = m.crumbs[:len(m.crumbs)-1]
 			m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 		}
-		m = m.withRefreshedSide()
 	case viewstate.Replace:
-		update.Next.SetSize(m.mainWidth(), m.availableHeight())
+		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
-		m = m.withRefreshedSide()
 	case viewstate.OpenRelated:
-		if m.side == nil {
-			// Assign m.side first so sideWidth()/mainWidth() use the 40/60 split.
-			m.side = relatedview.NewForSelection(m.top())
-			m.side.SetSize(m.sideContentWidth(), m.availableHeight())
-			m.top().SetSize(m.mainWidth(), m.availableHeight())
-		}
-		m.sideActive = true
-		if f, ok := m.side.(viewstate.Focusable); ok {
-			f.SetFocused(true)
-		}
-		if f, ok := m.top().(viewstate.Focusable); ok {
-			f.SetFocused(false)
-		}
-		m.notifySideState()
+		m.relatedPicker = relatedview.NewPickerForSelection(m.top())
+		m.relatedPicker.SetSize(m.width, m.height-1)
 	default:
 		m.stack[len(m.stack)-1] = update.Next
-		if m.side != nil {
-			if sel, ok := m.top().(viewstate.SelectionProvider); ok {
-				if sel.SelectedItem().Name != prevName {
-					m = m.withRefreshedSide()
-				}
-			}
-		}
 	}
 
 	return m, update.Cmd
@@ -354,17 +252,10 @@ func (m Model) renderBody() string {
 	return body
 }
 
-func (m Model) renderFooter() string {
-	if m.sideActive && m.side != nil {
-		return m.side.Footer()
-	}
-	return m.top().Footer()
-}
-
 func (m Model) renderMain() string {
 	header := m.renderHeader()
 	body := m.renderBody()
-	footer := m.renderFooter()
+	footer := m.top().Footer()
 
 	sections := []string{header}
 	if body != "" {
@@ -378,40 +269,12 @@ func (m Model) renderMain() string {
 func (m Model) View() string {
 	main := m.renderMain()
 	if m.overlay != nil {
-		// Composite the picker box over the full main view so the table stays visible.
 		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
 	}
-	if m.side != nil {
-		header := m.renderHeader()
-		mainBody := m.renderBody()
-		bodyHeight := m.bodyHeightLimit()
-		sideBody := fitViewLines(m.side.View(), bodyHeight)
-		sep := sideSeparator(bodyHeight)
-		splitBody := lipgloss.JoinHorizontal(lipgloss.Top, mainBody, sep, sideBody)
-		// Set footer width to full terminal width so the footer isn't truncated
-		// at the panel's narrower width.
-		setFooterWidth(m.top(), m.width)
-		setFooterWidth(m.side, m.width)
-		footer := m.renderFooter()
-		setFooterWidth(m.top(), 0)
-		setFooterWidth(m.side, 0)
-		return header + "\n" + splitBody + "\n" + footer
+	if m.relatedPicker != nil {
+		return compositeOverlay(main, m.relatedPicker.View(), m.relatedPicker.AnchorX(), 1)
 	}
 	return main
-}
-
-// sideSeparator returns a single-column string of │ glyphs used to visually
-// divide the main panel from the related side panel.
-func sideSeparator(height int) string {
-	if height <= 0 {
-		height = 40
-	}
-	sep := style.Muted.Render("│")
-	rows := make([]string, height)
-	for i := range rows {
-		rows[i] = sep
-	}
-	return strings.Join(rows, "\n")
 }
 
 // compositeOverlay overlays box over bg, placing the first line of box at
@@ -451,68 +314,6 @@ func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
-func (m Model) mainWidth() int {
-	if m.side != nil {
-		return (m.width * 60) / 100
-	}
-	return m.width
-}
-
-func (m Model) sideWidth() int {
-	return m.width - m.mainWidth()
-}
-
-// sideContentWidth is the width given to the side panel's content, one less
-// than sideWidth() to account for the separator column.
-func (m Model) sideContentWidth() int {
-	w := m.sideWidth() - 1
-	if w < 1 {
-		return 1
-	}
-	return w
-}
-
-// setFooterWidth sets the footer width override on views that support it.
-func setFooterWidth(v viewstate.View, w int) {
-	if f, ok := v.(viewstate.FooterWidthSetter); ok {
-		f.SetFooterWidth(w)
-	}
-}
-
-// notifySideState tells the top-of-stack view whether the side panel is
-// currently open, so it can adjust its footer hints.
-func (m Model) notifySideState() {
-	type sideStateSetter interface {
-		SetSideOpen(bool)
-	}
-	if s, ok := m.top().(sideStateSetter); ok {
-		s.SetSideOpen(m.side != nil)
-	}
-}
-
-// withRefreshedSide rebuilds the side panel from the current top-of-stack
-// selection so the related panel stays in sync after navigation.  If the new
-// top view has no selection the side panel is closed.
-func (m Model) withRefreshedSide() Model {
-	if m.side == nil {
-		return m
-	}
-	if sel, ok := m.top().(viewstate.SelectionProvider); ok && sel.SelectedItem().Name != "" {
-		m.side = relatedview.NewForSelection(m.top())
-		m.side.SetSize(m.sideContentWidth(), m.availableHeight())
-		if f, ok := m.side.(viewstate.Focusable); ok {
-			f.SetFocused(m.sideActive)
-		}
-	} else {
-		// New top view has no selection; close the side panel.
-		m.side = nil
-		m.sideActive = false
-		m.top().SetSize(m.width, m.availableHeight())
-	}
-	m.notifySideState()
-	return m
-}
-
 func (m Model) scopeLine() string {
 	sep := style.NavSep.Render(" > ")
 
@@ -531,7 +332,6 @@ func (m Model) namespaceLabelX() int {
 		style.ScopeValue.Render(m.context) +
 		style.NavSep.Render(" > "))
 }
-
 
 func (m Model) breadcrumbLine() string {
 	rootTag := style.Scope.Render("[" + crumbText(m.crumbs[0]) + "]")

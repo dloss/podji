@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
@@ -24,80 +25,27 @@ type entry struct {
 	open        func() viewstate.View
 }
 
-func (e entry) Title() string {
-	if e.count > 0 {
-		return fmt.Sprintf("%s (%d)", e.name, e.count)
-	}
-	return e.name
-}
-func (e entry) Description() string { return e.description }
 func (e entry) FilterValue() string { return e.name }
 
-type View struct {
-	source      resources.ResourceItem
-	resource    resources.ResourceType
-	registry    *resources.Registry
-	list        list.Model
-	columns     []resources.TableColumn
-	colWidths   []int
-	findMode    bool
-	findTargets map[int]bool
-	focused     bool
-	empty       bool // true when opened with no selection available
-	width       int
-	height      int
-	footerW     int // override width for footer rendering; 0 = use list width
+// SelectedMsg is emitted when the user picks a related category.
+type SelectedMsg struct {
+	Open func() viewstate.View
 }
 
-// RelatedCount returns the number of related-resource categories available for
-// the given item.  It is intentionally cheap (no UI objects allocated).
-func RelatedCount(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) int {
-	return len(relatedEntries(source, resource, registry))
+// Picker is a lightweight overlay for choosing a related resource category.
+// It replaces the old persistent side panel.
+type Picker struct {
+	entries []entry
+	cursor  int
+	source  string // name of the selected resource, used in the title
+	width   int
+	height  int
 }
 
-func New(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) *View {
-	items := relatedEntries(source, resource, registry)
-	columns := relatedTableColumns()
-	rows := make([][]string, 0, len(items))
-	for _, it := range items {
-		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
-	}
-	widths := relationColumnWidthsForRows(columns, rows, 0, "RELATED")
-	listItems := make([]list.Item, 0, len(items))
-	for idx, it := range items {
-		listItems = append(listItems, relatedItem{
-			entry:  it,
-			row:    rows[idx],
-			widths: widths,
-		})
-	}
-
-	v := &View{
-		source:    source,
-		resource:  resource,
-		registry:  registry,
-		columns:   columns,
-		colWidths: widths,
-		focused:   true,
-	}
-	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets, &v.focused)
-	model := list.New(listItems, delegate, 0, 0)
-	model.SetShowHelp(false)
-	model.SetShowStatusBar(false)
-	model.SetShowTitle(false)
-	model.DisableQuitKeybindings()
-	model.SetFilteringEnabled(true)
-	filterbar.Setup(&model)
-	model.Paginator.Type = paginator.Arabic
-
-	v.list = model
-	return v
-}
-
-// NewForSelection creates a related view for the currently selected item in a
-// parent view. If the parent implements viewstate.SelectionProvider, the
-// selected item is used; otherwise an empty view is returned.
-func NewForSelection(parent interface{}) *View {
+// NewPickerForSelection returns a Picker populated with related categories for
+// the currently selected item in parent.  Returns an empty Picker when no
+// selection is available.
+func NewPickerForSelection(parent interface{}) *Picker {
 	type selectionProvider interface {
 		SelectedItem() resources.ResourceItem
 	}
@@ -107,359 +55,147 @@ func NewForSelection(parent interface{}) *View {
 	if sel, ok := parent.(selectionProvider); ok {
 		item := sel.SelectedItem()
 		if item.Name != "" {
-			// We need the resource type too. Try to get it from the parent.
+			var resource resources.ResourceType
 			if rp, ok2 := parent.(resourceProvider); ok2 {
-				return New(item, rp.Resource(), nil)
+				resource = rp.Resource()
+			} else {
+				resource = &fallbackResource{name: "workloads"}
 			}
-			// Fallback: create a minimal workload-style view.
-			return New(item, &fallbackResource{name: "workloads"}, nil)
-		}
-	}
-	return NewEmpty()
-}
-
-// NewEmpty creates a related view with a placeholder message.
-func NewEmpty() *View {
-	v := &View{empty: true, focused: true}
-	return v
-}
-
-// SetFocused updates the visual focus state of the side panel.
-func (v *View) SetFocused(focused bool) {
-	v.focused = focused
-}
-
-func (v *View) Init() bubbletea.Cmd { return nil }
-
-func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
-	if v.empty {
-		if key, ok := msg.(bubbletea.KeyMsg); ok {
-			if key.String() == "esc" {
-				return viewstate.Update{Action: viewstate.Pop}
+			return &Picker{
+				entries: relatedEntries(item, resource, nil),
+				source:  item.Name,
 			}
 		}
-		return viewstate.Update{Action: viewstate.None, Next: v}
 	}
-
-	if key, ok := msg.(bubbletea.KeyMsg); ok {
-		if v.list.SettingFilter() && key.String() != "esc" {
-			updated, cmd := v.list.Update(msg)
-			v.list = updated
-			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
-		}
-
-		if v.findMode {
-			v.findMode = false
-			v.findTargets = nil
-			if key.String() == "esc" {
-				return viewstate.Update{Action: viewstate.None, Next: v}
-			}
-			if r := relatedSingleRune(key); r != 0 {
-				v.jumpToChar(r)
-			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
-		}
-
-		switch key.String() {
-		case "esc":
-			if v.list.SettingFilter() || v.list.IsFiltered() {
-				v.list.ResetFilter()
-				return viewstate.Update{Action: viewstate.None, Next: v}
-			}
-			// Close the side panel.
-			return viewstate.Update{Action: viewstate.Pop}
-		case "enter", "l", "right":
-			if selected, ok := v.list.SelectedItem().(relatedItem); ok && selected.entry.open != nil {
-				return viewstate.Update{Action: viewstate.Push, Next: selected.entry.open()}
-			}
-		case "f":
-			v.findMode = true
-			v.findTargets = v.computeFindTargets()
-			return viewstate.Update{Action: viewstate.None, Next: v}
-		}
-	}
-
-	updated, cmd := v.list.Update(msg)
-	v.list = updated
-	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+	return &Picker{}
 }
 
-func (v *View) View() string {
-	if v.empty {
-		return relatedTitle(v.focused, "  Related to: none  ") + "\n" +
-			"\n" +
-			style.Muted.Render("  No selection in main panel.")
-	}
-
-	base := v.list.View()
-	lines := strings.Split(base, "\n")
-	if len(lines) < 2 {
-		return base
-	}
-
-	dataStart := 0
-	for dataStart < len(lines) && strings.TrimSpace(lines[dataStart]) == "" {
-		dataStart++
-	}
-
-	titleText := "  related  "
-	if v.source.Name != "" {
-		titleText = "  Related to: " + v.source.Name + "  "
-	}
-	title := relatedTitle(v.focused, titleText)
-	header := "  " + relationHeaderRowWithHint(v.columns, v.colWidths, "related", v.NextBreadcrumb())
-	out := make([]string, 0, len(lines)+3)
-	out = append(out, title)
-	out = append(out, header)
-	out = append(out, lines[dataStart:]...)
-
-	for len(out) > len(lines)+1 && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
-		out = out[:len(out)-1]
-	}
-
-	view := strings.Join(out, "\n")
-	if len(v.list.VisibleItems()) == 0 {
-		if v.list.IsFiltered() {
-			view += "\n\n" + style.Muted.Render("No related categories match the active filter. Press esc to clear.")
-		} else {
-			view += "\n\n" + style.Muted.Render("No related categories found.")
-		}
-	}
-
-	return filterbar.Append(view, v.list)
+// RelatedCount returns the number of related-resource categories available for
+// the given item.  It is intentionally cheap (no UI objects allocated).
+func RelatedCount(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) int {
+	return len(relatedEntries(source, resource, registry))
 }
 
-func relatedTitle(focused bool, text string) string {
-	if focused {
-		return style.FooterKey.Render(text)
-	}
-	return style.Muted.Render(text)
+func (p *Picker) SetSize(w, h int) {
+	p.width = w
+	p.height = h
 }
 
-func (v *View) Breadcrumb() string { return "related" }
+func (p *Picker) AnchorX() int { return 0 }
 
-func (v *View) Footer() string {
-	if v.empty {
-		indicators := []style.Binding{}
-		if v.focused {
-			indicators = append(indicators, style.B("Panel:", "Related"))
-		}
-		line1 := style.StatusFooter(indicators, "No item selected", v.footerWidth())
-		var actions []style.Binding
-		if v.focused {
-			actions = append(actions, style.B("tab", "main"))
-			actions = append(actions, style.B("esc", "close"))
-		} else {
-			actions = append(actions, style.B("tab", "focus"))
-		}
-		line2 := style.ActionFooter(actions, v.footerWidth())
-		return line1 + "\n" + line2
-	}
-	indicators := []style.Binding{}
-	if v.focused {
-		indicators = append(indicators, style.B("Panel:", "Related"))
-	}
-	if v.findMode {
-		indicators = append(indicators, style.B("f", "…"))
-	}
-	if v.list.IsFiltered() {
-		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
-	}
-	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
-	var actions []style.Binding
-	if v.focused {
-		actions = append(actions, style.B("→", "open"))
-		actions = append(actions, style.B("tab", "main"))
-		actions = append(actions, style.B("esc", "close"))
-	} else {
-		actions = append(actions, style.B("tab", "focus"))
-	}
-	line2 := style.ActionFooter(actions, v.footerWidth())
-	return line1 + "\n" + line2
-}
-
-func (v *View) SetSize(width, height int) {
-	if width == 0 || height == 0 {
-		return
-	}
-	v.width = width
-	v.height = height
-	if v.empty {
-		return
-	}
-	v.list.SetSize(width, height)
-	v.refreshItems()
-}
-
-func (v *View) SetFooterWidth(w int) { v.footerW = w }
-
-func (v *View) footerWidth() int {
-	if v.footerW > 0 {
-		return v.footerW
-	}
-	if v.empty {
-		return v.width
-	}
-	return v.list.Width()
-}
-
-func (v *View) refreshItems() {
-	items := relatedEntries(v.source, v.resource, v.registry)
-	rows := make([][]string, 0, len(items))
-	for _, it := range items {
-		rows = append(rows, []string{it.name, relatedCountCell(it.count), it.description})
-	}
-	v.colWidths = relationColumnWidthsForRows(v.columns, rows, v.list.Width()-2, "RELATED")
-
-	listItems := make([]list.Item, 0, len(items))
-	for idx, it := range items {
-		listItems = append(listItems, relatedItem{
-			entry:  it,
-			row:    rows[idx],
-			widths: v.colWidths,
-		})
-	}
-
-	selected := v.list.Index()
-	v.list.SetItems(listItems)
-	if selected >= 0 && selected < len(listItems) {
-		v.list.Select(selected)
-	}
-}
-
-func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode
-}
-
-func (v *View) NextBreadcrumb() string {
-	selected, ok := v.list.SelectedItem().(relatedItem)
+func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
+	key, ok := msg.(bubbletea.KeyMsg)
 	if !ok {
-		return ""
+		return viewstate.Update{Action: viewstate.None}
 	}
-	return strings.ToLower(selected.entry.name)
+	switch key.String() {
+	case "esc":
+		return viewstate.Update{Action: viewstate.Pop}
+	case "enter":
+		if len(p.entries) > 0 && p.entries[p.cursor].open != nil {
+			openFn := p.entries[p.cursor].open
+			return viewstate.Update{
+				Action: viewstate.Pop,
+				Cmd: func() bubbletea.Msg {
+					return SelectedMsg{Open: openFn}
+				},
+			}
+		}
+		return viewstate.Update{Action: viewstate.Pop}
+	case "up", "k":
+		if p.cursor > 0 {
+			p.cursor--
+		}
+	case "down", "j":
+		if p.cursor < len(p.entries)-1 {
+			p.cursor++
+		}
+	}
+	return viewstate.Update{Action: viewstate.None}
 }
 
-func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
-	name := strings.ToLower(resource.Name())
-	entries := []entry{}
-
-	openResource := func(r resources.ResourceType) func() viewstate.View {
-		return func() viewstate.View { return newRelationList(r, registry) }
-	}
-	openEvents := func(count int) func() viewstate.View {
-		return openResource(resources.NewScopedEvents(source.Name, count))
-	}
-
-	if isPodResource(resource) {
-		entries = append(entries, entry{
-			name:        "events",
-			count:       3,
-			description: "Recent warnings and lifecycle events",
-			open:        openEvents(3),
-		})
-		entries = append(entries, entry{
-			name:        "owner",
-			count:       1,
-			description: "Owning workload (Deployment, StatefulSet, etc.)",
-			open:        openResource(resources.NewPodOwner(source.Name)),
-		})
-		entries = append(entries, entry{
-			name:        "services",
-			count:       1,
-			description: "Services selecting this pod",
-			open:        openResource(resources.NewPodServices(source.Name)),
-		})
-		entries = append(entries, entry{
-			name:        "config",
-			count:       2,
-			description: "ConfigMaps and Secrets mounted by this pod",
-			open:        openResource(resources.NewPodConfig(source.Name)),
-		})
-		entries = append(entries, entry{
-			name:        "storage",
-			count:       1,
-			description: "PVCs mounted by this pod",
-			open:        openResource(resources.NewPodStorage(source.Name)),
-		})
-		return entries
-	}
-
-	if name == "workloads" {
-		// Workload tweak: promote Events near top for debugging.
-		entries = append(entries, entry{
-			name:        "events",
-			count:       12,
-			description: "Recent warnings and rollout events",
-			open:        openEvents(12),
-		})
-		entries = append(entries, entry{
-			name:        "pods",
-			count:       len(resources.NewWorkloadPods(source).Items()),
-			description: "Owned pods",
-			open:        openResource(resources.NewWorkloadPods(source)),
-		})
-		if source.Kind == "CJ" {
-			entries = append(entries, entry{
-				name:        "jobs",
-				count:       2,
-				description: "Owned jobs",
-				open:        openResource(resources.NewJobsForCronJob(source.Name)),
-			})
+func (p *Picker) View() string {
+	// Box sizing: wide enough to show name + count + description.
+	innerWidth := 62
+	if p.width > 0 {
+		avail := p.width - 4
+		if avail < 30 {
+			avail = 30
 		}
-		entries = append(entries, entry{
-			name:        "services",
-			count:       1,
-			description: "Network endpoints",
-			open:        openResource(resources.NewRelatedServices(source.Name)),
-		})
-		entries = append(entries, entry{
-			name:        "config",
-			count:       2,
-			description: "ConfigMaps and Secrets",
-			open:        openResource(resources.NewRelatedConfig(source.Name)),
-		})
-		entries = append(entries, entry{
-			name:        "storage",
-			count:       1,
-			description: "PVC and PV references",
-			open:        openResource(resources.NewRelatedStorage(source.Name)),
-		})
-		return entries
-	}
-
-	if name == "services" {
-		return []entry{
-			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
-			{name: "ingresses", count: 1, description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
-			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
+		if avail < innerWidth {
+			innerWidth = avail
 		}
 	}
 
-	if name == "ingresses" {
-		return []entry{
-			{name: "services", count: 1, description: "Backend services this Ingress routes to", open: openResource(resources.NewIngressServices(source.Name))},
-			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+	titleStyle := lipgloss.NewStyle().Bold(true)
+	selStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("0")).
+		Background(lipgloss.Color("250")).
+		Bold(true)
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	title := "  related"
+	if p.source != "" {
+		title = "  related: " + p.source + "  "
+	}
+
+	// Column widths within innerWidth (2 chars used by cursor marker).
+	const nameW = 10  // "mounted-by" is longest common name
+	const countW = 5  // "(12) " max
+	descW := innerWidth - nameW - countW - 2
+	if descW < 8 {
+		descW = 8
+	}
+
+	var lines []string
+	lines = append(lines, titleStyle.Render(title))
+	lines = append(lines, strings.Repeat("─", innerWidth))
+
+	for i, e := range p.entries {
+		countStr := ""
+		if e.count > 0 {
+			countStr = fmt.Sprintf("(%d)", e.count)
+		}
+		nameField := relationPadCell(e.name, nameW)
+		countField := relationPadCell(countStr, countW)
+		desc := e.description
+		if len([]rune(desc)) > descW {
+			desc = string([]rune(desc)[:descW-1]) + "…"
+		}
+		row := nameField + " " + countField + " " + desc
+
+		if i == p.cursor {
+			row = "> " + row
+			// Truncate to innerWidth.
+			if len([]rune(row)) > innerWidth {
+				row = string([]rune(row)[:innerWidth-1]) + "…"
+			}
+			lines = append(lines, selStyle.Render(row))
+		} else {
+			row = "  " + row
+			if len([]rune(row)) > innerWidth {
+				row = string([]rune(row)[:innerWidth-1]) + "…"
+			}
+			lines = append(lines, row)
 		}
 	}
 
-	if name == "configmaps" || name == "secrets" {
-		return []entry{
-			{name: "consumers", count: 2, description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
-			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
-		}
+	if len(p.entries) == 0 {
+		lines = append(lines, mutedStyle.Render("  no related resources"))
 	}
 
-	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
-		return []entry{
-			{name: "mounted-by", count: 1, description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
-			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
-		}
-	}
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("241")).
+		Width(innerWidth).
+		Render(strings.Join(lines, "\n"))
 
-	return []entry{
-		{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
-	}
+	return box
 }
+
+// ── relationList ──────────────────────────────────────────────────────────────
+// relationList is pushed onto the main navigation stack when the user selects
+// a related category from the Picker.
 
 type relationList struct {
 	resource    resources.ResourceType
@@ -469,8 +205,6 @@ type relationList struct {
 	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
-	focused     bool // true when this panel has input focus
-	footerW     int  // override width for footer rendering; 0 = use list width
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
@@ -492,8 +226,8 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 		})
 	}
 
-	v := &relationList{resource: resource, registry: registry, columns: columns, colWidths: widths, focused: true}
-	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets, &v.focused)
+	v := &relationList{resource: resource, registry: registry, columns: columns, colWidths: widths}
+	delegate := newRelatedTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -598,21 +332,20 @@ func (v *relationList) Breadcrumb() string { return v.resource.Name() }
 
 func (v *relationList) Footer() string {
 	indicators := []style.Binding{}
-	if v.focused {
-		indicators = append(indicators, style.B("Panel:", "Related"))
-	}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
-	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
-	actions := []style.Binding{style.B("tab", "main")}
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
+	var actions []style.Binding
+	actions = append(actions, style.B("→", "logs"))
+	actions = append(actions, style.B("f", "find"))
 	if _, ok := v.resource.(resources.ToggleSortable); ok {
 		actions = append(actions, style.B("s", "sort"))
 	}
-	line2 := style.ActionFooter(actions, v.footerWidth())
+	line2 := style.ActionFooter(actions, v.list.Width())
 	return line1 + "\n" + line2
 }
 
@@ -622,19 +355,6 @@ func (v *relationList) SetSize(width, height int) {
 	}
 	v.list.SetSize(width, height)
 	v.refreshItems()
-}
-
-func (v *relationList) SetFooterWidth(w int) { v.footerW = w }
-
-func (v *relationList) SetFocused(focused bool) {
-	v.focused = focused
-}
-
-func (v *relationList) footerWidth() int {
-	if v.footerW > 0 {
-		return v.footerW
-	}
-	return v.list.Width()
 }
 
 func (v *relationList) refreshItems() {
@@ -674,26 +394,6 @@ func (v *relationList) NextBreadcrumb() string {
 	return "logs"
 }
 
-type relatedItem struct {
-	entry  entry
-	row    []string
-	widths []int
-}
-
-func (i relatedItem) Title() string {
-	cells := make([]string, 0, len(i.row))
-	for idx, value := range i.row {
-		width := i.widths[idx]
-		cells = append(cells, relationPadCell(value, width))
-	}
-	return strings.Join(cells, relationColumnSeparator)
-}
-
-func (i relatedItem) Description() string { return "" }
-func (i relatedItem) FilterValue() string {
-	return i.entry.FilterValue()
-}
-
 type relationItem struct {
 	data   resources.ResourceItem
 	row    []string
@@ -729,14 +429,6 @@ func relationTableColumns(resource resources.ResourceType) []resources.TableColu
 		{Name: "READY", Width: 7},
 		{Name: "RESTARTS", Width: 14},
 		{Name: "AGE", Width: 6},
-	}
-}
-
-func relatedTableColumns() []resources.TableColumn {
-	return []resources.TableColumn{
-		{Name: "RELATED", Width: 18},
-		{Name: "COUNT", Width: 5},
-		{Name: "DESCRIPTION", Width: 58},
 	}
 }
 
@@ -925,61 +617,6 @@ func relatedSingleRune(key bubbletea.KeyMsg) rune {
 	return 0
 }
 
-func (v *View) jumpToChar(r rune) {
-	target := unicode.ToLower(r)
-	visible := v.list.VisibleItems()
-	for i, li := range visible {
-		if it, ok := li.(relatedItem); ok {
-			name := strings.TrimSpace(it.entry.name)
-			if len(name) > 0 && unicode.ToLower([]rune(name)[0]) == target {
-				v.list.Select(i)
-				return
-			}
-		}
-	}
-}
-
-func (v *View) computeFindTargets() map[int]bool {
-	targets := make(map[int]bool)
-	seen := make(map[rune]bool)
-	for i, li := range v.list.VisibleItems() {
-		if it, ok := li.(relatedItem); ok {
-			name := strings.TrimSpace(it.entry.name)
-			if len(name) > 0 {
-				ch := unicode.ToLower([]rune(name)[0])
-				if !seen[ch] {
-					seen[ch] = true
-					targets[i] = true
-				}
-			}
-		}
-	}
-	return targets
-}
-
-func (v *View) paginationStatus() string {
-	totalVisible := len(v.list.VisibleItems())
-	if totalVisible == 0 {
-		if v.list.IsFiltered() {
-			return fmt.Sprintf("Showing 0 of 0 filtered (%d total)", len(v.list.Items()))
-		}
-		return "Showing 0 of 0"
-	}
-
-	start, end := v.list.Paginator.GetSliceBounds(totalVisible)
-	if v.list.IsFiltered() {
-		return fmt.Sprintf(
-			"Showing %d-%d of %d filtered (%d total)",
-			start+1,
-			end,
-			totalVisible,
-			len(v.list.Items()),
-		)
-	}
-
-	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
-}
-
 func (v *relationList) jumpToChar(r rune) {
 	target := unicode.ToLower(r)
 	visible := v.list.VisibleItems()
@@ -1033,6 +670,128 @@ func (v *relationList) paginationStatus() string {
 	}
 
 	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
+}
+
+func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
+	name := strings.ToLower(resource.Name())
+	entries := []entry{}
+
+	openResource := func(r resources.ResourceType) func() viewstate.View {
+		return func() viewstate.View { return newRelationList(r, registry) }
+	}
+	openEvents := func(count int) func() viewstate.View {
+		return openResource(resources.NewScopedEvents(source.Name, count))
+	}
+
+	if isPodResource(resource) {
+		entries = append(entries, entry{
+			name:        "events",
+			count:       3,
+			description: "Recent warnings and lifecycle events",
+			open:        openEvents(3),
+		})
+		entries = append(entries, entry{
+			name:        "owner",
+			count:       1,
+			description: "Owning workload (Deployment, StatefulSet, etc.)",
+			open:        openResource(resources.NewPodOwner(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "services",
+			count:       1,
+			description: "Services selecting this pod",
+			open:        openResource(resources.NewPodServices(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "config",
+			count:       2,
+			description: "ConfigMaps and Secrets mounted by this pod",
+			open:        openResource(resources.NewPodConfig(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "storage",
+			count:       1,
+			description: "PVCs mounted by this pod",
+			open:        openResource(resources.NewPodStorage(source.Name)),
+		})
+		return entries
+	}
+
+	if name == "workloads" {
+		// Workload tweak: promote Events near top for debugging.
+		entries = append(entries, entry{
+			name:        "events",
+			count:       12,
+			description: "Recent warnings and rollout events",
+			open:        openEvents(12),
+		})
+		entries = append(entries, entry{
+			name:        "pods",
+			count:       len(resources.NewWorkloadPods(source).Items()),
+			description: "Owned pods",
+			open:        openResource(resources.NewWorkloadPods(source)),
+		})
+		if source.Kind == "CJ" {
+			entries = append(entries, entry{
+				name:        "jobs",
+				count:       2,
+				description: "Owned jobs",
+				open:        openResource(resources.NewJobsForCronJob(source.Name)),
+			})
+		}
+		entries = append(entries, entry{
+			name:        "services",
+			count:       1,
+			description: "Network endpoints",
+			open:        openResource(resources.NewRelatedServices(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "config",
+			count:       2,
+			description: "ConfigMaps and Secrets",
+			open:        openResource(resources.NewRelatedConfig(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "storage",
+			count:       1,
+			description: "PVC and PV references",
+			open:        openResource(resources.NewRelatedStorage(source.Name)),
+		})
+		return entries
+	}
+
+	if name == "services" {
+		return []entry{
+			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
+			{name: "ingresses", count: 1, description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
+			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
+		}
+	}
+
+	if name == "ingresses" {
+		return []entry{
+			{name: "services", count: 1, description: "Backend services this Ingress routes to", open: openResource(resources.NewIngressServices(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+		}
+	}
+
+	if name == "configmaps" || name == "secrets" {
+		return []entry{
+			{name: "consumers", count: 2, description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+		}
+	}
+
+	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
+		return []entry{
+			{name: "mounted-by", count: 1, description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
+			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
+		}
+	}
+
+	return []entry{
+		{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+	}
 }
 
 func relatedCountCell(count int) string {

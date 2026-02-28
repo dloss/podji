@@ -46,8 +46,6 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.Push, Next: eventview.New(v.item, v.resource)}
 		case "y":
 			return viewstate.Update{Action: viewstate.Push, Next: yamlview.New(v.item, v.resource)}
-		case "r":
-			return viewstate.Update{Action: viewstate.Push, Next: relatedview.New(v.item, v.resource, v.registry)}
 		}
 	}
 	return viewstate.Update{Action: viewstate.None, Next: v}

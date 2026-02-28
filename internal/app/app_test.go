@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/ui/overlaypicker"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -209,54 +208,32 @@ func TestBackspaceWithSingleStackIsNoop(t *testing.T) {
 	}
 }
 
-func TestTabWithNoSideIsNoop(t *testing.T) {
+func TestRKeyOpensRelatedPickerOverlay(t *testing.T) {
 	m := New()
 
-	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyTab})
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
 	got := updated.(Model)
 
-	if got.sideActive {
-		t.Fatal("expected sideActive=false when no side panel")
+	if got.relatedPicker == nil {
+		t.Fatal("expected relatedPicker to be non-nil after pressing r")
+	}
+	if got.overlay != nil {
+		t.Fatal("expected overlay to remain nil after pressing r")
 	}
 }
 
-func TestEscWhenRelatedFocusedClosesSidePanel(t *testing.T) {
+func TestRelatedPickerEscClosesOverlay(t *testing.T) {
 	m := New()
 
 	opened, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
-	withSide := opened.(Model)
-	if withSide.side == nil || !withSide.sideActive {
-		t.Fatal("expected side panel to be open and focused after r")
+	withPicker := opened.(Model)
+	if withPicker.relatedPicker == nil {
+		t.Fatal("expected relatedPicker to be open after r")
 	}
 
-	updated, _ := withSide.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
+	updated, _ := withPicker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
 	got := updated.(Model)
-	if got.side != nil {
-		t.Fatal("expected Esc from related focus to close side panel")
-	}
-	if got.sideActive {
-		t.Fatal("expected sideActive=false after closing side panel")
-	}
-}
-
-func TestEnterFromRelatedFocusMovesFocusToMainWithoutClosingSide(t *testing.T) {
-	m := New()
-
-	opened, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
-	withSide := opened.(Model)
-	if withSide.side == nil || !withSide.sideActive {
-		t.Fatal("expected side panel to be open and focused after r")
-	}
-
-	updated, _ := withSide.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
-	got := updated.(Model)
-	if got.side == nil {
-		t.Fatal("expected side panel to remain open after Enter from related")
-	}
-	if got.sideActive {
-		t.Fatal("expected focus to move to main after Enter from related")
-	}
-	if strings.Contains(ansi.Strip(got.side.Footer()), "Panel: Related") {
-		t.Fatal("expected side panel footer to indicate unfocused state after Enter")
+	if got.relatedPicker != nil {
+		t.Fatal("expected relatedPicker to be nil after Esc")
 	}
 }
