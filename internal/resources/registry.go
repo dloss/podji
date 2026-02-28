@@ -6,9 +6,42 @@ import (
 	"strings"
 )
 
+// AllNamespaces is the sentinel value meaning "show resources from all namespaces".
+const AllNamespaces = "(all)"
+
 // ActiveNamespace is the currently selected namespace. Resources can use this
 // to vary their stub data so namespace switching is visible.
 var ActiveNamespace = "default"
+
+// namespacedColumns prepends a NAMESPACE column when in all-namespaces mode.
+func namespacedColumns(cols []TableColumn) []TableColumn {
+	if ActiveNamespace != AllNamespaces {
+		return cols
+	}
+	return append([]TableColumn{{Name: "NAMESPACE", Width: 16}}, cols...)
+}
+
+// namespacedRow prepends the item's Namespace field when in all-namespaces mode.
+func namespacedRow(ns string, row []string) []string {
+	if ActiveNamespace != AllNamespaces {
+		return row
+	}
+	return append([]string{ns}, row...)
+}
+
+// allNamespaceItems merges stub items from a representative set of namespaces,
+// setting the Namespace field on each returned item.
+func allNamespaceItems(fn func(string) []ResourceItem) []ResourceItem {
+	stubs := []string{"default", "production", "staging", "monitoring"}
+	var all []ResourceItem
+	for _, ns := range stubs {
+		for _, item := range fn(ns) {
+			item.Namespace = ns
+			all = append(all, item)
+		}
+	}
+	return all
+}
 
 type Registry struct {
 	resources []ResourceType

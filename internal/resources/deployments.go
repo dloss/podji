@@ -8,16 +8,16 @@ type Deployments struct {
 }
 
 func (d *Deployments) TableColumns() []TableColumn {
-	return []TableColumn{
+	return namespacedColumns([]TableColumn{
 		{Name: "NAME", Width: 35},
 		{Name: "STATUS", Width: 14},
 		{Name: "READY", Width: 8},
 		{Name: "AGE", Width: 6},
-	}
+	})
 }
 
 func (d *Deployments) TableRow(item ResourceItem) []string {
-	return []string{item.Name, item.Status, item.Ready, item.Age}
+	return namespacedRow(item.Namespace, []string{item.Name, item.Status, item.Ready, item.Age})
 }
 
 func NewDeployments() *Deployments {
@@ -28,8 +28,13 @@ func (d *Deployments) Name() string { return "deployments" }
 func (d *Deployments) Key() rune    { return 'D' }
 
 func (d *Deployments) Items() []ResourceItem {
-	items := deploymentItemsForNamespace(ActiveNamespace)
-	items = expandMockItems(items, 28)
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(deploymentItemsForNamespace)
+	} else {
+		items = deploymentItemsForNamespace(ActiveNamespace)
+		items = expandMockItems(items, 28)
+	}
 	d.Sort(items)
 	return items
 }

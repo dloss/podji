@@ -18,19 +18,19 @@ func (p *PersistentVolumeClaims) Name() string { return "persistentvolumeclaims"
 func (p *PersistentVolumeClaims) Key() rune    { return 'V' }
 
 func (p *PersistentVolumeClaims) TableColumns() []TableColumn {
-	return []TableColumn{
+	return namespacedColumns([]TableColumn{
 		{Name: "NAME", Width: 32},
 		{Name: "CAPACITY", Width: 10},
 		{Name: "ACCESS MODE", Width: 13},
 		{Name: "STATUS", Width: 10},
 		{Name: "STORAGECLASS", Width: 14},
 		{Name: "AGE", Width: 6},
-	}
+	})
 }
 
 func (p *PersistentVolumeClaims) TableRow(item ResourceItem) []string {
 	// Kind holds the access mode, Ready holds the capacity.
-	return []string{item.Name, item.Ready, item.Kind, item.Status, pvcStorageClass(item.Name), item.Age}
+	return namespacedRow(item.Namespace, []string{item.Name, item.Ready, item.Kind, item.Status, pvcStorageClass(item.Name), item.Age})
 }
 
 func pvcStorageClass(name string) string {
@@ -83,8 +83,13 @@ func min(a, b int) int {
 }
 
 func (p *PersistentVolumeClaims) Items() []ResourceItem {
-	items := pvcItemsForNamespace(ActiveNamespace)
-	items = expandMockItems(items, 20)
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(pvcItemsForNamespace)
+	} else {
+		items = pvcItemsForNamespace(ActiveNamespace)
+		items = expandMockItems(items, 20)
+	}
 	p.Sort(items)
 	return items
 }

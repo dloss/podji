@@ -11,13 +11,13 @@ type Services struct {
 }
 
 func (s *Services) TableColumns() []TableColumn {
-	return []TableColumn{
+	return namespacedColumns([]TableColumn{
 		{Name: "NAME", Width: 30},
 		{Name: "TYPE", Width: 14},
 		{Name: "CLUSTER-IP", Width: 16},
 		{Name: "ENDPOINTS", Width: 14},
 		{Name: "AGE", Width: 6},
-	}
+	})
 }
 
 func (s *Services) TableRow(item ResourceItem) []string {
@@ -25,7 +25,7 @@ func (s *Services) TableRow(item ResourceItem) []string {
 	if svcType == "" {
 		svcType = "ClusterIP"
 	}
-	return []string{item.Name, svcType, serviceClusterIP(item.Name, svcType), item.Ready, item.Age}
+	return namespacedRow(item.Namespace, []string{item.Name, svcType, serviceClusterIP(item.Name, svcType), item.Ready, item.Age})
 }
 
 func serviceClusterIP(name string, svcType string) string {
@@ -48,8 +48,13 @@ func (s *Services) Name() string { return "services" }
 func (s *Services) Key() rune    { return 'S' }
 
 func (s *Services) Items() []ResourceItem {
-	items := serviceItemsForNamespace(ActiveNamespace)
-	items = expandMockItems(items, 26)
+	var items []ResourceItem
+	if ActiveNamespace == AllNamespaces {
+		items = allNamespaceItems(serviceItemsForNamespace)
+	} else {
+		items = serviceItemsForNamespace(ActiveNamespace)
+		items = expandMockItems(items, 26)
+	}
 	s.Sort(items)
 	return items
 }
