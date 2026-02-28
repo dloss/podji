@@ -276,9 +276,20 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 				}
 			}
 		case "s":
-			if sortable, ok := v.resource.(resources.ToggleSortable); ok {
-				sortable.ToggleSort()
-				v.refreshItems()
+			if sortable, ok := v.resource.(resources.Sortable); ok {
+				keys := sortable.SortKeys()
+				if len(keys) > 0 {
+					cur := sortable.SortMode()
+					next := keys[0].Mode
+					for i, sk := range keys {
+						if sk.Mode == cur && i+1 < len(keys) {
+							next = keys[i+1].Mode
+							break
+						}
+					}
+					sortable.SetSort(next, false)
+					v.refreshItems()
+				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "f":
@@ -342,7 +353,7 @@ func (v *relationList) Footer() string {
 	var actions []style.Binding
 	actions = append(actions, style.B("→", "logs"))
 	actions = append(actions, style.B("f", "find"))
-	if _, ok := v.resource.(resources.ToggleSortable); ok {
+	if _, ok := v.resource.(resources.Sortable); ok {
 		actions = append(actions, style.B("s", "sort"))
 	}
 	line2 := style.ActionFooter(actions, v.list.Width())

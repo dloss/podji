@@ -4,6 +4,7 @@ import "strings"
 
 type Workloads struct {
 	sortMode string
+	sortDesc bool
 	scenario string
 }
 
@@ -126,13 +127,13 @@ func workloadItemsForNamespace(ns string) []ResourceItem {
 func (w *Workloads) Sort(items []ResourceItem) {
 	switch w.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, w.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, w.sortDesc)
 	case "kind":
-		kindSort(items)
+		kindSort(items, w.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, w.sortDesc)
 	}
 }
 
@@ -158,12 +159,15 @@ func (w *Workloads) TableRow(item ResourceItem) []string {
 	}
 }
 
-func (w *Workloads) ToggleSort() {
-	w.sortMode = cycleSortMode(w.sortMode, []string{"name", "status", "kind", "age"})
+func (w *Workloads) SetSort(mode string, desc bool) {
+	w.sortMode = mode
+	w.sortDesc = desc
 }
 
-func (w *Workloads) SortMode() string {
-	return w.sortMode
+func (w *Workloads) SortMode() string { return w.sortMode }
+func (w *Workloads) SortDesc() bool   { return w.sortDesc }
+func (w *Workloads) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "kind", "age"})
 }
 
 func (w *Workloads) CycleScenario() {

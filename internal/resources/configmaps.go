@@ -7,6 +7,7 @@ import (
 
 type ConfigMaps struct {
 	sortMode string
+	sortDesc bool
 }
 
 func (c *ConfigMaps) TableColumns() []TableColumn {
@@ -59,20 +60,19 @@ func (c *ConfigMaps) Items() []ResourceItem {
 func (c *ConfigMaps) Sort(items []ResourceItem) {
 	switch c.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, c.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, c.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, c.sortDesc)
 	}
 }
 
-func (c *ConfigMaps) ToggleSort() {
-	c.sortMode = cycleSortMode(c.sortMode, []string{"name", "status", "age"})
-}
-
-func (c *ConfigMaps) SortMode() string {
-	return c.sortMode
+func (c *ConfigMaps) SetSort(mode string, desc bool) { c.sortMode = mode; c.sortDesc = desc }
+func (c *ConfigMaps) SortMode() string               { return c.sortMode }
+func (c *ConfigMaps) SortDesc() bool                 { return c.sortDesc }
+func (c *ConfigMaps) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (c *ConfigMaps) Detail(item ResourceItem) DetailData {

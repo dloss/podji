@@ -97,19 +97,19 @@ func (i item) FilterValue() string {
 }
 
 type View struct {
-	resource    resources.ResourceType
-	registry    *resources.Registry
-	list        list.Model
-	columns     []resources.TableColumn
-	colWidths   []int
-	sortTouched bool
-	findMode    bool
-	findTargets map[int]bool
-	copyMode    bool
-	copiedMsg   string
-	execState   executeState
-	execInput   string
-	execResult  string
+	resource     resources.ResourceType
+	registry     *resources.Registry
+	list         list.Model
+	columns      []resources.TableColumn
+	colWidths    []int
+	sortPickMode bool
+	findMode     bool
+	findTargets  map[int]bool
+	copyMode     bool
+	copiedMsg    string
+	execState    executeState
+	execInput    string
+	execResult   string
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
@@ -190,6 +190,26 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 			if r := singleRune(key); r != 0 {
 				v.jumpToChar(r)
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
+		if v.sortPickMode {
+			v.sortPickMode = false
+			if key.String() != "esc" {
+				if sortable, ok := v.resource.(resources.Sortable); ok {
+					if r := singleRune(key); r != 0 {
+						lc := unicode.ToLower(r)
+						desc := unicode.IsUpper(r)
+						for _, sk := range sortable.SortKeys() {
+							if sk.Char == lc {
+								sortable.SetSort(sk.Mode, desc)
+								v.refreshItems()
+								break
+							}
+						}
+					}
+				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
@@ -332,10 +352,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				}
 			}
 		case "s":
-			if sortable, ok := v.resource.(resources.ToggleSortable); ok {
-				sortable.ToggleSort()
-				v.sortTouched = true
-				v.refreshItems()
+			if _, ok := v.resource.(resources.Sortable); ok {
+				v.sortPickMode = true
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "v":
@@ -405,9 +423,9 @@ func (v *View) View() string {
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	mode := sortMode(v.resource)
-	indicator := sortIndicatorSymbol(mode)
+	indicator := sortIndicatorSymbol(v.resource)
 	activeSortIdx := -1
-	if v.sortTouched || !isDefaultSortMode(v.resource, mode) {
+	if !isDefaultSort(v.resource) {
 		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
 	}
 	headerPrefix := "  "
@@ -569,13 +587,28 @@ func (v *View) Footer() string {
 		if v.list.Width() > 0 {
 			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
+	} else if v.sortPickMode {
+		sortLabel := style.FooterKey.Render("sort")
+		var opts []style.Binding
+		if sortable, ok := v.resource.(resources.Sortable); ok {
+			for _, sk := range sortable.SortKeys() {
+				lower := string(sk.Char)
+				upper := string(unicode.ToUpper(sk.Char))
+				opts = append(opts, style.B(lower+"/"+upper, sk.Label))
+			}
+		}
+		opts = append(opts, style.B("esc", "cancel"))
+		line2 = sortLabel + "  " + style.FormatBindings(opts)
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
 	} else {
 		var actions []style.Binding
 		isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
 		actions = append(actions, style.B("/", "filter"))
-		if _, ok := v.resource.(resources.ToggleSortable); ok {
+		if _, ok := v.resource.(resources.Sortable); ok {
 			actions = append(actions, style.B("s", "sort"))
 		}
 		if isWorkloads {
@@ -603,7 +636,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone
+	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone || v.sortPickMode
 }
 
 // SelectedItem returns the currently highlighted resource item.
@@ -865,14 +898,14 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 }
 
 func sortMode(resource resources.ResourceType) string {
-	if sortable, ok := resource.(resources.ToggleSortable); ok {
+	if sortable, ok := resource.(resources.Sortable); ok {
 		return sortable.SortMode()
 	}
 	return ""
 }
 
-func sortIndicatorSymbol(mode string) string {
-	if mode == "status" {
+func sortIndicatorSymbol(resource resources.ResourceType) string {
+	if sortable, ok := resource.(resources.Sortable); ok && sortable.SortDesc() {
 		return "▼"
 	}
 	return "▲"
@@ -905,17 +938,16 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 	return -1
 }
 
-func isDefaultSortMode(resource resources.ResourceType, mode string) bool {
-	if mode == "" {
+func isDefaultSort(resource resources.ResourceType) bool {
+	sortable, ok := resource.(resources.Sortable)
+	if !ok {
 		return true
 	}
-	type defaultSortProvider interface {
-		DefaultSortMode() string
+	keys := sortable.SortKeys()
+	if len(keys) == 0 {
+		return true
 	}
-	if provider, ok := resource.(defaultSortProvider); ok {
-		return mode == provider.DefaultSortMode()
-	}
-	return mode == "name"
+	return sortable.SortMode() == keys[0].Mode && !sortable.SortDesc()
 }
 
 func firstColumnNamed(columns []resources.TableColumn, name string) int {

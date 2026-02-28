@@ -7,6 +7,7 @@ import (
 
 type Services struct {
 	sortMode string
+	sortDesc bool
 }
 
 func (s *Services) TableColumns() []TableColumn {
@@ -93,22 +94,21 @@ func serviceItemsForNamespace(ns string) []ResourceItem {
 func (s *Services) Sort(items []ResourceItem) {
 	switch s.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, s.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, s.sortDesc)
 	case "kind":
-		kindSort(items)
+		kindSort(items, s.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, s.sortDesc)
 	}
 }
 
-func (s *Services) ToggleSort() {
-	s.sortMode = cycleSortMode(s.sortMode, []string{"name", "status", "kind", "age"})
-}
-
-func (s *Services) SortMode() string {
-	return s.sortMode
+func (s *Services) SetSort(mode string, desc bool) { s.sortMode = mode; s.sortDesc = desc }
+func (s *Services) SortMode() string               { return s.sortMode }
+func (s *Services) SortDesc() bool                 { return s.sortDesc }
+func (s *Services) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "kind", "age"})
 }
 
 func (s *Services) Detail(item ResourceItem) DetailData {

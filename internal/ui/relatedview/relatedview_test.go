@@ -42,9 +42,9 @@ func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
 	related := newRelationList(resources.NewScopedEvents("api", 3), registry)
 	related.SetSize(120, 40)
 
-	sortable, ok := related.resource.(resources.ToggleSortable)
+	sortable, ok := related.resource.(resources.Sortable)
 	if !ok {
-		t.Fatalf("expected ToggleSortable resource, got %T", related.resource)
+		t.Fatalf("expected Sortable resource, got %T", related.resource)
 	}
 	if got := sortable.SortMode(); got != "name" {
 		t.Fatalf("expected initial sort mode name, got %q", got)
