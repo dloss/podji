@@ -54,6 +54,8 @@ The bar is managed by `app.go` as an overlay, consistent with the `overlaypicker
 
 Name matching is prefix-then-substring against the Name field, scoped to the active namespace.
 
+K9s users can use `:po`, `:deploy`, `:svc` etc. exactly as they do today — the no-name-fragment case is compatible by design. The name fragment and subview suffix are extensions that existing muscle memory naturally grows into.
+
 **Examples:**
 
 ```
