@@ -602,6 +602,22 @@ func (v *View) SetSize(width, height int) {
 	v.refreshItems()
 }
 
+// SelectedRowOffset returns the zero-based position of the selected item
+// within the currently visible page — i.e. its row index inside the list body,
+// not counting column headers or empty spacer lines.
+func (v *View) SelectedRowOffset() int {
+	n := len(v.list.VisibleItems())
+	if n == 0 {
+		return 0
+	}
+	start, _ := v.list.Paginator.GetSliceBounds(n)
+	offset := v.list.Index() - start
+	if offset < 0 {
+		return 0
+	}
+	return offset
+}
+
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone
 }

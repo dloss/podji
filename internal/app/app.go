@@ -173,8 +173,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.crumbs = []string{"resources"}
 			return m, nil
 		case "r":
-			m.relatedPicker = relatedview.NewPickerForSelection(m.top())
-			m.relatedPicker.SetSize(m.width, m.height-1)
+			p := relatedview.NewPickerForSelection(m.top())
+			p.SetSize(m.width, m.height-1)
+			p.SetAnchorRow(m.relatedPickerAnchorRow(p))
+			m.relatedPicker = p
 			return m, nil
 		case "?":
 			if _, isHelp := m.top().(*helpview.View); !isHelp {
@@ -227,8 +229,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
 	case viewstate.OpenRelated:
-		m.relatedPicker = relatedview.NewPickerForSelection(m.top())
-		m.relatedPicker.SetSize(m.width, m.height-1)
+		p := relatedview.NewPickerForSelection(m.top())
+		p.SetSize(m.width, m.height-1)
+		p.SetAnchorRow(m.relatedPickerAnchorRow(p))
+		m.relatedPicker = p
 	default:
 		m.stack[len(m.stack)-1] = update.Next
 	}
@@ -272,7 +276,7 @@ func (m Model) View() string {
 		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
 	}
 	if m.relatedPicker != nil {
-		return compositeOverlay(main, m.relatedPicker.View(), m.relatedPicker.AnchorX(), 1)
+		return compositeOverlay(main, m.relatedPicker.View(), m.relatedPicker.AnchorX(), m.relatedPicker.AnchorRow())
 	}
 	return main
 }
@@ -450,6 +454,36 @@ func normalizeGlobalKey(msg bubbletea.KeyMsg) bubbletea.KeyMsg {
 		return bubbletea.KeyMsg{Type: bubbletea.KeyPgDown}
 	}
 	return msg
+}
+
+// relatedPickerAnchorRow computes the terminal row where the picker's top edge
+// should sit.  It places the picker just below the selected row in the list,
+// then flips above that row if the picker would otherwise clip the footer.
+func (m Model) relatedPickerAnchorRow(p *relatedview.Picker) int {
+	const appHeaderLines = 2 // scope line + breadcrumb line
+	const listBodyOffset = 2 // empty spacer + column-header line
+	extraHeader := 0
+	if m.errorMsg != "" {
+		extraHeader = 1
+	}
+
+	visibleOffset := 0
+	if lv, ok := m.top().(*listview.View); ok {
+		visibleOffset = lv.SelectedRowOffset()
+	}
+
+	selectedRow := appHeaderLines + extraHeader + listBodyOffset + visibleOffset
+	startRow := selectedRow + 1 // place first line of picker just below selected row
+
+	const footerLines = 2
+	if m.height > 0 && startRow+p.EstimatedHeight() > m.height-footerLines {
+		// Flip: place picker above the selected row instead.
+		startRow = selectedRow - p.EstimatedHeight()
+		if startRow < 1 {
+			startRow = 1
+		}
+	}
+	return startRow
 }
 
 // breadcrumbLabel returns a short label for the view, used when updating crumbs on push.

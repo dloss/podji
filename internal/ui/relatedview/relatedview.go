@@ -35,11 +35,12 @@ type SelectedMsg struct {
 // Picker is a lightweight overlay for choosing a related resource category.
 // It replaces the old persistent side panel.
 type Picker struct {
-	entries []entry
-	cursor  int
-	source  string // name of the selected resource, used in the title
-	width   int
-	height  int
+	entries   []entry
+	cursor    int
+	source    string // name of the selected resource, used in the title
+	width     int
+	height    int
+	anchorRow int // terminal row where the picker's top edge is placed
 }
 
 // NewPickerForSelection returns a Picker populated with related categories for
@@ -81,7 +82,14 @@ func (p *Picker) SetSize(w, h int) {
 	p.height = h
 }
 
-func (p *Picker) AnchorX() int { return 0 }
+func (p *Picker) SetAnchorRow(row int) { p.anchorRow = row }
+func (p *Picker) AnchorRow() int       { return p.anchorRow }
+func (p *Picker) AnchorX() int         { return 0 }
+
+// EstimatedHeight returns the number of terminal lines the picker box occupies.
+func (p *Picker) EstimatedHeight() int {
+	return 4 + len(p.entries) // 2 border + title + divider + one line per entry
+}
 
 func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 	key, ok := msg.(bubbletea.KeyMsg)
