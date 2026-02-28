@@ -110,9 +110,6 @@ type View struct {
 	execState   executeState
 	execInput   string
 	execResult  string
-	sideOpen    bool
-	focused     bool // true when this panel has input focus
-	footerW     int  // override width for footer rendering; 0 = use list width
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
@@ -141,8 +138,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		columns:   columns,
 		colWidths: widths,
 	}
-	v.focused = true // main panel is focused by default
-	delegate := newTableDelegate(&v.findMode, &v.findTargets, &v.focused)
+	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
 	model.SetShowHelp(false)
 	model.SetShowStatusBar(false)
@@ -493,7 +489,7 @@ func (v *View) Footer() string {
 	if v.execResult != "" {
 		indicators = append(indicators, style.B(v.execResult, ""))
 	}
-	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.footerWidth())
+	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
 
 	// Line 2: mode prompt or normal actions.
 	var line2 string
@@ -506,8 +502,8 @@ func (v *View) Footer() string {
 			style.B("esc", "cancel"),
 		})
 		line2 = copyLabel + "  " + opts
-		if v.footerWidth() > 0 {
-			line2 = ansi.Truncate(line2, v.footerWidth()-2, "…")
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else if v.execState == execMenu {
 		execLabel := style.FooterKey.Render("execute")
@@ -527,8 +523,8 @@ func (v *View) Footer() string {
 		}
 		opts = append(opts, style.B("esc", "cancel"))
 		line2 = execLabel + "  " + style.FormatBindings(opts)
-		if v.footerWidth() > 0 {
-			line2 = ansi.Truncate(line2, v.footerWidth()-2, "…")
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else if v.execState == execConfirmDelete || v.execState == execConfirmRestart {
 		var opName string
@@ -544,8 +540,8 @@ func (v *View) Footer() string {
 			style.B("esc", "cancel"),
 		})
 		line2 = opLabel + " " + target + "  " + opts
-		if v.footerWidth() > 0 {
-			line2 = ansi.Truncate(line2, v.footerWidth()-2, "…")
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else if v.execState == execInputScale {
 		scaleLabel := style.FooterKey.Render("scale")
@@ -557,8 +553,8 @@ func (v *View) Footer() string {
 			style.B("esc", "cancel"),
 		})
 		line2 = scaleLabel + " " + target + prompt + inputVal + opts
-		if v.footerWidth() > 0 {
-			line2 = ansi.Truncate(line2, v.footerWidth()-2, "…")
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else if v.execState == execInputPortFwd {
 		fwdLabel := style.FooterKey.Render("port-fwd")
@@ -570,8 +566,8 @@ func (v *View) Footer() string {
 			style.B("esc", "cancel"),
 		})
 		line2 = fwdLabel + " " + target + prompt + inputVal + opts
-		if v.footerWidth() > 0 {
-			line2 = ansi.Truncate(line2, v.footerWidth()-2, "…")
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else {
 		var actions []style.Binding
@@ -588,15 +584,11 @@ func (v *View) Footer() string {
 			}
 		}
 		if !isContainers {
-			if v.sideOpen {
-				actions = append(actions, style.B("tab", "related"))
-			} else {
-				actions = append(actions, style.B("r", "related"))
-			}
+			actions = append(actions, style.B("r", "related"))
 		}
 		actions = append(actions, style.B("c", "copy"))
 		actions = append(actions, style.B("x", "execute"))
-		line2 = style.ActionFooter(actions, v.footerWidth())
+		line2 = style.ActionFooter(actions, v.list.Width())
 	}
 
 	return line1 + "\n" + line2
@@ -610,15 +602,6 @@ func (v *View) SetSize(width, height int) {
 	v.refreshItems()
 }
 
-func (v *View) SetFooterWidth(w int) { v.footerW = w }
-
-func (v *View) footerWidth() int {
-	if v.footerW > 0 {
-		return v.footerW
-	}
-	return v.list.Width()
-}
-
 func (v *View) SuppressGlobalKeys() bool {
 	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone
 }
@@ -629,16 +612,6 @@ func (v *View) SelectedItem() resources.ResourceItem {
 		return selected.data
 	}
 	return resources.ResourceItem{}
-}
-
-// SetSideOpen informs the view whether the side panel is currently open,
-// allowing the footer hints to update accordingly.
-func (v *View) SetSideOpen(open bool) {
-	v.sideOpen = open
-}
-
-func (v *View) SetFocused(focused bool) {
-	v.focused = focused
 }
 
 // Resource returns the underlying resource type for this view.

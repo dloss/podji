@@ -12,7 +12,7 @@ const (
 	Push
 	Pop
 	Replace
-	OpenRelated // signal app.go to open the related side panel
+	OpenRelated // signal app.go to open the related picker overlay
 )
 
 type Update struct {
@@ -33,16 +33,4 @@ type View interface {
 // SelectionProvider is implemented by views that have a selected item.
 type SelectionProvider interface {
 	SelectedItem() resources.ResourceItem
-}
-
-// Focusable is implemented by views that can show focused/unfocused visual state.
-type Focusable interface {
-	SetFocused(bool)
-}
-
-// FooterWidthSetter is implemented by views whose footer can be rendered at a
-// different width than the view body (e.g. full terminal width when in a split).
-// Pass 0 to reset to the view's own width.
-type FooterWidthSetter interface {
-	SetFooterWidth(int)
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func newTableDelegate(findMode *bool, findTargets *map[int]bool, focused *bool) tableDelegate {
+func newTableDelegate(findMode *bool, findTargets *map[int]bool) tableDelegate {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(1)
 	delegate.SetSpacing(0)
@@ -21,7 +21,7 @@ func newTableDelegate(findMode *bool, findTargets *map[int]bool, focused *bool) 
 		Background(lipgloss.Color("236")).
 		BorderLeft(true).
 		BorderStyle(lipgloss.Border{Left: "▌"})
-	return tableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets, focused: focused}
+	return tableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets}
 }
 
 // tableDelegate keeps Bubble's default list behavior but scopes filter-match
@@ -30,7 +30,6 @@ type tableDelegate struct {
 	list.DefaultDelegate
 	findMode    *bool
 	findTargets *map[int]bool
-	focused     *bool
 }
 
 func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
@@ -47,9 +46,6 @@ func (d tableDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 		titleStyle = d.Styles.DimmedTitle
 	case isSelected && m.FilterState() != list.Filtering:
 		titleStyle = d.Styles.SelectedTitle
-		if d.focused != nil && !*d.focused {
-			titleStyle = titleStyle.BorderForeground(lipgloss.Color("241"))
-		}
 	}
 
 	var matches []int

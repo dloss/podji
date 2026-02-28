@@ -5,54 +5,9 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
-
-func TestRelatedFindModeJumpsToMatchingCategory(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	workloads := resources.NewWorkloads()
-	source := workloads.Items()[0]
-	view := New(source, workloads, registry)
-	view.SetSize(120, 40)
-
-	view.Update(keyRunes('f'))
-	if !view.findMode {
-		t.Fatal("expected findMode to be true after pressing f")
-	}
-	if !view.SuppressGlobalKeys() {
-		t.Fatal("expected SuppressGlobalKeys to be true in find mode")
-	}
-
-	view.Update(keyRunes('p'))
-	if view.findMode {
-		t.Fatal("expected findMode to be false after entering a character")
-	}
-
-	selected, ok := view.list.SelectedItem().(relatedItem)
-	if !ok {
-		t.Fatal("expected a related item selection")
-	}
-	name := strings.ToLower(strings.TrimSpace(selected.entry.name))
-	if len(name) == 0 || name[0] != 'p' {
-		t.Fatalf("expected category starting with 'p', got %q", selected.entry.name)
-	}
-}
-
-func TestRelatedFindModeFooterIndicator(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	workloads := resources.NewWorkloads()
-	source := workloads.Items()[0]
-	view := New(source, workloads, registry)
-	view.SetSize(120, 40)
-
-	view.Update(keyRunes('f'))
-	footer := ansi.Strip(view.Footer())
-	if !strings.Contains(footer, "f") || !strings.Contains(footer, "…") {
-		t.Fatalf("expected find mode indicator in footer, got: %s", footer)
-	}
-}
 
 func TestRelationListFindModeJumpsToMatchingItem(t *testing.T) {
 	registry := resources.DefaultRegistry()
@@ -82,111 +37,6 @@ func TestRelationListFindModeJumpsToMatchingItem(t *testing.T) {
 	}
 }
 
-func TestRelatedFooterShowsPanelIndicatorOnlyWhenFocused(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	workloads := resources.NewWorkloads()
-	source := workloads.Items()[0]
-	view := New(source, workloads, registry)
-	view.SetSize(120, 40)
-
-	focusedFooter := ansi.Strip(view.Footer())
-	if !strings.Contains(focusedFooter, "Panel: Related") {
-		t.Fatalf("expected focused footer to show panel indicator, got: %s", focusedFooter)
-	}
-
-	view.SetFocused(false)
-	unfocusedFooter := ansi.Strip(view.Footer())
-	if strings.Contains(unfocusedFooter, "Panel: Related") {
-		t.Fatalf("expected unfocused footer to hide panel indicator, got: %s", unfocusedFooter)
-	}
-}
-
-func TestRelationListFooterShowsPanelIndicatorOnlyWhenFocused(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	related := newRelationList(resources.NewRelatedConfig("api"), registry)
-	related.SetSize(120, 40)
-
-	focusedFooter := ansi.Strip(related.Footer())
-	if !strings.Contains(focusedFooter, "Panel: Related") {
-		t.Fatalf("expected focused footer to show panel indicator, got: %s", focusedFooter)
-	}
-
-	related.SetFocused(false)
-	unfocusedFooter := ansi.Strip(related.Footer())
-	if strings.Contains(unfocusedFooter, "Panel: Related") {
-		t.Fatalf("expected unfocused footer to hide panel indicator, got: %s", unfocusedFooter)
-	}
-}
-
-func TestRelatedSelectionMarkerHiddenWhenUnfocused(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	workloads := resources.NewWorkloads()
-	source := workloads.Items()[0]
-	view := New(source, workloads, registry)
-	view.SetSize(120, 40)
-
-	focusedView := ansi.Strip(view.View())
-	if !strings.Contains(focusedView, "▌") {
-		t.Fatalf("expected focused related view to show selection marker, got: %s", focusedView)
-	}
-
-	view.SetFocused(false)
-	unfocusedView := ansi.Strip(view.View())
-	if strings.Contains(unfocusedView, "▌") {
-		t.Fatalf("expected unfocused related view to hide selection marker, got: %s", unfocusedView)
-	}
-}
-
-func TestRelationListSelectionMarkerHiddenWhenUnfocused(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	related := newRelationList(resources.NewRelatedConfig("api"), registry)
-	related.SetSize(120, 40)
-
-	focusedView := ansi.Strip(related.View())
-	if !strings.Contains(focusedView, "▌") {
-		t.Fatalf("expected focused relation list to show selection marker, got: %s", focusedView)
-	}
-
-	related.SetFocused(false)
-	unfocusedView := ansi.Strip(related.View())
-	if strings.Contains(unfocusedView, "▌") {
-		t.Fatalf("expected unfocused relation list to hide selection marker, got: %s", unfocusedView)
-	}
-}
-
-func TestPodRelatedEventsOpenEventsResourceList(t *testing.T) {
-	registry := resources.DefaultRegistry()
-	pods := resources.NewPods()
-	source := pods.Items()[0]
-	view := New(source, pods, registry)
-	view.SetSize(120, 40)
-
-	update := view.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
-	if update.Action != viewstate.Push {
-		t.Fatalf("expected push action, got %v", update.Action)
-	}
-	if update.Next == nil {
-		t.Fatal("expected next view to be set")
-	}
-	if got := update.Next.Breadcrumb(); got != "events" {
-		t.Fatalf("expected events breadcrumb, got %q", got)
-	}
-
-	eventsList, ok := update.Next.(*relationList)
-	if !ok {
-		t.Fatalf("expected relationList, got %T", update.Next)
-	}
-	items := eventsList.resource.Items()
-	if len(items) != 3 {
-		t.Fatalf("expected 3 scoped events, got %d", len(items))
-	}
-	for _, item := range items {
-		if !strings.HasPrefix(item.Name, source.Name+".") {
-			t.Fatalf("expected scoped event name prefix %q, got %q", source.Name+".", item.Name)
-		}
-	}
-}
-
 func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	related := newRelationList(resources.NewScopedEvents("api", 3), registry)
@@ -203,30 +53,6 @@ func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
 	related.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'s'}})
 	if got := sortable.SortMode(); got != "status" {
 		t.Fatalf("expected sort mode status after one toggle, got %q", got)
-	}
-}
-
-func TestEmptyViewShowsConsistentBodyAndFooter(t *testing.T) {
-	view := NewEmpty()
-	view.SetSize(120, 40)
-
-	body := ansi.Strip(view.View())
-	if !strings.Contains(body, "Related to: none") {
-		t.Fatalf("expected empty view to include Related to: none title, got: %s", body)
-	}
-	if !strings.Contains(body, "No selection in main panel.") {
-		t.Fatalf("expected empty view guidance, got: %s", body)
-	}
-
-	footer := ansi.Strip(view.Footer())
-	if !strings.Contains(footer, "Panel: Related") {
-		t.Fatalf("expected panel indicator in empty view footer, got: %s", footer)
-	}
-	if !strings.Contains(footer, "tab main") {
-		t.Fatalf("expected tab main action in empty view footer, got: %s", footer)
-	}
-	if !strings.Contains(footer, "esc close") {
-		t.Fatalf("expected esc close action in empty view footer, got: %s", footer)
 	}
 }
 
@@ -266,6 +92,114 @@ func TestRelationColumnWidthsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
 		t.Fatalf("expected width %d, got %v", len("configmap"), widths)
 	}
 }
+
+func TestPickerForSelectionReturnsEntriesForWorkloads(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	// Build a minimal parent that implements selectionProvider + resourceProvider.
+	parent := &fakeParent{
+		item:     workloads.Items()[0],
+		resource: workloads,
+	}
+	picker := NewPickerForSelection(parent)
+	if len(picker.entries) == 0 {
+		t.Fatal("expected at least one related entry for workloads")
+	}
+}
+
+func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
+	picker := NewPickerForSelection(struct{}{})
+	if len(picker.entries) != 0 {
+		t.Fatalf("expected empty picker for non-provider, got %d entries", len(picker.entries))
+	}
+}
+
+func TestPickerEscEmitsPop(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent)
+	picker.SetSize(120, 40)
+
+	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
+	if update.Action != viewstate.Pop {
+		t.Fatalf("expected Pop action on Esc, got %v", update.Action)
+	}
+}
+
+func TestPickerEnterEmitsSelectedMsg(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent)
+	picker.SetSize(120, 40)
+
+	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	if update.Action != viewstate.Pop {
+		t.Fatalf("expected Pop action on Enter, got %v", update.Action)
+	}
+	if update.Cmd == nil {
+		t.Fatal("expected a Cmd on Enter, got nil")
+	}
+	msg := update.Cmd()
+	if _, ok := msg.(SelectedMsg); !ok {
+		t.Fatalf("expected SelectedMsg, got %T", msg)
+	}
+}
+
+func TestPickerSelectedMsgOpenReturnsView(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent)
+	picker.SetSize(120, 40)
+
+	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	msg := update.Cmd().(SelectedMsg)
+	next := msg.Open()
+	if next == nil {
+		t.Fatal("expected Open() to return a non-nil view")
+	}
+}
+
+func TestPickerNavigationMovescursor(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent)
+	picker.SetSize(120, 40)
+
+	if picker.cursor != 0 {
+		t.Fatalf("expected initial cursor at 0, got %d", picker.cursor)
+	}
+	picker.Update(keyRunes('j'))
+	if picker.cursor != 1 {
+		t.Fatalf("expected cursor at 1 after j, got %d", picker.cursor)
+	}
+	picker.Update(keyRunes('k'))
+	if picker.cursor != 0 {
+		t.Fatalf("expected cursor back at 0 after k, got %d", picker.cursor)
+	}
+}
+
+func TestPickerViewRendersEntries(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent)
+	picker.SetSize(120, 40)
+
+	view := picker.View()
+	if !strings.Contains(view, "events") {
+		t.Fatalf("expected picker view to contain 'events', got: %s", view)
+	}
+	if !strings.Contains(view, "pods") {
+		t.Fatalf("expected picker view to contain 'pods', got: %s", view)
+	}
+}
+
+// fakeParent implements selectionProvider and resourceProvider for tests.
+type fakeParent struct {
+	item     resources.ResourceItem
+	resource resources.ResourceType
+}
+
+func (f *fakeParent) SelectedItem() resources.ResourceItem { return f.item }
+func (f *fakeParent) Resource() resources.ResourceType     { return f.resource }
 
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
