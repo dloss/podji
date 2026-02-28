@@ -80,7 +80,7 @@ func TestWorkloadsScenarioCycleAndBanner(t *testing.T) {
 }
 
 func TestCronJobPodsNameAndEmptyState(t *testing.T) {
-	pods := NewWorkloadPods(ResourceItem{Name: "sync-reports", Kind: "CJ"})
+	pods := NewWorkloadPods(ResourceItem{Name: "sync-reports", Kind: "CJ"}, nil)
 
 	if got := pods.Name(); got != "pods (sync-reports)" {
 		t.Fatalf("expected concise pods name, got %q", got)

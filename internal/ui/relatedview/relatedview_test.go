@@ -100,14 +100,14 @@ func TestPickerForSelectionReturnsEntriesForWorkloads(t *testing.T) {
 		item:     workloads.Items()[0],
 		resource: workloads,
 	}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	if len(picker.entries) == 0 {
 		t.Fatal("expected at least one related entry for workloads")
 	}
 }
 
 func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
-	picker := NewPickerForSelection(struct{}{})
+	picker := NewPickerForSelection(struct{}{}, nil)
 	if len(picker.entries) != 0 {
 		t.Fatalf("expected empty picker for non-provider, got %d entries", len(picker.entries))
 	}
@@ -116,7 +116,7 @@ func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
 func TestPickerEscEmitsPop(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
@@ -128,7 +128,7 @@ func TestPickerEscEmitsPop(t *testing.T) {
 func TestPickerEnterEmitsSelectedMsg(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
@@ -147,7 +147,7 @@ func TestPickerEnterEmitsSelectedMsg(t *testing.T) {
 func TestPickerSelectedMsgOpenReturnsView(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
@@ -161,7 +161,7 @@ func TestPickerSelectedMsgOpenReturnsView(t *testing.T) {
 func TestPickerNavigationMovescursor(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	picker.SetSize(120, 40)
 
 	if picker.cursor != 0 {
@@ -180,7 +180,7 @@ func TestPickerNavigationMovescursor(t *testing.T) {
 func TestPickerViewRendersEntries(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent)
+	picker := NewPickerForSelection(parent, nil)
 	picker.SetSize(120, 40)
 
 	view := picker.View()

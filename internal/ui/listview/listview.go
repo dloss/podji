@@ -1069,7 +1069,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	resourceName := strings.ToLower(v.resource.Name())
 
 	if resourceName == "workloads" {
-		pods := resources.NewWorkloadPods(selected)
+		pods := resources.NewWorkloadPods(selected, v.registry)
 		items := pods.Items()
 		if len(items) == 0 {
 			return viewstate.OpenRelated, nil
@@ -1096,7 +1096,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	if resourceName == "deployments" {
-		pods := resources.NewWorkloadPods(selected)
+		pods := resources.NewWorkloadPods(selected, v.registry)
 		if len(pods.Items()) == 0 {
 			return viewstate.OpenRelated, nil
 		}
@@ -1104,7 +1104,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	if strings.HasPrefix(resourceName, "services") {
-		return viewstate.Push, New(resources.NewBackends(selected.Name), v.registry)
+		return viewstate.Push, New(resources.NewBackends(selected, v.registry), v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "ingresses") {
@@ -1120,7 +1120,7 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	if strings.HasPrefix(resourceName, "backends") {
-		podContext := resources.NewWorkloadPods(resources.ResourceItem{Name: "backend", Kind: "DEP"})
+		podContext := resources.NewWorkloadPods(resources.ResourceItem{Name: "backend", Kind: "DEP"}, nil)
 		dv := detailview.New(selected, podContext, v.registry)
 		dv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
 			return New(resources.NewContainerResource(item, res), v.registry)

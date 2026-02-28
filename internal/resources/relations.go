@@ -13,6 +13,7 @@ type relatedResource struct {
 	logPrefix   string
 	statusLine  string
 	description string
+	exact       bool // when true, items are computed matches — skip expandMockItems
 }
 
 func (r *relatedResource) Name() string { return r.name }
@@ -20,7 +21,9 @@ func (r *relatedResource) Key() rune    { return r.key }
 func (r *relatedResource) Items() []ResourceItem {
 	items := make([]ResourceItem, len(r.items))
 	copy(items, r.items)
-	items = expandMockItems(items, 18)
+	if !r.exact {
+		items = expandMockItems(items, 18)
+	}
 	defaultSort(items)
 	return items
 }
@@ -184,10 +187,11 @@ func (r *relatedResource) EmptyMessage(filtered bool, filter string) string {
 
 type WorkloadPods struct {
 	workload ResourceItem
+	registry *Registry
 }
 
-func NewWorkloadPods(workload ResourceItem) *WorkloadPods {
-	return &WorkloadPods{workload: workload}
+func NewWorkloadPods(workload ResourceItem, registry *Registry) *WorkloadPods {
+	return &WorkloadPods{workload: workload, registry: registry}
 }
 
 func (w *WorkloadPods) Name() string {
@@ -223,9 +227,23 @@ func (w *WorkloadPods) Items() []ResourceItem {
 			{Name: w.workload.Name + "-node-c", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "4m"},
 		}
 	default:
-		items = []ResourceItem{
-			{Name: w.workload.Name + "-7d9c7c9d4f-qwz8p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
-			{Name: w.workload.Name + "-7d9c7c9d4f-r52lk", Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
+		// DEP/STS: use label-selector matching when possible.
+		if w.registry != nil && len(w.workload.Selector) > 0 {
+			pods := w.registry.ByName("pods")
+			if pods != nil {
+				for _, pod := range pods.Items() {
+					if MatchesSelector(w.workload.Selector, pod.Labels) {
+						items = append(items, pod)
+					}
+				}
+			}
+		}
+		if len(items) == 0 {
+			// Fallback: generic stub pods when no registry or no selector match.
+			items = []ResourceItem{
+				{Name: w.workload.Name + "-7d9c7c9d4f-qwz8p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
+				{Name: w.workload.Name + "-7d9c7c9d4f-r52lk", Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
+			}
 		}
 	}
 	return expandMockItems(items, 22)
@@ -341,12 +359,23 @@ func (w *WorkloadPods) NewestJobName() string {
 	}
 }
 
-func NewBackends(service string) ResourceType {
+func NewBackends(svc ResourceItem, registry *Registry) ResourceType {
+	var pods []ResourceItem
+	if registry != nil && len(svc.Selector) > 0 {
+		podResource := registry.ByName("pods")
+		if podResource != nil {
+			for _, pod := range podResource.Items() {
+				if MatchesSelector(svc.Selector, pod.Labels) {
+					pods = append(pods, pod)
+				}
+			}
+		}
+	}
 	return &relatedResource{
-		name:        "backends (" + service + ")",
-		items:       []ResourceItem{{Name: service + "-api-7d9c7", Status: "Healthy", Ready: "1/1", Restarts: "0", Age: "2h"}, {Name: service + "-api-7d9c7-k4mxp", Status: "Warning", Ready: "0/1", Restarts: "1", Age: "20m"}},
-		description: "Pods not Ready or port mismatch",
-		empty:       "No backends observed from EndpointSlices.",
+		name:  "backends (" + svc.Name + ")",
+		items: pods,
+		empty: "No backends observed from EndpointSlices.",
+		exact: true,
 	}
 }
 
@@ -366,11 +395,25 @@ func NewMountedBy(pvc string) ResourceType {
 	}
 }
 
-func NewRelatedServices(workload string) ResourceType {
+func NewRelatedServices(workload ResourceItem, registry *Registry) ResourceType {
+	var svcs []ResourceItem
+	if registry != nil && len(workload.Selector) > 0 {
+		svcResource := registry.ByName("services")
+		if svcResource != nil {
+			for _, svc := range svcResource.Items() {
+				// A service is related if its selector matches the workload's pod labels
+				// (i.e. the service's selector is a subset of the workload selector).
+				if MatchesSelector(svc.Selector, workload.Selector) {
+					svcs = append(svcs, svc)
+				}
+			}
+		}
+	}
 	return &relatedResource{
-		name:  "services (" + workload + ")",
-		items: []ResourceItem{{Name: workload, Status: "Healthy", Ready: "3 backends", Restarts: "-", Age: "20d"}},
+		name:  "services (" + workload.Name + ")",
+		items: svcs,
 		empty: "No related services.",
+		exact: true,
 	}
 }
 
@@ -417,21 +460,24 @@ func NewPodOwner(pod string) ResourceType {
 	}
 }
 
-func NewPodServices(pod string) ResourceType {
-	workload := pod
-	if idx := strings.LastIndex(pod, "-"); idx > 0 {
-		prefix := pod[:idx]
-		if idx2 := strings.LastIndex(prefix, "-"); idx2 > 0 {
-			workload = prefix[:idx2]
-		} else {
-			workload = prefix
+func NewPodServices(pod ResourceItem, registry *Registry) ResourceType {
+	var svcs []ResourceItem
+	if registry != nil && len(pod.Labels) > 0 {
+		svcResource := registry.ByName("services")
+		if svcResource != nil {
+			for _, svc := range svcResource.Items() {
+				if MatchesSelector(svc.Selector, pod.Labels) {
+					svcs = append(svcs, svc)
+				}
+			}
 		}
 	}
 	return &relatedResource{
-		name:        "services (" + pod + ")",
-		items:       []ResourceItem{{Name: workload + "-svc", Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
+		name:        "services (" + pod.Name + ")",
+		items:       svcs,
 		description: "Services selecting this pod via label match",
 		empty:       "No services select this pod.",
+		exact:       true,
 	}
 }
 

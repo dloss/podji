@@ -82,6 +82,18 @@ func (r *Registry) Resources() []ResourceType {
 	return copyList
 }
 
+// ByName returns the ResourceType whose Name() matches name (case-insensitive),
+// or nil if not found.
+func (r *Registry) ByName(name string) ResourceType {
+	name = strings.ToLower(name)
+	for _, res := range r.resources {
+		if strings.ToLower(res.Name()) == name {
+			return res
+		}
+	}
+	return nil
+}
+
 func defaultSort(items []ResourceItem) {
 	nameSort(items, false)
 }

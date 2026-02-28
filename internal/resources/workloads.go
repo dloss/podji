@@ -45,79 +45,79 @@ func workloadItemsForNamespace(ns string) []ResourceItem {
 	switch ns {
 	case "production":
 		return []ResourceItem{
-			{Name: "api", Kind: "DEP", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "14d"},
-			{Name: "frontend", Kind: "DEP", Ready: "4/4", Status: "Healthy", Restarts: "0", Age: "7d"},
-			{Name: "worker", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "12d"},
-			{Name: "db", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "30d"},
-			{Name: "cache", Kind: "STS", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "api", Kind: "DEP", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "14d", Selector: map[string]string{"app": "api"}},
+			{Name: "frontend", Kind: "DEP", Ready: "4/4", Status: "Healthy", Restarts: "0", Age: "7d", Selector: map[string]string{"app": "frontend"}},
+			{Name: "worker", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "12d", Selector: map[string]string{"app": "worker"}},
+			{Name: "db", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "30d", Selector: map[string]string{"app": "db"}},
+			{Name: "cache", Kind: "STS", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "30d", Selector: map[string]string{"app": "cache"}},
 			{Name: "nightly-backup", Kind: "CJ", Ready: "Last: 6h", Status: "Healthy", Restarts: "—", Age: "90d"},
 		}
 	case "staging":
 		return []ResourceItem{
-			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "2", Age: "1d"},
-			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3h"},
-			{Name: "worker", Kind: "DEP", Ready: "0/1", Status: "CrashLoop", Restarts: "47", Age: "6h"},
-			{Name: "db", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "5d"},
+			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "2", Age: "1d", Selector: map[string]string{"app": "api"}},
+			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3h", Selector: map[string]string{"app": "frontend"}},
+			{Name: "worker", Kind: "DEP", Ready: "0/1", Status: "CrashLoop", Restarts: "47", Age: "6h", Selector: map[string]string{"app": "worker"}},
+			{Name: "db", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "5d", Selector: map[string]string{"app": "db"}},
 			{Name: "seed-data", Kind: "JOB", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "2d"},
 		}
 	case "monitoring":
 		return []ResourceItem{
-			{Name: "prometheus", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d"},
-			{Name: "grafana", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "15d"},
-			{Name: "alertmanager", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d"},
+			{Name: "prometheus", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d", Selector: map[string]string{"app": "prometheus"}},
+			{Name: "grafana", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "15d", Selector: map[string]string{"app": "grafana"}},
+			{Name: "alertmanager", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "30d", Selector: map[string]string{"app": "alertmanager"}},
 			{Name: "node-exporter", Kind: "DS", Ready: "6/6", Status: "Healthy", Restarts: "0", Age: "30d"},
-			{Name: "kube-state-metrics", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "20d"},
+			{Name: "kube-state-metrics", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "20d", Selector: map[string]string{"app": "kube-state-metrics"}},
 		}
 	case "kube-system":
 		return []ResourceItem{
-			{Name: "coredns", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d"},
-			{Name: "etcd", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "coredns", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d", Selector: map[string]string{"app": "coredns"}},
+			{Name: "etcd", Kind: "STS", Ready: "3/3", Status: "Healthy", Restarts: "0", Age: "180d", Selector: map[string]string{"app": "etcd"}},
 			{Name: "kube-proxy", Kind: "DS", Ready: "6/6", Status: "Healthy", Restarts: "0", Age: "180d"},
-			{Name: "kube-apiserver", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "kube-apiserver", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "180d", Selector: map[string]string{"app": "kube-apiserver"}},
 		}
 	case "kube-public":
 		return []ResourceItem{
-			{Name: "cluster-info-publisher", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "cluster-info-publisher", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d", Selector: map[string]string{"app": "cluster-info-publisher"}},
 		}
 	case "kube-node-lease":
 		return []ResourceItem{
-			{Name: "lease-heartbeat-sync", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d"},
+			{Name: "lease-heartbeat-sync", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "180d", Selector: map[string]string{"app": "lease-heartbeat-sync"}},
 		}
 	case "ingress-nginx":
 		return []ResourceItem{
-			{Name: "ingress-nginx-controller", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "60d"},
+			{Name: "ingress-nginx-controller", Kind: "DEP", Ready: "2/2", Status: "Healthy", Restarts: "0", Age: "60d", Selector: map[string]string{"app": "ingress-nginx-controller"}},
 			{Name: "ingress-nginx-admission", Kind: "JOB", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "60d"},
 		}
 	case "cert-manager":
 		return []ResourceItem{
-			{Name: "cert-manager", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
-			{Name: "cert-manager-cainjector", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
-			{Name: "cert-manager-webhook", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d"},
+			{Name: "cert-manager", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d", Selector: map[string]string{"app": "cert-manager"}},
+			{Name: "cert-manager-cainjector", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d", Selector: map[string]string{"app": "cert-manager-cainjector"}},
+			{Name: "cert-manager-webhook", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "55d", Selector: map[string]string{"app": "cert-manager-webhook"}},
 		}
 	case "argocd":
 		return []ResourceItem{
-			{Name: "argocd-application-controller", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
-			{Name: "argocd-repo-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "1", Age: "45d"},
-			{Name: "argocd-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
-			{Name: "argocd-dex-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d"},
+			{Name: "argocd-application-controller", Kind: "STS", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d", Selector: map[string]string{"app": "argocd-application-controller"}},
+			{Name: "argocd-repo-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "1", Age: "45d", Selector: map[string]string{"app": "argocd-repo-server"}},
+			{Name: "argocd-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d", Selector: map[string]string{"app": "argocd-server"}},
+			{Name: "argocd-dex-server", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "45d", Selector: map[string]string{"app": "argocd-dex-server"}},
 		}
 	case "dev":
 		return []ResourceItem{
-			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3d"},
-			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "1d"},
+			{Name: "api", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "3d", Selector: map[string]string{"app": "api"}},
+			{Name: "frontend", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "1d", Selector: map[string]string{"app": "frontend"}},
 			{Name: "feature-flags-sync", Kind: "CJ", Ready: "Last: 14m", Status: "Healthy", Restarts: "—", Age: "12d"},
 			{Name: "seed-demo-data", Kind: "JOB", Ready: "0/1", Status: "Failed", Restarts: "1", Age: "6m"},
 		}
 	case "sandbox":
 		return []ResourceItem{
-			{Name: "playground-api", Kind: "DEP", Ready: "0/1", Status: "Pending", Restarts: "0", Age: "5m"},
-			{Name: "playground-ui", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "2h"},
+			{Name: "playground-api", Kind: "DEP", Ready: "0/1", Status: "Pending", Restarts: "0", Age: "5m", Selector: map[string]string{"app": "playground-api"}},
+			{Name: "playground-ui", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "2h", Selector: map[string]string{"app": "playground-ui"}},
 		}
 	default:
 		return []ResourceItem{
-			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d"},
-			{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d"},
-			{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h"},
+			{Name: "api", Kind: "DEP", Ready: "2/3", Status: "Degraded", Restarts: "14", Age: "3d", Selector: map[string]string{"app": "api"}},
+			{Name: "worker", Kind: "DEP", Ready: "1/1", Status: "Healthy", Restarts: "0", Age: "12d", Selector: map[string]string{"app": "worker"}},
+			{Name: "db", Kind: "STS", Ready: "2/3", Status: "Progressing", Restarts: "0", Age: "6h", Selector: map[string]string{"app": "db"}},
 			{Name: "node-exporter", Kind: "DS", Ready: "5/6", Status: "Degraded", Restarts: "0", Age: "30d"},
 			{Name: "seed-users", Kind: "JOB", Ready: "0/1", Status: "Failed", Restarts: "3", Age: "18m"},
 			{Name: "nightly-backup", Kind: "CJ", Ready: "Last: 6h", Status: "Healthy", Restarts: "—", Age: "90d"},
