@@ -4,6 +4,7 @@ import "strings"
 
 type Contexts struct {
 	sortMode string
+	sortDesc bool
 }
 
 func (c *Contexts) TableColumns() []TableColumn {
@@ -66,20 +67,19 @@ func (c *Contexts) Items() []ResourceItem {
 func (c *Contexts) Sort(items []ResourceItem) {
 	switch c.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, c.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, c.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, c.sortDesc)
 	}
 }
 
-func (c *Contexts) ToggleSort() {
-	c.sortMode = cycleSortMode(c.sortMode, []string{"name", "status", "age"})
-}
-
-func (c *Contexts) SortMode() string {
-	return c.sortMode
+func (c *Contexts) SetSort(mode string, desc bool) { c.sortMode = mode; c.sortDesc = desc }
+func (c *Contexts) SortMode() string               { return c.sortMode }
+func (c *Contexts) SortDesc() bool                 { return c.sortDesc }
+func (c *Contexts) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (c *Contexts) Detail(item ResourceItem) DetailData {

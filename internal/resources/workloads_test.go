@@ -21,9 +21,9 @@ func TestWorkloadsDefaultNameSort(t *testing.T) {
 	}
 }
 
-func TestWorkloadsToggleSortByStatus(t *testing.T) {
+func TestWorkloadsSortByStatus(t *testing.T) {
 	w := NewWorkloads()
-	w.ToggleSort() // name -> status
+	w.SetSort("status", false) // problem-first
 	items := w.Items()
 	if len(items) == 0 {
 		t.Fatalf("expected mock workloads")
@@ -34,6 +34,31 @@ func TestWorkloadsToggleSortByStatus(t *testing.T) {
 	}
 	if items[len(items)-1].Status != "Suspended" {
 		t.Fatalf("expected last status Suspended, got %q", items[len(items)-1].Status)
+	}
+}
+
+func TestWorkloadsSortByStatusDesc(t *testing.T) {
+	w := NewWorkloads()
+	w.SetSort("status", true) // reversed: healthy-first
+	items := w.Items()
+	if len(items) == 0 {
+		t.Fatalf("expected mock workloads")
+	}
+
+	if items[0].Status != "Suspended" {
+		t.Fatalf("expected first status Suspended (reversed), got %q", items[0].Status)
+	}
+}
+
+func TestWorkloadsSortByName(t *testing.T) {
+	w := NewWorkloads()
+	w.SetSort("name", true) // Z→A
+	items := w.Items()
+	if len(items) < 2 {
+		t.Fatalf("expected at least 2 workloads")
+	}
+	if items[0].Name < items[1].Name {
+		t.Fatalf("expected descending name sort, got %q before %q", items[0].Name, items[1].Name)
 	}
 }
 

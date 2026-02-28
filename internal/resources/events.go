@@ -7,6 +7,7 @@ import (
 
 type Events struct {
 	sortMode string
+	sortDesc bool
 }
 
 type ScopedEvents struct {
@@ -118,9 +119,11 @@ func (e *ScopedEvents) Items() []ResourceItem {
 	e.base.Sort(items)
 	return items
 }
-func (e *ScopedEvents) Sort(items []ResourceItem) { e.base.Sort(items) }
-func (e *ScopedEvents) ToggleSort()               { e.base.ToggleSort() }
-func (e *ScopedEvents) SortMode() string          { return e.base.SortMode() }
+func (e *ScopedEvents) Sort(items []ResourceItem)          { e.base.Sort(items) }
+func (e *ScopedEvents) SetSort(mode string, desc bool)     { e.base.SetSort(mode, desc) }
+func (e *ScopedEvents) SortMode() string                   { return e.base.SortMode() }
+func (e *ScopedEvents) SortDesc() bool                     { return e.base.SortDesc() }
+func (e *ScopedEvents) SortKeys() []SortKey                { return e.base.SortKeys() }
 func (e *ScopedEvents) Detail(item ResourceItem) DetailData {
 	return e.base.Detail(item)
 }
@@ -140,22 +143,21 @@ func (e *ScopedEvents) YAML(item ResourceItem) string {
 func (e *Events) Sort(items []ResourceItem) {
 	switch e.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, e.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, e.sortDesc)
 	case "kind":
-		kindSort(items)
+		kindSort(items, e.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, e.sortDesc)
 	}
 }
 
-func (e *Events) ToggleSort() {
-	e.sortMode = cycleSortMode(e.sortMode, []string{"name", "status", "kind", "age"})
-}
-
-func (e *Events) SortMode() string {
-	return e.sortMode
+func (e *Events) SetSort(mode string, desc bool) { e.sortMode = mode; e.sortDesc = desc }
+func (e *Events) SortMode() string               { return e.sortMode }
+func (e *Events) SortDesc() bool                 { return e.sortDesc }
+func (e *Events) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "kind", "age"})
 }
 
 func (e *Events) Detail(item ResourceItem) DetailData {

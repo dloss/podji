@@ -48,10 +48,22 @@ type TableColumn struct {
 	Width int
 }
 
-// ToggleSortable lets a resource switch sort mode (for example, problem/name).
-type ToggleSortable interface {
-	ToggleSort()
+// SortKey maps a single keystroke to a sort mode for the sort picker.
+// Lowercase char = primary direction; uppercase = reversed.
+type SortKey struct {
+	Char  rune   // lowercase key (e.g. 'n' for name, 's' for status)
+	Mode  string // internal mode name
+	Label string // footer display label
+}
+
+// Sortable lets a resource expose column-based sort control.
+// s enters sort mode in the list view; the next keypress selects a column:
+// lowercase = primary/natural direction, uppercase = reversed.
+type Sortable interface {
+	SetSort(mode string, desc bool)
 	SortMode() string
+	SortDesc() bool
+	SortKeys() []SortKey
 }
 
 // EmptyStateProvider customizes empty-state text for list pages.

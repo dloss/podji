@@ -7,6 +7,7 @@ import (
 
 type PersistentVolumeClaims struct {
 	sortMode string
+	sortDesc bool
 }
 
 func NewPersistentVolumeClaims() *PersistentVolumeClaims {
@@ -114,20 +115,19 @@ func pvcItemsForNamespace(ns string) []ResourceItem {
 func (p *PersistentVolumeClaims) Sort(items []ResourceItem) {
 	switch p.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, p.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, p.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, p.sortDesc)
 	}
 }
 
-func (p *PersistentVolumeClaims) ToggleSort() {
-	p.sortMode = cycleSortMode(p.sortMode, []string{"name", "status", "age"})
-}
-
-func (p *PersistentVolumeClaims) SortMode() string {
-	return p.sortMode
+func (p *PersistentVolumeClaims) SetSort(mode string, desc bool) { p.sortMode = mode; p.sortDesc = desc }
+func (p *PersistentVolumeClaims) SortMode() string               { return p.sortMode }
+func (p *PersistentVolumeClaims) SortDesc() bool                 { return p.sortDesc }
+func (p *PersistentVolumeClaims) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (p *PersistentVolumeClaims) Detail(item ResourceItem) DetailData {

@@ -4,6 +4,7 @@ import "strings"
 
 type Namespaces struct {
 	sortMode string
+	sortDesc bool
 }
 
 func (n *Namespaces) TableColumns() []TableColumn {
@@ -48,20 +49,19 @@ func (n *Namespaces) Items() []ResourceItem {
 func (n *Namespaces) Sort(items []ResourceItem) {
 	switch n.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, n.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, n.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, n.sortDesc)
 	}
 }
 
-func (n *Namespaces) ToggleSort() {
-	n.sortMode = cycleSortMode(n.sortMode, []string{"name", "status", "age"})
-}
-
-func (n *Namespaces) SortMode() string {
-	return n.sortMode
+func (n *Namespaces) SetSort(mode string, desc bool) { n.sortMode = mode; n.sortDesc = desc }
+func (n *Namespaces) SortMode() string               { return n.sortMode }
+func (n *Namespaces) SortDesc() bool                 { return n.sortDesc }
+func (n *Namespaces) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (n *Namespaces) Detail(item ResourceItem) DetailData {

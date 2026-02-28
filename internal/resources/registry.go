@@ -50,7 +50,14 @@ func (r *Registry) Resources() []ResourceType {
 }
 
 func defaultSort(items []ResourceItem) {
+	nameSort(items, false)
+}
+
+func nameSort(items []ResourceItem, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
+		if desc {
+			return items[i].Name > items[j].Name
+		}
 		return items[i].Name < items[j].Name
 	})
 }
@@ -74,11 +81,15 @@ func statusWeight(status string) int {
 }
 
 // problemSort sorts items by status severity (most problematic first), then by name.
-func problemSort(items []ResourceItem) {
+// Pass desc=true to reverse (healthy-first).
+func problemSort(items []ResourceItem, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
 		wi := statusWeight(items[i].Status)
 		wj := statusWeight(items[j].Status)
 		if wi != wj {
+			if desc {
+				return wi > wj
+			}
 			return wi < wj
 		}
 		return items[i].Name < items[j].Name
@@ -109,11 +120,15 @@ func parseAge(age string) int {
 }
 
 // ageSort sorts items newest first (smallest parsed age), then by name.
-func ageSort(items []ResourceItem) {
+// Pass desc=true to reverse (oldest first).
+func ageSort(items []ResourceItem, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
 		ai := parseAge(items[i].Age)
 		aj := parseAge(items[j].Age)
 		if ai != aj {
+			if desc {
+				return ai > aj
+			}
 			return ai < aj
 		}
 		return items[i].Name < items[j].Name
@@ -121,21 +136,33 @@ func ageSort(items []ResourceItem) {
 }
 
 // kindSort sorts items alphabetically by Kind, then by name.
-func kindSort(items []ResourceItem) {
+// Pass desc=true to reverse.
+func kindSort(items []ResourceItem, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].Kind != items[j].Kind {
+			if desc {
+				return items[i].Kind > items[j].Kind
+			}
 			return items[i].Kind < items[j].Kind
 		}
 		return items[i].Name < items[j].Name
 	})
 }
 
-// cycleSortMode advances to the next mode in the given slice.
-func cycleSortMode(current string, modes []string) string {
-	for idx, m := range modes {
-		if m == current {
-			return modes[(idx+1)%len(modes)]
+// sortKeysFor returns SortKey entries for the given mode names.
+// Supported modes: "name" (n), "status" (s), "kind" (k), "age" (a).
+func sortKeysFor(modes []string) []SortKey {
+	m := map[string]SortKey{
+		"name":   {Char: 'n', Mode: "name", Label: "name"},
+		"status": {Char: 's', Mode: "status", Label: "status"},
+		"kind":   {Char: 'k', Mode: "kind", Label: "kind"},
+		"age":    {Char: 'a', Mode: "age", Label: "age"},
+	}
+	keys := make([]SortKey, 0, len(modes))
+	for _, mode := range modes {
+		if sk, ok := m[mode]; ok {
+			keys = append(keys, sk)
 		}
 	}
-	return modes[0]
+	return keys
 }

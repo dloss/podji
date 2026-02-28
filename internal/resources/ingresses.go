@@ -7,6 +7,7 @@ import (
 
 type Ingresses struct {
 	sortMode string
+	sortDesc bool
 }
 
 func NewIngresses() *Ingresses {
@@ -83,20 +84,19 @@ func ingressItemsForNamespace(ns string) []ResourceItem {
 func (g *Ingresses) Sort(items []ResourceItem) {
 	switch g.sortMode {
 	case "status":
-		problemSort(items)
+		problemSort(items, g.sortDesc)
 	case "age":
-		ageSort(items)
+		ageSort(items, g.sortDesc)
 	default:
-		defaultSort(items)
+		nameSort(items, g.sortDesc)
 	}
 }
 
-func (g *Ingresses) ToggleSort() {
-	g.sortMode = cycleSortMode(g.sortMode, []string{"name", "status", "age"})
-}
-
-func (g *Ingresses) SortMode() string {
-	return g.sortMode
+func (g *Ingresses) SetSort(mode string, desc bool) { g.sortMode = mode; g.sortDesc = desc }
+func (g *Ingresses) SortMode() string               { return g.sortMode }
+func (g *Ingresses) SortDesc() bool                 { return g.sortDesc }
+func (g *Ingresses) SortKeys() []SortKey {
+	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (g *Ingresses) Detail(item ResourceItem) DetailData {

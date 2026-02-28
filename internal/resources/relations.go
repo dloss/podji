@@ -513,7 +513,7 @@ func (n *NodePods) Items() []ResourceItem {
 	}
 }
 
-func (n *NodePods) Sort(items []ResourceItem) { problemSort(items) }
+func (n *NodePods) Sort(items []ResourceItem) { problemSort(items, false) }
 
 func (n *NodePods) Detail(item ResourceItem) DetailData {
 	return DetailData{
