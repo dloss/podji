@@ -37,13 +37,13 @@ Podji is a read-focused navigation and debugging tool.
 
 ## Global Navigation Keys
 
-- Right / Enter: drill down
+- Right / Enter / `l`: drill down (vim cursor-right)
 - Left / Backspace / `h`: back
+- `o`: open logs directly (skip pod list)
 - `r`: open related resource picker
 - `N`: namespace picker
 - `X`: context picker
 - `/`: filter current list
-- `l`: open logs directly (skip pod list)
 
 ## Primary Drill-Down Model
 

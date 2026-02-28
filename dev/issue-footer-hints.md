@@ -19,10 +19,16 @@ if resourceName == "workloads" {
 
 The hint text should match the target resource name (pods, logs, containers, backends, etc.) and can be computed from the same logic used in `forwardView`.
 
-## `l logs` hint absent from workloads footer
+## `o logs` hint absent from workloads footer
 
-**Spec says:** `l logs` should appear in the workloads footer (and pods footer where applicable).
+`o` opens logs directly from a workload (skipping the pods list). The footer shows no hint for this.
 
-Currently `l` and `enter` are treated identically in workloads — both navigate to the pods list. The `o` key is what actually opens logs directly. The footer shows neither hint.
+### Fix
 
-This is entangled with the `l` vs `o` key confusion (see `issue-navigation-keys.md`). Once the key mapping is resolved, add the appropriate hint.
+Add `o logs` to the workloads footer actions:
+
+```go
+if isWorkloads {
+    actions = append(actions, style.B("o", "logs"))
+}
+```
