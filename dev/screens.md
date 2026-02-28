@@ -51,20 +51,7 @@ nightly-backup-289173-7m2kq             1/1     Running     0          2m
 → logs   l logs   r related   / filter   ← back
 ```
 
-If the CronJob has **no Jobs yet** — Phase 3 auto-opens the related panel:
-
-```
-Pods (CronJob: sync-reports)             newest job: —
-ns: payments     (0)     filter: —        ┌─ Related ──────────────────────────┐
-────────────────────────────────────────  │  Jobs                           0  │
-No jobs have run for CronJob              │> Events                         2  │
-"sync-reports" yet.                       │  Config                         1  │
-                                          │  Network                        1  │
-                                          │                                    │
-                                          │  Tab main   Esc close              │
-──────────────────────────────────────    └────────────────────────────────────┘
-/ filter   ← back
-```
+If the CronJob has **no Jobs yet**, the related picker opens automatically showing Events/Config/Network categories.
 
 ---
 

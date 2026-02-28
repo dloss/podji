@@ -39,8 +39,7 @@ Podji is a read-focused navigation and debugging tool.
 
 - Right / Enter: drill down
 - Left / Backspace / `h`: back
-- `Tab`: focus main ↔ related panel (when panel is open)
-- `r`: toggle related panel
+- `r`: open related resource picker
 - `N`: namespace picker
 - `X`: context picker
 - `/`: filter current list
@@ -187,13 +186,13 @@ Example:
 
 `→ pods   l logs   r related   / filter   s sort`
 
-Show `s sort` only if sorting is implemented. Show `Tab related` instead of `r related` when the related panel is already open.
+Show `s sort` only if sorting is implemented.
 
 ## Related Panel (`r`)
 
-Related exposes curated graph relationships without becoming a full graph browser. It opens as a **persistent side panel** (≈40% width) alongside the main view. `Tab` moves focus between panels; `Esc` closes the panel.
+Related exposes curated graph relationships without becoming a full graph browser. `r` opens a picker overlay listing available related categories (with counts). Selecting a category pushes its resource list onto the main navigation stack. `Esc` dismisses without side effects.
 
-When drilling down into a resource with no results (e.g. a CronJob with no jobs), the related panel opens automatically with focus on the side panel.
+When drilling down into a resource with no results (e.g. a CronJob with no jobs), the related picker opens automatically.
 
 Order:
 
@@ -208,7 +207,7 @@ Order:
 Rules:
 
 - show counts when possible
-- pressing Enter on a side-panel item pushes to the **main** navigation stack; focus returns to main
+- selecting an entry pushes to the main navigation stack
 - drill-down remains consistent from there
 
 ## Relationship Pages

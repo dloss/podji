@@ -1,39 +1,8 @@
 # Issue: Stub Data Quality
 
-Four separate data inconsistencies in the stub layer make the TUI misleading during development and demos.
+Three data inconsistencies in the stub layer make the TUI misleading during development and demos.
 
-## 1. Hardcoded `"default"` in empty/error state messages
-
-**File:** `internal/resources/workloads.go:150,169,171`
-
-```go
-// line 150
-return "Access denied: cannot list workloads in namespace `default` ..."
-
-// line 169
-return "No workloads found in namespace `default`. Switch namespace or clear filter."
-
-// line 171
-return "No workloads found in namespace `default`."
-```
-
-All three messages hardcode the string `"default"` regardless of the active namespace. After switching to `staging`, the forbidden/empty messages still say `default`.
-
-### Fix
-
-Replace the literal with `ActiveNamespace`:
-
-```go
-return "Access denied: cannot list workloads in namespace `" + ActiveNamespace + "` ..."
-return "No workloads found in namespace `" + ActiveNamespace + "`. Switch namespace or clear filter."
-return "No workloads found in namespace `" + ActiveNamespace + "`."
-```
-
-The same guard applies to the `Banner()` method (line 150), which also hardcodes `default` in the access-denied message.
-
----
-
-## 2. Log stub doesn't vary by pod status
+## 1. Log stub doesn't vary by pod status
 
 **File:** `internal/resources/relations.go` — `WorkloadPods.Logs()`
 
@@ -83,7 +52,7 @@ func (w *WorkloadPods) Logs(item ResourceItem) []string {
 
 ---
 
-## 3. Event stub too thin for failing pods
+## 2. Event stub too thin for failing pods
 
 **File:** `internal/resources/relations.go` — `WorkloadPods.Events()`
 
@@ -127,7 +96,7 @@ func (w *WorkloadPods) Events(item ResourceItem) []string {
 
 ---
 
-## 4. YAML shows `replicas: 2` but list shows `2/3`
+## 3. YAML shows `replicas: 2` but list shows `2/3`
 
 **File:** `internal/resources/workloads.go:242`
 
