@@ -173,7 +173,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.crumbs = []string{"resources"}
 			return m, nil
 		case "r":
-			m.relatedPicker = relatedview.NewPickerForSelection(m.top())
+			m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry)
 			m.relatedPicker.SetSize(m.width, m.height-1)
 			return m, nil
 		case "?":
@@ -227,7 +227,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
 	case viewstate.OpenRelated:
-		m.relatedPicker = relatedview.NewPickerForSelection(m.top())
+		m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry)
 		m.relatedPicker.SetSize(m.width, m.height-1)
 	default:
 		m.stack[len(m.stack)-1] = update.Next

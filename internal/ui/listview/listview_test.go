@@ -135,7 +135,7 @@ func TestItemFilterValueUsesNameOnly(t *testing.T) {
 
 func TestEmptyStateMessageAlignedWithTable(t *testing.T) {
 	registry := resources.DefaultRegistry()
-	view := New(resources.NewWorkloadPods(resources.ResourceItem{Name: "sync-reports", Kind: "CJ"}), registry)
+	view := New(resources.NewWorkloadPods(resources.ResourceItem{Name: "sync-reports", Kind: "CJ"}, nil), registry)
 
 	rendered := view.View()
 	if strings.Contains(rendered, "No items.") {

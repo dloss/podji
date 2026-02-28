@@ -8,6 +8,23 @@ type ResourceItem struct {
 	Ready     string
 	Restarts  string
 	Age       string
+	Labels    map[string]string // pod/resource labels (e.g. {"app": "api", "env": "prod"})
+	Selector  map[string]string // label selector for resources that select other resources
+}
+
+// MatchesSelector reports whether labels satisfies selector: every key/value
+// pair in selector must appear in labels with the same value.
+// An empty or nil selector never matches (explicit selection required).
+func MatchesSelector(selector, labels map[string]string) bool {
+	if len(selector) == 0 {
+		return false
+	}
+	for k, v := range selector {
+		if labels[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 type DetailData struct {

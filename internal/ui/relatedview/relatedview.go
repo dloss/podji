@@ -45,7 +45,7 @@ type Picker struct {
 // NewPickerForSelection returns a Picker populated with related categories for
 // the currently selected item in parent.  Returns an empty Picker when no
 // selection is available.
-func NewPickerForSelection(parent interface{}) *Picker {
+func NewPickerForSelection(parent interface{}, registry *resources.Registry) *Picker {
 	type selectionProvider interface {
 		SelectedItem() resources.ResourceItem
 	}
@@ -62,7 +62,7 @@ func NewPickerForSelection(parent interface{}) *Picker {
 				resource = &fallbackResource{name: "workloads"}
 			}
 			return &Picker{
-				entries: relatedEntries(item, resource, nil),
+				entries: relatedEntries(item, resource, registry),
 				source:  item.Name,
 			}
 		}
@@ -711,7 +711,7 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 			name:        "services",
 			count:       1,
 			description: "Services selecting this pod",
-			open:        openResource(resources.NewPodServices(source.Name)),
+			open:        openResource(resources.NewPodServices(source, registry)),
 		})
 		entries = append(entries, entry{
 			name:        "config",
@@ -738,9 +738,9 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 		})
 		entries = append(entries, entry{
 			name:        "pods",
-			count:       len(resources.NewWorkloadPods(source).Items()),
+			count:       len(resources.NewWorkloadPods(source, registry).Items()),
 			description: "Owned pods",
-			open:        openResource(resources.NewWorkloadPods(source)),
+			open:        openResource(resources.NewWorkloadPods(source, registry)),
 		})
 		if source.Kind == "CJ" {
 			entries = append(entries, entry{
@@ -754,7 +754,7 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 			name:        "services",
 			count:       1,
 			description: "Network endpoints",
-			open:        openResource(resources.NewRelatedServices(source.Name)),
+			open:        openResource(resources.NewRelatedServices(source, registry)),
 		})
 		entries = append(entries, entry{
 			name:        "config",
@@ -773,7 +773,7 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 
 	if name == "services" {
 		return []entry{
-			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source.Name))},
+			{name: "backends", count: 2, description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source, registry))},
 			{name: "ingresses", count: 1, description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
 			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
 		}
