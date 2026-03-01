@@ -387,20 +387,50 @@ func TestViewHeaderShowsSortArrowAndMovesWithSortMode(t *testing.T) {
 		t.Fatalf("expected age sort arrow, got: %s", rendered)
 	}
 
-	// s then 'n' returns to name sort — back to default, no arrow shown.
+	// s then 'w' returns to name sort (first char of "WORKLOAD") — back to default, no arrow shown.
 	view.Update(keyRunes('s'))
-	view.Update(keyRunes('n'))
+	view.Update(keyRunes('w'))
 	rendered = ansi.Strip(view.View())
 	if strings.Contains(rendered, "▲") || strings.Contains(rendered, "▼") {
 		t.Fatalf("expected no sort arrow after returning to default name sort, got: %s", rendered)
 	}
 
-	// s then 'N' sorts name descending → ▼WORKLOAD.
+	// s then 'W' sorts name descending → ▼WORKLOAD.
 	view.Update(keyRunes('s'))
-	view.Update(keyRunes('N'))
+	view.Update(keyRunes('W'))
 	rendered = ansi.Strip(view.View())
 	if !strings.Contains(rendered, "▼WORKLOAD") {
 		t.Fatalf("expected descending name sort arrow, got: %s", rendered)
+	}
+}
+
+func TestSortByColumnNumber(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	// '2' sorts by column 2 (KIND for workloads) ascending → ▲KIND.
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('2'))
+	rendered := ansi.Strip(view.View())
+	if !strings.Contains(rendered, "▲KIND") {
+		t.Fatalf("expected kind sort arrow from numeric key, got: %s", rendered)
+	}
+
+	// '@' (shift+2) sorts by column 2 descending → ▼KIND.
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('@'))
+	rendered = ansi.Strip(view.View())
+	if !strings.Contains(rendered, "▼KIND") {
+		t.Fatalf("expected descending kind sort arrow from shift-numeric key, got: %s", rendered)
+	}
+
+	// '1' sorts by column 1 (WORKLOAD/name) ascending — default sort, no arrow.
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('1'))
+	rendered = ansi.Strip(view.View())
+	if strings.Contains(rendered, "▲") || strings.Contains(rendered, "▼") {
+		t.Fatalf("expected no sort arrow for default sort via numeric key, got: %s", rendered)
 	}
 }
 
@@ -409,9 +439,9 @@ func TestEventsStatusSortArrowUsesTypeColumn(t *testing.T) {
 	view := New(resources.NewEvents(), registry)
 	view.SetSize(120, 40)
 
-	// s enters sort pick mode; 's' selects status sort (▲TYPE for events).
+	// s enters sort pick mode; 't' selects status sort (first char of "TYPE") → ▲TYPE for events.
 	view.Update(keyRunes('s'))
-	view.Update(keyRunes('s'))
+	view.Update(keyRunes('t'))
 	rendered := ansi.Strip(view.View())
 	if !strings.Contains(rendered, "▲TYPE") {
 		t.Fatalf("expected status sort arrow on TYPE for events, got: %s", rendered)

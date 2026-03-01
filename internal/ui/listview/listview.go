@@ -202,13 +202,24 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			if key.String() != "esc" {
 				if sortable, ok := v.resource.(resources.Sortable); ok {
 					if r := singleRune(key); r != 0 {
-						lc := unicode.ToLower(r)
-						desc := unicode.IsUpper(r)
-						for _, sk := range sortable.SortKeys() {
-							if sk.Char == lc {
-								sortable.SetSort(sk.Mode, desc)
+						if colIdx, desc, ok := numericSortKey(r); ok {
+							mode := sortModeForColumn(v.resource, v.columns, colIdx)
+							if mode != "" {
+								sortable.SetSort(mode, desc)
 								v.refreshItems()
-								break
+							}
+						} else {
+							resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+							skeys := sortable.SortKeys()
+							chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
+							lc := unicode.ToLower(r)
+							desc := unicode.IsUpper(r)
+							for i, ch := range chars {
+								if ch == lc {
+									sortable.SetSort(skeys[i].Mode, desc)
+									v.refreshItems()
+									break
+								}
 							}
 						}
 					}
@@ -631,12 +642,22 @@ func (v *View) Footer() string {
 		sortLabel := style.FooterKey.Render("sort")
 		var opts []style.Binding
 		if sortable, ok := v.resource.(resources.Sortable); ok {
-			for _, sk := range sortable.SortKeys() {
-				lower := string(sk.Char)
-				upper := string(unicode.ToUpper(sk.Char))
-				opts = append(opts, style.B(lower+"/"+upper, sk.Label))
+			resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+			skeys := sortable.SortKeys()
+			chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
+			for i, sk := range skeys {
+				ch := chars[i]
+				lower := string(ch)
+				upper := string(unicode.ToUpper(ch))
+				colIdx := activeSortColumn(v.resource, v.columns, sk.Mode)
+				label := strings.ToLower(displayedColHeader(v.columns, colIdx, resourceLabel))
+				if label == "" {
+					label = sk.Label
+				}
+				opts = append(opts, style.B(lower+"/"+upper, label))
 			}
 		}
+		opts = append(opts, style.B("1-9/⇧", "col"))
 		opts = append(opts, style.B("esc", "cancel"))
 		line2 = sortLabel + "  " + style.FormatBindings(opts)
 		if v.list.Width() > 0 {
@@ -1073,6 +1094,78 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 	}
 
 	return widths
+}
+
+// displayedColHeader returns the column header as shown in the table header row.
+// Column 0 with Name "NAME" shows the resource's singular label instead.
+func displayedColHeader(columns []resources.TableColumn, idx int, resourceLabel string) string {
+	if idx < 0 || idx >= len(columns) {
+		return ""
+	}
+	col := columns[idx]
+	if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+		return strings.ToUpper(resourceLabel)
+	}
+	return col.Name
+}
+
+// sortDisplayedChars computes sort key characters for all keys, derived from
+// displayed column headers. When two keys would derive the same character
+// (e.g. two modes mapped to the same column), later ones fall back to their
+// static SortKey.Char. Returns a parallel slice of runes.
+func sortDisplayedChars(resource resources.ResourceType, columns []resources.TableColumn, keys []resources.SortKey, resourceLabel string) []rune {
+	result := make([]rune, len(keys))
+	used := make(map[rune]bool)
+	for i, sk := range keys {
+		colIdx := activeSortColumn(resource, columns, sk.Mode)
+		hdr := displayedColHeader(columns, colIdx, resourceLabel)
+		var ch rune
+		if hdr != "" {
+			if runes := []rune(strings.ToLower(hdr)); len(runes) > 0 {
+				candidate := runes[0]
+				if !used[candidate] {
+					ch = candidate
+				}
+			}
+		}
+		if ch == 0 {
+			ch = sk.Char
+		}
+		used[ch] = true
+		result[i] = ch
+	}
+	return result
+}
+
+// sortModeForColumn returns the sort mode for the given 0-based column index,
+// or "" if no sort key maps to that column.
+func sortModeForColumn(resource resources.ResourceType, columns []resources.TableColumn, colIdx int) string {
+	sortable, ok := resource.(resources.Sortable)
+	if !ok {
+		return ""
+	}
+	for _, sk := range sortable.SortKeys() {
+		if activeSortColumn(resource, columns, sk.Mode) == colIdx {
+			return sk.Mode
+		}
+	}
+	return ""
+}
+
+// numericSortKey interprets digit and US-keyboard shift-digit runes as
+// (0-based column index, descending, ok). Digits 1-9 map to columns 0-8
+// ascending; !@#$%^&*( (shift+1-9) map to columns 0-8 descending.
+func numericSortKey(r rune) (int, bool, bool) {
+	if r >= '1' && r <= '9' {
+		return int(r - '1'), false, true
+	}
+	const shiftDigits = "!@#$%^&*("
+	for i, s := range shiftDigits {
+		if r == s {
+			return i, true, true
+		}
+	}
+	return 0, false, false
 }
 
 func sortMode(resource resources.ResourceType) string {
