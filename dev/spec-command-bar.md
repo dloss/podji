@@ -16,7 +16,7 @@ The command bar addresses all three. It is a navigation tool, not an execution t
 
 ## Activation
 
-`:` opens the command bar from any list view. The bar appears at the bottom of the screen, replacing the footer. The current list remains visible behind it. `Esc` dismisses without side effects.
+`:` opens the command bar from any list view. In detail, logs, YAML, describe, and events views the key is ignored. The bar appears at the bottom of the screen, replacing the footer. The current list remains visible behind it. `Esc` dismisses without side effects.
 
 The bar is managed by `app.go` as an overlay, consistent with the `overlaypicker` pattern from Phase 1.
 
@@ -43,16 +43,21 @@ The bar is managed by `app.go` as an overlay, consistent with the `overlaypicker
 | `ev` | `events` | `E` |
 | `ns` | `namespaces` | — |
 
-`<subview>` tokens: `logs`, `yaml`, `events`, `describe`, `detail`
+`<subview>` tokens: `logs`, `yaml`, `events`, `describe`
+
+`events` serves double duty as a kind full-name and a subview token. Interpretation is position-dependent: the first token after `:` is always a kind; `events` in the third position is always a subview token.
 
 **Matching rules:**
 
-- No name fragment → jump to that resource's list (same as pressing the hotkey)
-- One match → jump directly to that resource; apply subview if given
-- Multiple matches → push a filtered list showing the matches
-- No matches → show "no match" in the bar, leave current view unchanged
+- No name fragment → jump to that resource's list (same as pressing the hotkey). If the current view is already that list, the bar closes and nothing changes.
+- One match → jump directly to that resource's detail view; apply subview if given.
+- Multiple matches → push a filtered list; any subview token is discarded. Navigate to the subview manually from the filtered list.
+- No matches → show "no match" inline; leave current view unchanged.
+- Empty command (`:` then Enter) → no-op; bar closes.
 
 Name matching is prefix-then-substring against the Name field, scoped to the active namespace.
+
+A single match with no subview lands on the **detail view** — the structured panel showing status, containers, conditions, and events. `describe` targets the raw text describe view instead; that is the only case where a subview is needed to reach a view that differs from the default.
 
 K9s users can use `:po`, `:deploy`, `:svc` etc. exactly as they do today — the no-name-fragment case is compatible by design. The name fragment and subview suffix are extensions that existing muscle memory naturally grows into.
 
@@ -65,7 +70,8 @@ K9s users can use `:po`, `:deploy`, `:svc` etc. exactly as they do today — the
 :po my-app logs          → logs for my-app pod (direct if single match)
 :deploy api yaml         → YAML for api deployment
 :po my-app events        → events for my-app pod
-:cm app-config           → configmap named app-config
+:po my-app describe      → raw describe output for my-app pod
+:cm app-config           → configmap named app-config (detail view)
 ```
 
 This is the primary use case. In incident response, a user arrives with a pod name and can reach logs in one command instead of four steps.
@@ -78,11 +84,11 @@ Two built-in cross-resource queries. No parameters.
 
 Shows all resources not in a healthy state, across all resource types in the active namespace. Includes:
 
-- Pods: not Running or Completed (e.g. CrashLoopBackOff, Pending, Error, OOMKilled)
-- Workloads: status Degraded or Failed
-- PVCs: not Bound
+- Pods: phase not Running or Succeeded (e.g. CrashLoopBackOff, Pending, Error, OOMKilled)
+- Deployments/StatefulSets/DaemonSets: available replicas < desired replicas
+- PVCs: phase not Bound
 
-Sorted by severity (Failed before Degraded before Progressing), then by age descending (newest problems first). Displays resource kind alongside name since the list is heterogeneous.
+Sorted by severity (Failed before Degraded before Progressing), then by creation time descending (most recently created first). Displays resource kind alongside name since the list is heterogeneous. Shows namespace column when in all-namespaces mode.
 
 **`:restarts`**
 
@@ -96,7 +102,9 @@ Both views push a synthetic list onto the navigation stack. `Enter` drills into 
 :<kind> <key>=<value>[,<key>=<value>...]
 ```
 
-Filters a resource list by label selector, using AND semantics matching `kubectl -l`.
+Filters a resource list by label selector, using AND semantics matching `kubectl -l`. The second token is recognised as a label selector when it contains `=`; Kubernetes resource names cannot contain `=` so there is no ambiguity with named navigation.
+
+Combining a label selector with a subview token (e.g. `:po app=frontend logs`) is not supported and produces an "unknown command" error.
 
 **Examples:**
 
@@ -121,7 +129,7 @@ The bar replaces the footer line. Prompt is `:`, consistent with Vim convention:
 : po my-app log█
 ```
 
-Inline suggestion appears greyed to the right of the cursor as the longest unambiguous completion. `Tab` accepts it.
+Inline suggestion appears greyed to the right of the cursor as the longest unambiguous completion. `Tab` accepts it. When input exceeds the available width the display scrolls left to keep the cursor visible; no wrapping.
 
 ### Autocomplete
 
@@ -131,7 +139,9 @@ Suggestions are offered at each position in the grammar:
 |---|---|
 | After `:` | Built-in command names + kind shortnames/fullnames matching typed prefix |
 | After `:<kind> ` | Resource names in current scope, prefix match |
-| After `:<kind> <name> ` | Subview tokens: `logs`, `yaml`, `events`, `describe`, `detail` |
+| After `:<kind> <name> ` | Subview tokens: `logs`, `yaml`, `events`, `describe` |
+
+Label selector positions have no autocomplete in v1.
 
 Suggestions are single-token completions, not full-line. `Tab` completes the current token. No popup list; inline only.
 
@@ -170,7 +180,7 @@ New function needed in `internal/resources/`:
 
 ```go
 // UnhealthyItems returns all items across resource types that are not in a healthy state.
-// Results are sorted by severity then age.
+// Results are sorted by severity then creation time descending.
 func UnhealthyItems() []ResourceItem
 
 // PodsByRestarts returns all pods with restart count > 0, sorted by restart count descending.
