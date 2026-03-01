@@ -222,6 +222,8 @@ func (p *Pods) Describe(item ResourceItem) string {
 		"    Requests:\n" +
 		"      cpu:     100m\n" +
 		"      memory:  64Mi\n" +
+		"    Liveness:   tcp-socket :9901 delay=0s timeout=1s period=10s\n" +
+		"    Readiness:  http-get http://:9901/ready delay=0s timeout=1s period=5s\n" +
 		"Conditions:\n" +
 		"  Type              Status\n" +
 		"  Ready             False\n" +
