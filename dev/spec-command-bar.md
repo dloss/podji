@@ -43,16 +43,21 @@ The bar is managed by `app.go` as an overlay, consistent with the `overlaypicker
 | `ev` | `events` | `E` |
 | `ns` | `namespaces` | — |
 
-`<subview>` tokens: `logs`, `yaml`, `events`, `describe`, `detail`
+`<subview>` tokens: `logs`, `yaml`, `events`, `describe`
+
+A single match with no subview lands on the resource's detail view (structured panel with status, containers, conditions). `describe` navigates to the raw text describe view instead.
 
 **Matching rules:**
 
-- No name fragment → jump to that resource's list (same as pressing the hotkey)
-- One match → jump directly to that resource; apply subview if given
-- Multiple matches → push a filtered list showing the matches
-- No matches → show "no match" in the bar, leave current view unchanged
+- No name fragment → jump to that resource's list (same as pressing the hotkey). If the current view is already that list, the command bar closes and nothing changes (no-op).
+- One match → jump directly to that resource's detail view; apply subview if given.
+- Multiple matches → push a filtered list; any subview token is discarded. Navigate to the subview manually from the filtered list.
+- No matches → show "no match" inline, leave current view unchanged.
+- Empty command (`:` then Enter) → no-op; command bar closes.
 
 Name matching is prefix-then-substring against the Name field, scoped to the active namespace.
+
+**Token disambiguation:** `events` is both a kind shortname (full name for `ev`) and a subview token. Interpretation is position-dependent: the first token after `:` is always parsed as a kind; `events` in third position is always a subview token. No ambiguity arises.
 
 K9s users can use `:po`, `:deploy`, `:svc` etc. exactly as they do today — the no-name-fragment case is compatible by design. The name fragment and subview suffix are extensions that existing muscle memory naturally grows into.
 
@@ -78,11 +83,11 @@ Two built-in cross-resource queries. No parameters.
 
 Shows all resources not in a healthy state, across all resource types in the active namespace. Includes:
 
-- Pods: not Running or Completed (e.g. CrashLoopBackOff, Pending, Error, OOMKilled)
-- Workloads: status Degraded or Failed
-- PVCs: not Bound
+- Pods: phase not Running or Succeeded (e.g. CrashLoopBackOff, Pending, Error, OOMKilled)
+- Deployments/StatefulSets/DaemonSets: available replicas < desired replicas
+- PVCs: phase not Bound
 
-Sorted by severity (Failed before Degraded before Progressing), then by age descending (newest problems first). Displays resource kind alongside name since the list is heterogeneous.
+Sorted by severity (Failed before Degraded before Progressing), then by creation time descending (most recently created first). Displays resource kind alongside name since the list is heterogeneous. Shows namespace column when in all-namespaces mode, consistent with `:restarts`.
 
 **`:restarts`**
 
@@ -109,6 +114,8 @@ Filters a resource list by label selector, using AND semantics matching `kubectl
 
 The command pushes a filtered list view. The breadcrumb reflects the selector, e.g. `pods: app=frontend`. From there, normal navigation applies.
 
+Combining a label selector with a subview token (e.g. `:po app=frontend logs`) is not supported and produces an "unknown command" error inline.
+
 Label filtering requires `Labels map[string]string` on `ResourceItem` — see Data Model below.
 
 ## UX Behaviour
@@ -123,6 +130,10 @@ The bar replaces the footer line. Prompt is `:`, consistent with Vim convention:
 
 Inline suggestion appears greyed to the right of the cursor as the longest unambiguous completion. `Tab` accepts it.
 
+When input is longer than the available width, the display scrolls left to keep the cursor visible. No wrapping.
+
+`:` only activates the command bar from list views. In detail, logs, YAML, describe, and events views the key is not forwarded to the command bar.
+
 ### Autocomplete
 
 Suggestions are offered at each position in the grammar:
@@ -131,7 +142,7 @@ Suggestions are offered at each position in the grammar:
 |---|---|
 | After `:` | Built-in command names + kind shortnames/fullnames matching typed prefix |
 | After `:<kind> ` | Resource names in current scope, prefix match |
-| After `:<kind> <name> ` | Subview tokens: `logs`, `yaml`, `events`, `describe`, `detail` |
+| After `:<kind> <name> ` | Subview tokens: `logs`, `yaml`, `events`, `describe` |
 
 Suggestions are single-token completions, not full-line. `Tab` completes the current token. No popup list; inline only.
 
