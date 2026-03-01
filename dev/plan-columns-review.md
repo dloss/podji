@@ -105,13 +105,13 @@ Recommendation: per-view (reset) for Phase 1. If it becomes annoying, integrate 
 
 ### 8. Wide mode + column picker interaction
 
-If the user has wide mode enabled and opens the column picker with `C`:
+If the user has wide mode enabled and opens the column picker with `p`:
 - The picker could show the **wide column pool** (what's currently visible)
 - Or the **normal column pool** (editing the non-wide config)
 
 These are fundamentally different UX models. Option 1 means wide mode and column config are merged into one. Option 2 means pressing `C` while in wide mode applies changes to the normal config that only take effect when wide mode is off — confusing.
 
-**Recommendation**: Pressing `C` while wide mode is active implicitly exits wide mode and opens the normal column picker. Show a brief footer hint: `w to re-enable wide`. Document this interaction in the plan.
+**Resolved**: Pressing `p` while wide mode is active exits wide mode first, then opens the normal column picker. Show a brief footer hint: `w to re-enable wide`. Document this interaction in the plan.
 
 ### 9. Label column header truncation
 
@@ -160,9 +160,13 @@ Phase 1 uses `[]string` for `TableRowWide()`. After Phase 2's migration, the cod
 
 If every optional column is hidden and only NAME remains, `columnWidthsForRows` with one column and lots of available width will expand NAME to fill the terminal. This looks odd but is technically correct. Not a blocker, just verify visually.
 
-### 16. `c` / `C` confusion in footer
+### 16. Key for column picker: use `p`, not `C`
 
-The footer currently shows `c copy`. With `C columns` added, it reads `c copy  C columns`. These look similar at a glance. Consider whether the footer label needs a separator or different styling to distinguish them.
+`C` (uppercase) conflicts on two fronts: (1) all uppercase letters are reserved for navigation (resource hotkeys, scope pickers), and (2) `C` is already registered as the ConfigMaps resource key — pressing it would navigate away instead of opening a picker.
+
+Use `p` (lowercase) for the column picker. It is free across all resource keys (all use uppercase) and all existing listview bindings. Reads naturally as "picker" or "preferences", sits alongside `s` (sort), `c` (copy), `w` (wide) as a view-level action.
+
+Updated footer: `p columns  s sort  c copy  w wide` — all lowercase, no ambiguity with navigation.
 
 ### 17. Status color cell detection with hidden columns
 
@@ -185,7 +189,7 @@ The footer currently shows `c copy`. With `C columns` added, it reads `c copy  C
 | 5 | NAME column must be non-hideable | 2 | Design gap |
 | 6 | `colStore` injection strategy not decided | 2 | Design gap |
 | 7 | Wide mode state lost on view recreation | 1/2 | Design gap |
-| 8 | Wide mode + column picker interaction undefined | 1+2 | Design gap |
+| 8 | Wide mode + `p` interaction: exit wide first | 1+2 | Resolved |
 | 9 | Label column header display and width | 3 | Design gap |
 | 10 | Column ordering when adding new columns | 2 | Design gap |
 | 11 | `[custom]` indicator placement | 2 | Design gap |
@@ -193,6 +197,6 @@ The footer currently shows `c copy`. With `C columns` added, it reads `c copy  C
 | 13 | Picker cursor skipping section headers | 3 | Impl note |
 | 14 | `TableRowWide()` format inconsistency (tech debt) | 1→2 | Impl note |
 | 15 | Single-column view looks odd | 2 | Impl note |
-| 16 | `c`/`C` footer readability | 2 | Impl note |
+| 16 | Use `p` (not `C`) for column picker — `C` is ConfigMaps nav key | 2 | Resolved |
 | 17 | Status color cell detection with hidden columns | 2 | Impl note |
 | 18 | `w` key muscle memory between views | 1 | Impl note |
