@@ -686,7 +686,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode || v.copyMode || v.execState != execNone || v.sortPickMode
+	return v.list.SettingFilter() || v.list.IsFiltered() || v.findMode || v.copyMode || v.execState != execNone || v.sortPickMode
 }
 
 // SelectedItem returns the currently highlighted resource item.
