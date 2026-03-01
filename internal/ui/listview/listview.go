@@ -879,13 +879,14 @@ func buildColumnPool(resource resources.ResourceType, labelPool []resources.Tabl
 	return pool
 }
 
-// assembleRow builds a []string row for a single item, using either wide or normal map.
+// assembleRow builds a []string row for a single item.
+// Always uses TableRowWide when available so that wide columns selected via the
+// picker are populated even when wideMode is off. wideMode only controls which
+// columns are visible, not the data source.
 func assembleRow(resource resources.ResourceType, wideMode bool, columns []resources.TableColumn, res resources.ResourceItem) []string {
 	var rowMap map[string]string
-	if wideMode {
-		if wide, ok := resource.(resources.WideResource); ok {
-			rowMap = wide.TableRowWide(res)
-		}
+	if wide, ok := resource.(resources.WideResource); ok {
+		rowMap = wide.TableRowWide(res)
 	}
 	if rowMap == nil {
 		rowMap = tableRowMap(resource, res)
