@@ -38,7 +38,7 @@ func (v *View) Breadcrumb() string {
 
 func (v *View) Footer() string {
 	line1 := ""
-	line2 := style.ActionFooter(nil, v.viewport.Width)
+	line2 := style.ActionFooter([]style.Binding{style.B("←", "back")}, v.viewport.Width)
 	return line1 + "\n" + line2
 }
 
