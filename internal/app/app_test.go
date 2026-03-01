@@ -237,3 +237,61 @@ func TestRelatedPickerEscClosesOverlay(t *testing.T) {
 		t.Fatal("expected relatedPicker to be nil after Esc")
 	}
 }
+
+func TestScopeSwitchPreservesCurrentListViewResource(t *testing.T) {
+	m := New()
+
+	// Navigate to pods (press 'P').
+	m1, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'P'}})
+	onPods := m1.(Model)
+	if onPods.crumbs[0] != "pods" {
+		t.Fatalf("expected pods crumb after pressing P, got %q", onPods.crumbs[0])
+	}
+
+	// Switch namespace — should stay on pods, not jump to workloads.
+	m2, _ := onPods.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	got := m2.(Model)
+	if got.namespace != "staging" {
+		t.Fatalf("expected namespace=staging, got %q", got.namespace)
+	}
+	if got.crumbs[0] != "pods" {
+		t.Fatalf("expected pods crumb preserved after namespace switch, got %q", got.crumbs[0])
+	}
+}
+
+func TestScopeSwitchFallsBackToParentListViewResource(t *testing.T) {
+	m := New() // starts on workloads listview
+
+	// Push a non-listview view on top to simulate a detail/related view.
+	m.stack = append(m.stack, shortView{})
+	m.crumbs = append(m.crumbs, "detail")
+
+	// Switch namespace — top is not a listview, should fall back to the
+	// workloads listview below it.
+	updated, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	got := updated.(Model)
+	if got.crumbs[0] != "workloads" {
+		t.Fatalf("expected workloads crumb after fallback to parent, got %q", got.crumbs[0])
+	}
+	if len(got.stack) != 1 {
+		t.Fatalf("expected stack reset to 1 entry, got %d", len(got.stack))
+	}
+}
+
+func TestContextSwitchPreservesCurrentListViewResource(t *testing.T) {
+	m := New()
+
+	// Navigate to services (press 'S').
+	m1, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'S'}})
+	onServices := m1.(Model)
+
+	// Switch context — should stay on services.
+	m2, _ := onServices.Update(overlaypicker.SelectedMsg{Kind: "context", Value: "prod-cluster"})
+	got := m2.(Model)
+	if got.context != "prod-cluster" {
+		t.Fatalf("expected context=prod-cluster, got %q", got.context)
+	}
+	if got.crumbs[0] != "services" {
+		t.Fatalf("expected services crumb preserved after context switch, got %q", got.crumbs[0])
+	}
+}

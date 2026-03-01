@@ -136,12 +136,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		} else {
 			m.context = msg.Value
 		}
-		// Reload workloads so the new namespace/context takes effect.
-		if res := m.registry.ResourceByKey('W'); res != nil {
+		// Choose the best resource using the fallback chain:
+		// current resource → parent resource(s) → workloads (W) → first registry resource.
+		if res := m.bestResourceForScope(); res != nil {
 			view := listview.New(res, m.registry)
 			view.SetSize(m.width, m.availableHeight())
 			m.stack = []viewstate.View{view}
 			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+			m.activeResourceKey = res.Key()
 		}
 		return m, nil
 
@@ -399,6 +401,26 @@ func mergeLine(bgLine, boxLine string, anchorX int) string {
 
 func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
+}
+
+// bestResourceForScope returns the best resource to show after a scope change.
+// It walks the view stack from top to bottom looking for a list view, then
+// falls back to workloads ('W'), and finally to the first registered resource.
+func (m Model) bestResourceForScope() resources.ResourceType {
+	for i := len(m.stack) - 1; i >= 0; i-- {
+		if lv, ok := m.stack[i].(*listview.View); ok {
+			if res := lv.Resource(); res != nil {
+				return res
+			}
+		}
+	}
+	if res := m.registry.ResourceByKey('W'); res != nil {
+		return res
+	}
+	if all := m.registry.Resources(); len(all) > 0 {
+		return all[0]
+	}
+	return nil
 }
 
 func (m Model) scopeLine() string {
