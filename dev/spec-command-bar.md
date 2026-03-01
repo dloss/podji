@@ -216,6 +216,6 @@ Selector parsing: split on `,`, each part splits on first `=`, require exact mat
 
 **Cross-namespace label queries.** Label filtering is scoped to the active namespace in v1. All-namespace label queries are a natural extension but are deferred.
 
-**Bookmarks.** The `:save`/`:go` concept (noted in CONCEPT.md Future Extensions) could be delivered via the command bar but is a separate feature.
+**Bookmarks.** `:save`/`:go` bookmarks could be delivered via the command bar but is a separate feature.
 
 **Namespace/context switching.** `:ns kube-system` and `:ctx prod` are possible future additions, but the Phase 1 overlay pickers (`N`/`X`) already handle this well. Avoid duplication until there is a clear reason to prefer the command bar over the pickers.
