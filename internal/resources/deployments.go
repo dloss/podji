@@ -103,6 +103,8 @@ func (d *Deployments) Sort(items []ResourceItem) {
 		problemSort(items, d.sortDesc)
 	case "age":
 		ageSort(items, d.sortDesc)
+	case "ready":
+		readySort(items, d.sortDesc)
 	default:
 		nameSort(items, d.sortDesc)
 	}
@@ -112,7 +114,7 @@ func (d *Deployments) SetSort(mode string, desc bool) { d.sortMode = mode; d.sor
 func (d *Deployments) SortMode() string               { return d.sortMode }
 func (d *Deployments) SortDesc() bool                 { return d.sortDesc }
 func (d *Deployments) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "age"})
+	return sortKeysFor([]string{"name", "status", "ready", "age"})
 }
 
 func (d *Deployments) Detail(item ResourceItem) DetailData {

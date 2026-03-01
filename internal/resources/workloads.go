@@ -139,6 +139,10 @@ func (w *Workloads) Sort(items []ResourceItem) {
 		ageSort(items, w.sortDesc)
 	case "kind":
 		kindSort(items, w.sortDesc)
+	case "ready":
+		readySort(items, w.sortDesc)
+	case "restarts":
+		restartsSort(items, w.sortDesc)
 	default:
 		nameSort(items, w.sortDesc)
 	}
@@ -198,7 +202,7 @@ func (w *Workloads) SetSort(mode string, desc bool) {
 func (w *Workloads) SortMode() string { return w.sortMode }
 func (w *Workloads) SortDesc() bool   { return w.sortDesc }
 func (w *Workloads) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "kind", "age"})
+	return sortKeysFor([]string{"name", "kind", "ready", "status", "restarts", "age"})
 }
 
 func (w *Workloads) CycleScenario() {

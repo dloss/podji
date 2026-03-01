@@ -1110,9 +1110,9 @@ func displayedColHeader(columns []resources.TableColumn, idx int, resourceLabel 
 }
 
 // sortDisplayedChars computes sort key characters for all keys, derived from
-// displayed column headers. When two keys would derive the same character
-// (e.g. two modes mapped to the same column), later ones fall back to their
-// static SortKey.Char. Returns a parallel slice of runes.
+// displayed column headers. For each key it tries every character in the
+// column header in order; if all are taken it falls back to SortKey.Char.
+// Returns a parallel slice of runes.
 func sortDisplayedChars(resource resources.ResourceType, columns []resources.TableColumn, keys []resources.SortKey, resourceLabel string) []rune {
 	result := make([]rune, len(keys))
 	used := make(map[rune]bool)
@@ -1120,12 +1120,10 @@ func sortDisplayedChars(resource resources.ResourceType, columns []resources.Tab
 		colIdx := activeSortColumn(resource, columns, sk.Mode)
 		hdr := displayedColHeader(columns, colIdx, resourceLabel)
 		var ch rune
-		if hdr != "" {
-			if runes := []rune(strings.ToLower(hdr)); len(runes) > 0 {
-				candidate := runes[0]
-				if !used[candidate] {
-					ch = candidate
-				}
+		for _, candidate := range []rune(strings.ToLower(hdr)) {
+			if !used[candidate] {
+				ch = candidate
+				break
 			}
 		}
 		if ch == 0 {
@@ -1205,6 +1203,10 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 		if resource != nil && strings.EqualFold(resource.Name(), "events") {
 			return firstColumnWithID(columns, "type")
 		}
+	case "ready":
+		return firstColumnWithID(columns, "ready")
+	case "restarts":
+		return firstColumnWithID(columns, "restarts")
 	}
 	return -1
 }

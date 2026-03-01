@@ -186,14 +186,69 @@ func kindSort(items []ResourceItem, desc bool) {
 	})
 }
 
+// parseReady extracts the numerator from a "X/Y" ready string.
+func parseReady(ready string) int {
+	if idx := strings.Index(ready, "/"); idx > 0 {
+		n, _ := strconv.Atoi(strings.TrimSpace(ready[:idx]))
+		return n
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(ready))
+	return n
+}
+
+// readySort sorts by ready count ascending (fewest ready first), then by name.
+// Pass desc=true for most-ready-first.
+func readySort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ri := parseReady(items[i].Ready)
+		rj := parseReady(items[j].Ready)
+		if ri != rj {
+			if desc {
+				return ri > rj
+			}
+			return ri < rj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+// parseRestarts extracts the restart count from strings like "5" or "5 (10m)".
+func parseRestarts(restarts string) int {
+	s := strings.TrimSpace(restarts)
+	if s == "" {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.Fields(s)[0])
+	return n
+}
+
+// restartsSort sorts by restart count ascending (fewest first), then by name.
+// Pass desc=true for most-restarts-first.
+func restartsSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ri := parseRestarts(items[i].Restarts)
+		rj := parseRestarts(items[j].Restarts)
+		if ri != rj {
+			if desc {
+				return ri > rj
+			}
+			return ri < rj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
 // sortKeysFor returns SortKey entries for the given mode names.
-// Supported modes: "name" (n), "status" (s), "kind" (k), "age" (a).
+// Supported modes: "name" (n), "status" (s), "kind" (k), "age" (a),
+// "ready" (r), "restarts" (r, may conflict — resolved by column-char derivation).
 func sortKeysFor(modes []string) []SortKey {
 	m := map[string]SortKey{
-		"name":   {Char: 'n', Mode: "name", Label: "name"},
-		"status": {Char: 's', Mode: "status", Label: "status"},
-		"kind":   {Char: 'k', Mode: "kind", Label: "kind"},
-		"age":    {Char: 'a', Mode: "age", Label: "age"},
+		"name":     {Char: 'n', Mode: "name", Label: "name"},
+		"status":   {Char: 's', Mode: "status", Label: "status"},
+		"kind":     {Char: 'k', Mode: "kind", Label: "kind"},
+		"age":      {Char: 'a', Mode: "age", Label: "age"},
+		"ready":    {Char: 'r', Mode: "ready", Label: "ready"},
+		"restarts": {Char: 'r', Mode: "restarts", Label: "restarts"},
 	}
 	keys := make([]SortKey, 0, len(modes))
 	for _, mode := range modes {

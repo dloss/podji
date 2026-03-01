@@ -118,6 +118,10 @@ func (p *Pods) Sort(items []ResourceItem) {
 		problemSort(items, p.sortDesc)
 	case "age":
 		ageSort(items, p.sortDesc)
+	case "ready":
+		readySort(items, p.sortDesc)
+	case "restarts":
+		restartsSort(items, p.sortDesc)
 	default:
 		nameSort(items, p.sortDesc)
 	}
@@ -127,7 +131,7 @@ func (p *Pods) SetSort(mode string, desc bool) { p.sortMode = mode; p.sortDesc =
 func (p *Pods) SortMode() string               { return p.sortMode }
 func (p *Pods) SortDesc() bool                 { return p.sortDesc }
 func (p *Pods) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "age"})
+	return sortKeysFor([]string{"name", "status", "ready", "restarts", "age"})
 }
 
 func (p *Pods) Detail(item ResourceItem) DetailData {
