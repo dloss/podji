@@ -15,6 +15,7 @@ func (c *ConfigMaps) TableColumns() []TableColumn {
 		{ID: "name", Name: "NAME", Width: 48, Default: true},
 		{ID: "data", Name: "DATA", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "immutable", Name: "IMMUTABLE", Width: 10, Default: false},
 	}
 }
 
@@ -33,9 +34,19 @@ func (c *ConfigMaps) TableRow(item ResourceItem) map[string]string {
 		dataCount = 2
 	}
 	return map[string]string{
-		"name": item.Name,
-		"data": fmt.Sprintf("%d", dataCount),
-		"age":  item.Age,
+		"name":      item.Name,
+		"data":      fmt.Sprintf("%d", dataCount),
+		"age":       item.Age,
+		"immutable": configMapImmutable(item.Name),
+	}
+}
+
+func configMapImmutable(name string) string {
+	switch name {
+	case "coredns", "kube-proxy":
+		return "true"
+	default:
+		return "false"
 	}
 }
 
