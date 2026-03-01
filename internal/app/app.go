@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -17,17 +18,28 @@ import (
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
 
+// Bookmark captures a navigation target: resource type, namespace, and context.
+type Bookmark struct {
+	ResourceKey rune
+	Namespace   string
+	Context     string
+}
+
 type Model struct {
-	registry      *resources.Registry
-	stack         []viewstate.View
-	crumbs        []string
-	overlay       *overlaypicker.Picker
-	relatedPicker *relatedview.Picker
-	context       string
-	namespace     string
-	errorMsg      string
-	width         int
-	height        int
+	registry         *resources.Registry
+	stack            []viewstate.View
+	crumbs           []string
+	overlay          *overlaypicker.Picker
+	relatedPicker    *relatedview.Picker
+	context          string
+	namespace        string
+	errorMsg         string
+	statusMsg        string
+	bookmarks        [9]*Bookmark
+	bookmarkMode     bool
+	activeResourceKey rune
+	width            int
+	height           int
 }
 
 type globalKeySuppresser interface {
@@ -41,11 +53,12 @@ func New() Model {
 	rootCrumb := normalizeBreadcrumbPart(root.Breadcrumb())
 
 	return Model{
-		registry:  registry,
-		stack:     []viewstate.View{root},
-		crumbs:    []string{rootCrumb},
-		context:   "default",
-		namespace: "default",
+		registry:          registry,
+		stack:             []viewstate.View{root},
+		crumbs:            []string{rootCrumb},
+		context:           "default",
+		namespace:         "default",
+		activeResourceKey: 'W',
 	}
 }
 
@@ -124,11 +137,28 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		return m, nil
 
 	case bubbletea.KeyMsg:
+		m.statusMsg = ""
 		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
 			break
 		}
 		msg = normalizeGlobalKey(msg)
 		routedMsg = msg
+
+		// Handle bookmark-set mode: next digit sets the slot.
+		if m.bookmarkMode {
+			m.bookmarkMode = false
+			runes := []rune(msg.String())
+			if len(runes) == 1 && runes[0] >= '1' && runes[0] <= '9' {
+				slot := int(runes[0]-'1')
+				m.bookmarks[slot] = &Bookmark{
+					ResourceKey: m.activeResourceKey,
+					Namespace:   m.namespace,
+					Context:     m.context,
+				}
+				m.statusMsg = fmt.Sprintf("Bookmark %d set", slot+1)
+			}
+			return m, nil
+		}
 
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -184,15 +214,40 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
 			}
 			return m, nil
+		case "m":
+			m.bookmarkMode = true
+			m.statusMsg = "Set bookmark: press 1–9"
+			return m, nil
 		default:
 			runes := []rune(msg.String())
 			if len(runes) == 1 {
 				key := runes[0]
+				if key >= '1' && key <= '9' {
+					slot := int(key - '1')
+					if m.bookmarks[slot] == nil {
+						m.statusMsg = fmt.Sprintf("Bookmark %d not set", slot+1)
+					} else {
+						b := m.bookmarks[slot]
+						m.context = b.Context
+						m.namespace = b.Namespace
+						resources.ActiveNamespace = b.Namespace
+						if res := m.registry.ResourceByKey(b.ResourceKey); res != nil {
+							view := listview.New(res, m.registry)
+							view.SetSize(m.width, m.availableHeight())
+							m.stack = []viewstate.View{view}
+							m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+							m.activeResourceKey = b.ResourceKey
+						}
+						m.statusMsg = fmt.Sprintf("Jumped to bookmark %d", slot+1)
+					}
+					return m, nil
+				}
 				if res := m.registry.ResourceByKey(key); res != nil {
 					view := listview.New(res, m.registry)
 					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
 					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+					m.activeResourceKey = key
 					return m, nil
 				}
 			}
@@ -240,6 +295,9 @@ func (m Model) renderHeader() string {
 	head := m.scopeLine() + "\n" + m.breadcrumbLine()
 	if m.errorMsg != "" {
 		return style.ErrorBanner.Render(m.errorMsg) + "\n" + head
+	}
+	if m.statusMsg != "" {
+		return style.StatusBanner.Render(m.statusMsg) + "\n" + head
 	}
 	return head
 }
@@ -376,7 +434,7 @@ func (m Model) availableHeight() int {
 	}
 
 	extra := 4 // 2 header lines + 2 footer lines
-	if m.errorMsg != "" {
+	if m.errorMsg != "" || m.statusMsg != "" {
 		extra = 5
 	}
 
@@ -393,7 +451,7 @@ func (m Model) bodyHeightLimit() int {
 	}
 
 	reserved := 4 // 2 header lines + 2 footer lines
-	if m.errorMsg != "" {
+	if m.errorMsg != "" || m.statusMsg != "" {
 		reserved++
 	}
 
