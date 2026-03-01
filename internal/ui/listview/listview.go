@@ -469,10 +469,7 @@ func (v *View) View() string {
 	childHint := resources.SingularName(v.NextBreadcrumb())
 	mode := sortMode(v.resource)
 	indicator := sortIndicatorSymbol(v.resource)
-	activeSortIdx := -1
-	if !isDefaultSort(v.resource) {
-		activeSortIdx = activeSortColumn(v.resource, v.columns, mode)
-	}
+	activeSortIdx := activeSortColumn(v.resource, v.columns, mode)
 	headerPrefix := "  "
 	if activeSortIdx == 0 {
 		headerPrefix = " " + indicator
@@ -824,7 +821,7 @@ func statusStyle(status string) string {
 }
 
 func headerRow(columns []resources.TableColumn, firstLabel string) string {
-	return headerRowWithHint(columns, nil, firstLabel, "", -1, "▲")
+	return headerRowWithHint(columns, nil, firstLabel, "", -1, "↑")
 }
 
 func headerRowWithHint(
@@ -1175,9 +1172,9 @@ func sortMode(resource resources.ResourceType) string {
 
 func sortIndicatorSymbol(resource resources.ResourceType) string {
 	if sortable, ok := resource.(resources.Sortable); ok && sortable.SortDesc() {
-		return "▼"
+		return "↓"
 	}
-	return "▲"
+	return "↑"
 }
 
 func activeSortColumn(resource resources.ResourceType, columns []resources.TableColumn, mode string) int {
@@ -1211,17 +1208,6 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 	return -1
 }
 
-func isDefaultSort(resource resources.ResourceType) bool {
-	sortable, ok := resource.(resources.Sortable)
-	if !ok {
-		return true
-	}
-	keys := sortable.SortKeys()
-	if len(keys) == 0 {
-		return true
-	}
-	return sortable.SortMode() == keys[0].Mode && !sortable.SortDesc()
-}
 
 func firstColumnWithID(columns []resources.TableColumn, id string) int {
 	for idx, col := range columns {
