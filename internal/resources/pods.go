@@ -35,37 +35,37 @@ func podItemsForNamespace(ns string) []ResourceItem {
 	switch ns {
 	case "production":
 		return []ResourceItem{
-			{Name: "api-7c6c8d5f7d-x8p2k", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.5", "qos": "Burstable"}},
-			{Name: "api-7c6c8d5f7d-m3n9p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.8", "qos": "Burstable"}},
-			{Name: "api-7c6c8d5f7d-q5r2s", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.11", "qos": "Burstable"}},
-			{Name: "frontend-8b4d9e2f-k1l3m", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.12", "qos": "BestEffort"}},
-			{Name: "frontend-8b4d9e2f-n4o6p", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.19", "qos": "BestEffort"}},
-			{Name: "worker-55c6c6f9f-9mlr", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "worker", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.4", "qos": "Burstable"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.2", "qos": "Guaranteed"}},
-			{Name: "db-1", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.2", "qos": "Guaranteed"}},
-			{Name: "db-2", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.2", "qos": "Guaranteed"}},
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.5", "qos": "Burstable", "controlled-by": "ReplicaSet/api-7c6c8d5f7d", "nominated-node": "<none>", "cpu": "125m", "mem": "48Mi"}},
+			{Name: "api-7c6c8d5f7d-m3n9p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.8", "qos": "Burstable", "controlled-by": "ReplicaSet/api-7c6c8d5f7d", "nominated-node": "<none>", "cpu": "140m", "mem": "52Mi"}},
+			{Name: "api-7c6c8d5f7d-q5r2s", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.11", "qos": "Burstable", "controlled-by": "ReplicaSet/api-7c6c8d5f7d", "nominated-node": "<none>", "cpu": "118m", "mem": "44Mi"}},
+			{Name: "frontend-8b4d9e2f-k1l3m", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.12", "qos": "BestEffort", "controlled-by": "ReplicaSet/frontend-8b4d9e2f", "nominated-node": "<none>", "cpu": "80m", "mem": "32Mi"}},
+			{Name: "frontend-8b4d9e2f-n4o6p", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.19", "qos": "BestEffort", "controlled-by": "ReplicaSet/frontend-8b4d9e2f", "nominated-node": "<none>", "cpu": "76m", "mem": "30Mi"}},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "worker", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.4", "qos": "Burstable", "controlled-by": "ReplicaSet/worker-55c6c6f9f", "nominated-node": "<none>", "cpu": "200m", "mem": "128Mi"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.2", "qos": "Guaranteed", "controlled-by": "StatefulSet/db", "nominated-node": "<none>", "cpu": "500m", "mem": "512Mi"}},
+			{Name: "db-1", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.2", "qos": "Guaranteed", "controlled-by": "StatefulSet/db", "nominated-node": "<none>", "cpu": "480m", "mem": "496Mi"}},
+			{Name: "db-2", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.2", "qos": "Guaranteed", "controlled-by": "StatefulSet/db", "nominated-node": "<none>", "cpu": "510m", "mem": "524Mi"}},
 		}
 	case "staging":
 		return []ResourceItem{
-			{Name: "api-6d4e2c1a-h7j9k", Status: "Running", Ready: "1/1", Restarts: "2", Age: "1d", Labels: map[string]string{"app": "api", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.20", "qos": "Burstable"}},
-			{Name: "frontend-3a5b7c9d-p2q4r", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3h", Labels: map[string]string{"app": "frontend", "env": "staging"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.25", "qos": "BestEffort"}},
-			{Name: "worker-55c6c6f9f-t6u8v", Status: "CrashLoop", Ready: "0/1", Restarts: "47", Age: "6h", Labels: map[string]string{"app": "worker", "env": "staging"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.1", "qos": "BestEffort"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "db", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.3", "qos": "Guaranteed"}},
+			{Name: "api-6d4e2c1a-h7j9k", Status: "Running", Ready: "1/1", Restarts: "2", Age: "1d", Labels: map[string]string{"app": "api", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.20", "qos": "Burstable", "controlled-by": "ReplicaSet/api-6d4e2c1a", "nominated-node": "<none>", "cpu": "95m", "mem": "36Mi"}},
+			{Name: "frontend-3a5b7c9d-p2q4r", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3h", Labels: map[string]string{"app": "frontend", "env": "staging"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.25", "qos": "BestEffort", "controlled-by": "ReplicaSet/frontend-3a5b7c9d", "nominated-node": "<none>", "cpu": "62m", "mem": "24Mi"}},
+			{Name: "worker-55c6c6f9f-t6u8v", Status: "CrashLoop", Ready: "0/1", Restarts: "47", Age: "6h", Labels: map[string]string{"app": "worker", "env": "staging"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.1", "qos": "BestEffort", "controlled-by": "ReplicaSet/worker-55c6c6f9f", "nominated-node": "<none>", "cpu": "0m", "mem": "0Mi"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "db", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.3", "qos": "Guaranteed", "controlled-by": "StatefulSet/db", "nominated-node": "<none>", "cpu": "320m", "mem": "256Mi"}},
 		}
 	case "monitoring":
 		return []ResourceItem{
-			{Name: "prometheus-0", Status: "Running", Ready: "2/2", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "prometheus"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.5", "qos": "Guaranteed"}},
-			{Name: "grafana-5c8d7e9f-w1x3y", Status: "Running", Ready: "1/1", Restarts: "0", Age: "15d", Labels: map[string]string{"app": "grafana"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.7", "qos": "BestEffort"}},
-			{Name: "alertmanager-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "alertmanager"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.8", "qos": "Burstable"}},
+			{Name: "prometheus-0", Status: "Running", Ready: "2/2", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "prometheus"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.5", "qos": "Guaranteed", "controlled-by": "StatefulSet/prometheus", "nominated-node": "<none>", "cpu": "350m", "mem": "256Mi"}},
+			{Name: "grafana-5c8d7e9f-w1x3y", Status: "Running", Ready: "1/1", Restarts: "0", Age: "15d", Labels: map[string]string{"app": "grafana"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.7", "qos": "BestEffort", "controlled-by": "ReplicaSet/grafana-5c8d7e9f", "nominated-node": "<none>", "cpu": "90m", "mem": "64Mi"}},
+			{Name: "alertmanager-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "alertmanager"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.8", "qos": "Burstable", "controlled-by": "StatefulSet/alertmanager", "nominated-node": "<none>", "cpu": "45m", "mem": "32Mi"}},
 		}
 	default:
 		return []ResourceItem{
-			{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d", Labels: map[string]string{"app": "api"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.3", "qos": "Burstable"}},
-			{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m", Labels: map[string]string{"app": "worker"}, Extra: map[string]string{"node": "", "ip": "", "qos": "BestEffort"}},
-			{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.15", "qos": "Burstable"}},
-			{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.16", "qos": "Burstable"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "db"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.9", "qos": "Guaranteed"}},
-			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "cache-redis"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.22", "qos": "Burstable"}},
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d", Labels: map[string]string{"app": "api"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.3", "qos": "Burstable", "controlled-by": "ReplicaSet/api-7c6c8d5f7d", "nominated-node": "<none>", "cpu": "12m", "mem": "18Mi"}},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m", Labels: map[string]string{"app": "worker"}, Extra: map[string]string{"node": "", "ip": "", "qos": "BestEffort", "controlled-by": "ReplicaSet/worker-55c6c6f9f", "nominated-node": "<none>", "cpu": "0m", "mem": "0Mi"}},
+			{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.15", "qos": "Burstable", "controlled-by": "ReplicaSet/web-6d9f9f7b7d", "nominated-node": "<none>", "cpu": "110m", "mem": "64Mi"}},
+			{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.16", "qos": "Burstable", "controlled-by": "ReplicaSet/web-6d9f9f7b7d", "nominated-node": "<none>", "cpu": "105m", "mem": "60Mi"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "db"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.9", "qos": "Guaranteed", "controlled-by": "StatefulSet/db", "nominated-node": "<none>", "cpu": "420m", "mem": "384Mi"}},
+			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "cache-redis"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.22", "qos": "Burstable", "controlled-by": "StatefulSet/cache-redis", "nominated-node": "<none>", "cpu": "180m", "mem": "96Mi"}},
 		}
 	}
 }
@@ -101,6 +101,10 @@ func (p *Pods) TableColumnsWide() []TableColumn {
 		{ID: "node", Name: "NODE", Width: 16, Default: false},
 		{ID: "ip", Name: "IP", Width: 16, Default: false},
 		{ID: "qos", Name: "QOS", Width: 12, Default: false},
+		{ID: "controlled-by", Name: "CONTROLLED BY", Width: 32, Default: false},
+		{ID: "nominated-node", Name: "NOMINATED NODE", Width: 16, Default: false},
+		{ID: "cpu", Name: "CPU", Width: 6, Default: false},
+		{ID: "mem", Name: "MEM", Width: 7, Default: false},
 	})
 }
 
@@ -109,6 +113,10 @@ func (p *Pods) TableRowWide(item ResourceItem) map[string]string {
 	row["node"] = item.Extra["node"]
 	row["ip"] = item.Extra["ip"]
 	row["qos"] = item.Extra["qos"]
+	row["controlled-by"] = item.Extra["controlled-by"]
+	row["nominated-node"] = item.Extra["nominated-node"]
+	row["cpu"] = item.Extra["cpu"]
+	row["mem"] = item.Extra["mem"]
 	return row
 }
 

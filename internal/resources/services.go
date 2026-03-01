@@ -12,10 +12,12 @@ type Services struct {
 
 func (s *Services) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{ID: "name", Name: "NAME", Width: 30, Default: true},
-		{ID: "type", Name: "TYPE", Width: 14, Default: true},
-		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 16, Default: true},
-		{ID: "endpoints", Name: "ENDPOINTS", Width: 14, Default: true},
+		{ID: "name", Name: "NAME", Width: 28, Default: true},
+		{ID: "type", Name: "TYPE", Width: 12, Default: true},
+		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 15, Default: true},
+		{ID: "external-ip", Name: "EXTERNAL-IP", Width: 15, Default: true},
+		{ID: "port", Name: "PORT(S)", Width: 20, Default: true},
+		{ID: "endpoints", Name: "ENDPOINTS", Width: 12, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
@@ -25,33 +27,83 @@ func (s *Services) TableRow(item ResourceItem) map[string]string {
 	if svcType == "" {
 		svcType = "ClusterIP"
 	}
+	externalIP := item.Extra["external-ip"]
+	if externalIP == "" {
+		externalIP = "<none>"
+	}
 	return map[string]string{
-		"namespace":  item.Namespace,
-		"name":       item.Name,
-		"type":       svcType,
-		"cluster-ip": serviceClusterIP(item.Name, svcType),
-		"endpoints":  item.Ready,
-		"age":        item.Age,
+		"namespace":   item.Namespace,
+		"name":        item.Name,
+		"type":        svcType,
+		"cluster-ip":  serviceClusterIP(item.Name, svcType),
+		"external-ip": externalIP,
+		"port":        servicePort(item.Name, svcType),
+		"endpoints":   item.Ready,
+		"age":         item.Age,
 	}
 }
 
 func (s *Services) TableColumnsWide() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{ID: "name", Name: "NAME", Width: 30, Default: true},
-		{ID: "type", Name: "TYPE", Width: 14, Default: true},
-		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 16, Default: true},
-		{ID: "endpoints", Name: "ENDPOINTS", Width: 14, Default: true},
+		{ID: "name", Name: "NAME", Width: 28, Default: true},
+		{ID: "type", Name: "TYPE", Width: 12, Default: true},
+		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 15, Default: true},
+		{ID: "external-ip", Name: "EXTERNAL-IP", Width: 15, Default: true},
+		{ID: "port", Name: "PORT(S)", Width: 20, Default: true},
+		{ID: "endpoints", Name: "ENDPOINTS", Width: 12, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
-		{ID: "external-ip", Name: "EXTERNAL-IP", Width: 16, Default: false},
 		{ID: "selector", Name: "SELECTOR", Width: 24, Default: false},
+		{ID: "target-port", Name: "TARGET-PORT", Width: 16, Default: false},
 	})
 }
 
 func (s *Services) TableRowWide(item ResourceItem) map[string]string {
 	row := s.TableRow(item)
-	row["external-ip"] = item.Extra["external-ip"]
 	row["selector"] = item.Extra["selector"]
+	row["target-port"] = serviceTargetPort(item.Name)
 	return row
+}
+
+func servicePort(name, svcType string) string {
+	switch name {
+	case "postgres", "db":
+		return "5432/TCP"
+	case "redis-master", "redis", "redis-slave", "cache-redis":
+		return "6379/TCP"
+	case "prometheus":
+		return "9090/TCP"
+	case "grafana":
+		return "3000/TCP"
+	case "alertmanager":
+		return "9093/TCP"
+	case "kubernetes":
+		return "443/TCP"
+	case "ingress-external", "ingress-nginx":
+		return "80:31080/TCP,443:31443/TCP"
+	default:
+		return "80/TCP"
+	}
+}
+
+func serviceTargetPort(name string) string {
+	switch name {
+	case "postgres", "db":
+		return "5432/TCP"
+	case "redis-master", "redis", "cache-redis":
+		return "6379/TCP"
+	case "prometheus":
+		return "9090/TCP"
+	case "grafana":
+		return "3000/TCP"
+	case "alertmanager":
+		return "9093/TCP"
+	case "kubernetes":
+		return "6443/TCP"
+	case "ingress-external", "ingress-nginx":
+		return "80/TCP,443/TCP"
+	default:
+		return "8080/TCP"
+	}
 }
 
 func serviceClusterIP(name string, svcType string) string {

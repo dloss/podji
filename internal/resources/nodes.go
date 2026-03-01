@@ -41,9 +41,14 @@ func (n *Nodes) TableColumnsWide() []TableColumn {
 		{ID: "roles", Name: "ROLES", Width: 16, Default: true},
 		{ID: "version", Name: "VERSION", Width: 12, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
-		{ID: "os", Name: "OS", Width: 8, Default: false},
-		{ID: "arch", Name: "ARCH", Width: 8, Default: false},
+		{ID: "internal-ip", Name: "INTERNAL-IP", Width: 14, Default: false},
+		{ID: "instance-type", Name: "INSTANCE-TYPE", Width: 13, Default: false},
+		{ID: "zone", Name: "ZONE", Width: 12, Default: false},
+		{ID: "os", Name: "OS", Width: 7, Default: false},
+		{ID: "arch", Name: "ARCH", Width: 7, Default: false},
 		{ID: "kernel-version", Name: "KERNEL-VERSION", Width: 22, Default: false},
+		{ID: "runtime", Name: "CONTAINER-RUNTIME", Width: 22, Default: false},
+		{ID: "taints", Name: "TAINTS", Width: 6, Default: false},
 	}
 }
 
@@ -52,6 +57,11 @@ func (n *Nodes) TableRowWide(item ResourceItem) map[string]string {
 	row["os"] = item.Extra["os"]
 	row["arch"] = item.Extra["arch"]
 	row["kernel-version"] = item.Extra["kernel-version"]
+	row["internal-ip"] = item.Extra["internal-ip"]
+	row["instance-type"] = item.Extra["instance-type"]
+	row["zone"] = item.Extra["zone"]
+	row["runtime"] = item.Extra["runtime"]
+	row["taints"] = item.Extra["taints"]
 	return row
 }
 
@@ -64,12 +74,12 @@ func (n *Nodes) Key() rune    { return 'O' }
 
 func (n *Nodes) Items() []ResourceItem {
 	items := []ResourceItem{
-		{Name: "worker-01", Status: "Ready", Ready: "48/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
-		{Name: "worker-02", Status: "Ready", Ready: "35/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
-		{Name: "worker-03", Status: "Ready", Ready: "52/110", Age: "60d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic"}},
-		{Name: "worker-04", Status: "NotReady", Ready: "0/110", Age: "30d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic"}},
-		{Name: "control-plane-01", Status: "Ready", Ready: "12/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
-		{Name: "control-plane-02", Status: "Ready", Ready: "11/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
+		{Name: "worker-01", Status: "Ready", Ready: "48/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic", "internal-ip": "10.0.1.11", "instance-type": "m5.xlarge", "zone": "us-east-1a", "runtime": "containerd://1.7.11", "taints": "0"}},
+		{Name: "worker-02", Status: "Ready", Ready: "35/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic", "internal-ip": "10.0.1.12", "instance-type": "m5.xlarge", "zone": "us-east-1b", "runtime": "containerd://1.7.11", "taints": "0"}},
+		{Name: "worker-03", Status: "Ready", Ready: "52/110", Age: "60d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic", "internal-ip": "10.0.1.13", "instance-type": "m5.xlarge", "zone": "us-east-1c", "runtime": "containerd://1.7.11", "taints": "0"}},
+		{Name: "worker-04", Status: "NotReady", Ready: "0/110", Age: "30d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic", "internal-ip": "10.0.1.14", "instance-type": "m5.xlarge", "zone": "us-east-1a", "runtime": "containerd://1.7.11", "taints": "1"}},
+		{Name: "control-plane-01", Status: "Ready", Ready: "12/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic", "internal-ip": "10.0.0.1", "instance-type": "m5.large", "zone": "us-east-1a", "runtime": "containerd://1.7.11", "taints": "1"}},
+		{Name: "control-plane-02", Status: "Ready", Ready: "11/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic", "internal-ip": "10.0.0.2", "instance-type": "m5.large", "zone": "us-east-1b", "runtime": "containerd://1.7.11", "taints": "1"}},
 	}
 	items = expandMockItems(items, 20)
 	n.Sort(items)
