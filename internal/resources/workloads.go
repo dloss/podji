@@ -1,6 +1,9 @@
 package resources
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 type Workloads struct {
 	sortMode string
@@ -162,6 +165,29 @@ func (w *Workloads) TableRow(item ResourceItem) map[string]string {
 		"restarts":  item.Restarts,
 		"age":       item.Age,
 	}
+}
+
+func (w *Workloads) TableColumnsWide() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{ID: "name", Name: "NAME", Width: 35, Default: true},
+		{ID: "kind", Name: "KIND", Width: 4, Default: true},
+		{ID: "ready", Name: "READY", Width: 11, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "selector", Name: "SELECTOR", Width: 20, Default: false},
+	})
+}
+
+func (w *Workloads) TableRowWide(item ResourceItem) map[string]string {
+	row := w.TableRow(item)
+	parts := make([]string, 0, len(item.Selector))
+	for k, v := range item.Selector {
+		parts = append(parts, k+"="+v)
+	}
+	sort.Strings(parts)
+	row["selector"] = strings.Join(parts, ",")
+	return row
 }
 
 func (w *Workloads) SetSort(mode string, desc bool) {
