@@ -519,11 +519,39 @@ func (m Model) bestResourceForScope() resources.ResourceType {
 	return nil
 }
 
+// contextTier classifies a context name for styling purposes.
+// Returns "prod" for production contexts, "local" for local/default contexts,
+// and "remote" for everything else (dev, staging, etc.).
+func contextTier(name string) string {
+	lower := strings.ToLower(name)
+	if strings.Contains(lower, "prod") {
+		return "prod"
+	}
+	switch lower {
+	case "default", "minikube", "docker-desktop", "rancher-desktop":
+		return "local"
+	}
+	if strings.HasPrefix(lower, "kind-") || strings.HasPrefix(lower, "k3d-") {
+		return "local"
+	}
+	return "remote"
+}
+
 func (m Model) scopeLine() string {
 	sep := style.NavSep.Render(" > ")
 
-	contextLabel := style.Scope.Render("Context: ")
-	contextValue := style.ScopeValue.Render(m.context)
+	var contextLabel, contextValue string
+	switch contextTier(m.context) {
+	case "prod":
+		contextLabel = style.ScopeActive.Render("Context: ")
+		contextValue = style.ContextProd.Render(m.context)
+	case "remote":
+		contextLabel = style.ScopeActive.Render("Context: ")
+		contextValue = style.ScopeActiveValue.Render(m.context)
+	default:
+		contextLabel = style.Scope.Render("Context: ")
+		contextValue = style.ScopeValue.Render(m.context)
+	}
 
 	nsLabel := style.Scope.Render("Namespace: ")
 	var nsValue string
@@ -538,9 +566,19 @@ func (m Model) scopeLine() string {
 
 // namespaceLabelX returns the visual column where "Namespace:" starts in the scope line.
 func (m Model) namespaceLabelX() int {
-	return lipgloss.Width(style.Scope.Render("Context: ") +
-		style.ScopeValue.Render(m.context) +
-		style.NavSep.Render(" > "))
+	var contextLabel, contextValue string
+	switch contextTier(m.context) {
+	case "prod":
+		contextLabel = style.ScopeActive.Render("Context: ")
+		contextValue = style.ContextProd.Render(m.context)
+	case "remote":
+		contextLabel = style.ScopeActive.Render("Context: ")
+		contextValue = style.ScopeActiveValue.Render(m.context)
+	default:
+		contextLabel = style.Scope.Render("Context: ")
+		contextValue = style.ScopeValue.Render(m.context)
+	}
+	return lipgloss.Width(contextLabel + contextValue + style.NavSep.Render(" > "))
 }
 
 func (m Model) breadcrumbLine() string {
