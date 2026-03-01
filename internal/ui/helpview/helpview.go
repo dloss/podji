@@ -31,7 +31,6 @@ GLOBAL
   E                    Events (global)
 
 TABLE
-  tab                  Focus related panel (when open)
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)
