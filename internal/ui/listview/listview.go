@@ -697,6 +697,28 @@ func (v *View) SelectedItem() resources.ResourceItem {
 	return resources.ResourceItem{}
 }
 
+// SelectedBodyRow returns the 0-based line index within the body rendered by
+// View() at which the selected row appears. Returns -1 when no items are
+// visible. Used by the app layer to anchor overlays near the selection.
+func (v *View) SelectedBodyRow() int {
+	visible := v.list.VisibleItems()
+	if len(visible) == 0 {
+		return -1
+	}
+	start, _ := v.list.Paginator.GetSliceBounds(len(visible))
+	pageIdx := v.list.Index() - start
+	if pageIdx < 0 {
+		return -1
+	}
+	// Body layout: out[0]=blank, out[1]=table header, out[2+i]=data row i.
+	// A banner shifts all rows down by 1.
+	offset := 2
+	if v.bannerMessage() != "" {
+		offset = 3
+	}
+	return offset + pageIdx
+}
+
 // Resource returns the underlying resource type for this view.
 func (v *View) Resource() resources.ResourceType {
 	return v.resource

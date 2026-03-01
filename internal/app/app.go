@@ -48,6 +48,12 @@ type globalKeySuppresser interface {
 	SuppressGlobalKeys() bool
 }
 
+// bodyRowProvider is implemented by views that report the visual line (within
+// their own View() output) at which the selected row appears.
+type bodyRowProvider interface {
+	SelectedBodyRow() int
+}
+
 func New() Model {
 	registry := resources.DefaultRegistry()
 	workloads := registry.ResourceByKey('W')
@@ -352,13 +358,37 @@ func (m Model) renderMain() string {
 	return strings.Join(sections, "\n")
 }
 
+// relatedPickerRow returns the startRow for compositeOverlay so the picker
+// appears just below the selected row. Falls back to above the selected row if
+// there isn't room below, and to row 1 as a final fallback.
+func (m Model) relatedPickerRow(pickerHeight int) int {
+	headerLines := m.headerLineCount()
+	if provider, ok := m.top().(bodyRowProvider); ok {
+		bodyRow := provider.SelectedBodyRow()
+		if bodyRow >= 0 {
+			selectedLine := headerLines + bodyRow
+			belowStart := selectedLine + 1
+			if belowStart+pickerHeight <= m.height {
+				return belowStart
+			}
+			aboveStart := selectedLine - pickerHeight
+			if aboveStart >= headerLines {
+				return aboveStart
+			}
+		}
+	}
+	return 1
+}
+
 func (m Model) View() string {
 	main := m.renderMain()
 	if m.overlay != nil {
 		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
 	}
 	if m.relatedPicker != nil {
-		return compositeOverlay(main, m.relatedPicker.View(), m.relatedPicker.AnchorX(), 1)
+		pickerView := m.relatedPicker.View()
+		pickerHeight := strings.Count(pickerView, "\n") + 1
+		return compositeOverlay(main, pickerView, m.relatedPicker.AnchorX(), m.relatedPickerRow(pickerHeight))
 	}
 	if m.colPicker != nil {
 		return compositeOverlay(main, m.colPicker.View(), m.colPicker.AnchorX(), 1)
@@ -479,17 +509,20 @@ func formatCrumb(crumb string) string {
 	return style.Crumb.Render(titleCase(resources.SingularName(crumb)))
 }
 
+// headerLineCount returns the number of lines consumed by the header section.
+// Normally 2 (scope + breadcrumb); 3 when an error or status banner is shown.
+func (m Model) headerLineCount() int {
+	if m.errorMsg != "" || m.statusMsg != "" {
+		return 3
+	}
+	return 2
+}
+
 func (m Model) availableHeight() int {
 	if m.height == 0 {
 		return 0
 	}
-
-	extra := 4 // 2 header lines + 2 footer lines
-	if m.errorMsg != "" || m.statusMsg != "" {
-		extra = 5
-	}
-
-	height := m.height - extra
+	height := m.height - m.headerLineCount() - 2 // subtract 2 footer lines
 	if height < 1 {
 		return 1
 	}
@@ -500,13 +533,7 @@ func (m Model) bodyHeightLimit() int {
 	if m.height <= 0 {
 		return 0
 	}
-
-	reserved := 4 // 2 header lines + 2 footer lines
-	if m.errorMsg != "" || m.statusMsg != "" {
-		reserved++
-	}
-
-	limit := m.height - reserved
+	limit := m.height - m.headerLineCount() - 2 // subtract 2 footer lines
 	if limit < 0 {
 		return 0
 	}
