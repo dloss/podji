@@ -10,6 +10,7 @@ type ResourceItem struct {
 	Age       string
 	Labels    map[string]string // pod/resource labels (e.g. {"app": "api", "env": "prod"})
 	Selector  map[string]string // label selector for resources that select other resources
+	Extra     map[string]string // wide-mode and future fields: "node", "ip", "qos", "selector", etc.
 }
 
 // MatchesSelector reports whether labels satisfies selector: every key/value
@@ -58,12 +59,20 @@ type ResourceType interface {
 // TableResource lets a resource define custom table columns and row rendering.
 type TableResource interface {
 	TableColumns() []TableColumn
-	TableRow(item ResourceItem) []string
+	TableRow(item ResourceItem) map[string]string // keyed by column ID
+}
+
+// WideResource lets a resource define an expanded column set for wide mode (w key).
+type WideResource interface {
+	TableColumnsWide() []TableColumn
+	TableRowWide(item ResourceItem) map[string]string // keyed by column ID
 }
 
 type TableColumn struct {
-	Name  string
-	Width int
+	ID      string // stable key, e.g. "status", "restarts", "label:app"
+	Name    string // display header
+	Width   int    // default width hint
+	Default bool   // included in default view; false = opt-in only (wide or label columns)
 }
 
 // SortKey maps a single keystroke to a sort mode for the sort picker.

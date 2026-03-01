@@ -143,24 +143,25 @@ func (w *Workloads) Sort(items []ResourceItem) {
 
 func (w *Workloads) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{Name: "NAME", Width: 35},
-		{Name: "KIND", Width: 4},
-		{Name: "READY", Width: 11},
-		{Name: "STATUS", Width: 12},
-		{Name: "RESTARTS", Width: 8},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 35, Default: true},
+		{ID: "kind", Name: "KIND", Width: 4, Default: true},
+		{ID: "ready", Name: "READY", Width: 11, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
 
-func (w *Workloads) TableRow(item ResourceItem) []string {
-	return namespacedRow(item.Namespace, []string{
-		item.Name,
-		item.Kind,
-		item.Ready,
-		item.Status,
-		item.Restarts,
-		item.Age,
-	})
+func (w *Workloads) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"namespace": item.Namespace,
+		"name":      item.Name,
+		"kind":      item.Kind,
+		"ready":     item.Ready,
+		"status":    item.Status,
+		"restarts":  item.Restarts,
+		"age":       item.Age,
+	}
 }
 
 func (w *Workloads) SetSort(mode string, desc bool) {

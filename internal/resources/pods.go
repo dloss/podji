@@ -35,53 +35,81 @@ func podItemsForNamespace(ns string) []ResourceItem {
 	switch ns {
 	case "production":
 		return []ResourceItem{
-			{Name: "api-7c6c8d5f7d-x8p2k", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}},
-			{Name: "api-7c6c8d5f7d-m3n9p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}},
-			{Name: "api-7c6c8d5f7d-q5r2s", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}},
-			{Name: "frontend-8b4d9e2f-k1l3m", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}},
-			{Name: "frontend-8b4d9e2f-n4o6p", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}},
-			{Name: "worker-55c6c6f9f-9mlr", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "worker", "env": "prod"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}},
-			{Name: "db-1", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}},
-			{Name: "db-2", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}},
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.5", "qos": "Burstable"}},
+			{Name: "api-7c6c8d5f7d-m3n9p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.8", "qos": "Burstable"}},
+			{Name: "api-7c6c8d5f7d-q5r2s", Status: "Running", Ready: "2/2", Restarts: "0", Age: "14d", Labels: map[string]string{"app": "api", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.11", "qos": "Burstable"}},
+			{Name: "frontend-8b4d9e2f-k1l3m", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.12", "qos": "BestEffort"}},
+			{Name: "frontend-8b4d9e2f-n4o6p", Status: "Running", Ready: "1/1", Restarts: "0", Age: "7d", Labels: map[string]string{"app": "frontend", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.19", "qos": "BestEffort"}},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "worker", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.4", "qos": "Burstable"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.2", "qos": "Guaranteed"}},
+			{Name: "db-1", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.2", "qos": "Guaranteed"}},
+			{Name: "db-2", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "db", "env": "prod"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.2", "qos": "Guaranteed"}},
 		}
 	case "staging":
 		return []ResourceItem{
-			{Name: "api-6d4e2c1a-h7j9k", Status: "Running", Ready: "1/1", Restarts: "2", Age: "1d", Labels: map[string]string{"app": "api", "env": "staging"}},
-			{Name: "frontend-3a5b7c9d-p2q4r", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3h", Labels: map[string]string{"app": "frontend", "env": "staging"}},
-			{Name: "worker-55c6c6f9f-t6u8v", Status: "CrashLoop", Ready: "0/1", Restarts: "47", Age: "6h", Labels: map[string]string{"app": "worker", "env": "staging"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "db", "env": "staging"}},
+			{Name: "api-6d4e2c1a-h7j9k", Status: "Running", Ready: "1/1", Restarts: "2", Age: "1d", Labels: map[string]string{"app": "api", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.20", "qos": "Burstable"}},
+			{Name: "frontend-3a5b7c9d-p2q4r", Status: "Running", Ready: "1/1", Restarts: "0", Age: "3h", Labels: map[string]string{"app": "frontend", "env": "staging"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.25", "qos": "BestEffort"}},
+			{Name: "worker-55c6c6f9f-t6u8v", Status: "CrashLoop", Ready: "0/1", Restarts: "47", Age: "6h", Labels: map[string]string{"app": "worker", "env": "staging"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.1", "qos": "BestEffort"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "db", "env": "staging"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.3", "qos": "Guaranteed"}},
 		}
 	case "monitoring":
 		return []ResourceItem{
-			{Name: "prometheus-0", Status: "Running", Ready: "2/2", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "prometheus"}},
-			{Name: "grafana-5c8d7e9f-w1x3y", Status: "Running", Ready: "1/1", Restarts: "0", Age: "15d", Labels: map[string]string{"app": "grafana"}},
-			{Name: "alertmanager-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "alertmanager"}},
+			{Name: "prometheus-0", Status: "Running", Ready: "2/2", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "prometheus"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.5", "qos": "Guaranteed"}},
+			{Name: "grafana-5c8d7e9f-w1x3y", Status: "Running", Ready: "1/1", Restarts: "0", Age: "15d", Labels: map[string]string{"app": "grafana"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.7", "qos": "BestEffort"}},
+			{Name: "alertmanager-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "30d", Labels: map[string]string{"app": "alertmanager"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.8", "qos": "Burstable"}},
 		}
 	default:
 		return []ResourceItem{
-			{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d", Labels: map[string]string{"app": "api"}},
-			{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m", Labels: map[string]string{"app": "worker"}},
-			{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}},
-			{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}},
-			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "db"}},
-			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "cache-redis"}},
+			{Name: "api-7c6c8d5f7d-x8p2k", Status: "CrashLoop", Ready: "1/2", Restarts: "5 (10m)", Age: "2d", Labels: map[string]string{"app": "api"}, Extra: map[string]string{"node": "worker-04", "ip": "10.244.4.3", "qos": "Burstable"}},
+			{Name: "worker-55c6c6f9f-9mlr", Status: "Pending", Ready: "0/1", Restarts: "0", Age: "3m", Labels: map[string]string{"app": "worker"}, Extra: map[string]string{"node": "", "ip": "", "qos": "BestEffort"}},
+			{Name: "web-6d9f9f7b7d-2r9kq", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.15", "qos": "Burstable"}},
+			{Name: "web-6d9f9f7b7d-kp4mn", Status: "Running", Ready: "2/2", Restarts: "0", Age: "5d", Labels: map[string]string{"app": "web"}, Extra: map[string]string{"node": "worker-02", "ip": "10.244.2.16", "qos": "Burstable"}},
+			{Name: "db-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "db"}, Extra: map[string]string{"node": "worker-03", "ip": "10.244.3.9", "qos": "Guaranteed"}},
+			{Name: "cache-redis-0", Status: "Running", Ready: "1/1", Restarts: "0", Age: "12d", Labels: map[string]string{"app": "cache-redis"}, Extra: map[string]string{"node": "worker-01", "ip": "10.244.1.22", "qos": "Burstable"}},
 		}
 	}
 }
 
 func (p *Pods) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{Name: "NAME", Width: 48},
-		{Name: "STATUS", Width: 12},
-		{Name: "READY", Width: 7},
-		{Name: "RESTARTS", Width: 14},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "ready", Name: "READY", Width: 7, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
 
-func (p *Pods) TableRow(item ResourceItem) []string {
-	return namespacedRow(item.Namespace, []string{item.Name, item.Status, item.Ready, item.Restarts, item.Age})
+func (p *Pods) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"namespace": item.Namespace,
+		"name":      item.Name,
+		"status":    item.Status,
+		"ready":     item.Ready,
+		"restarts":  item.Restarts,
+		"age":       item.Age,
+	}
+}
+
+func (p *Pods) TableColumnsWide() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "ready", Name: "READY", Width: 7, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "node", Name: "NODE", Width: 16, Default: false},
+		{ID: "ip", Name: "IP", Width: 16, Default: false},
+		{ID: "qos", Name: "QOS", Width: 12, Default: false},
+	})
+}
+
+func (p *Pods) TableRowWide(item ResourceItem) map[string]string {
+	row := p.TableRow(item)
+	row["node"] = item.Extra["node"]
+	row["ip"] = item.Extra["ip"]
+	row["qos"] = item.Extra["qos"]
+	return row
 }
 
 func (p *Pods) Sort(items []ResourceItem) {

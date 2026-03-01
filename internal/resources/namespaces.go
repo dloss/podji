@@ -9,14 +9,18 @@ type Namespaces struct {
 
 func (n *Namespaces) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 48},
-		{Name: "STATUS", Width: 14},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "status", Name: "STATUS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (n *Namespaces) TableRow(item ResourceItem) []string {
-	return []string{item.Name, item.Status, item.Age}
+func (n *Namespaces) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"name":   item.Name,
+		"status": item.Status,
+		"age":    item.Age,
+	}
 }
 
 func NewNamespaces() *Namespaces {

@@ -9,21 +9,50 @@ type Nodes struct {
 
 func (n *Nodes) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 30},
-		{Name: "STATUS", Width: 12},
-		{Name: "ROLES", Width: 16},
-		{Name: "VERSION", Width: 12},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 30, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "roles", Name: "ROLES", Width: 16, Default: true},
+		{ID: "version", Name: "VERSION", Width: 12, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (n *Nodes) TableRow(item ResourceItem) []string {
-	role := "worker"
-	version := "v1.29.2"
-	if strings.HasPrefix(item.Name, "control-plane") {
-		role = "control-plane"
+func nodeRole(name string) string {
+	if strings.HasPrefix(name, "control-plane") {
+		return "control-plane"
 	}
-	return []string{item.Name, item.Status, role, version, item.Age}
+	return "worker"
+}
+
+func (n *Nodes) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"name":    item.Name,
+		"status":  item.Status,
+		"roles":   nodeRole(item.Name),
+		"version": "v1.29.2",
+		"age":     item.Age,
+	}
+}
+
+func (n *Nodes) TableColumnsWide() []TableColumn {
+	return []TableColumn{
+		{ID: "name", Name: "NAME", Width: 30, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "roles", Name: "ROLES", Width: 16, Default: true},
+		{ID: "version", Name: "VERSION", Width: 12, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "os", Name: "OS", Width: 8, Default: false},
+		{ID: "arch", Name: "ARCH", Width: 8, Default: false},
+		{ID: "kernel-version", Name: "KERNEL-VERSION", Width: 22, Default: false},
+	}
+}
+
+func (n *Nodes) TableRowWide(item ResourceItem) map[string]string {
+	row := n.TableRow(item)
+	row["os"] = item.Extra["os"]
+	row["arch"] = item.Extra["arch"]
+	row["kernel-version"] = item.Extra["kernel-version"]
+	return row
 }
 
 func NewNodes() *Nodes {
@@ -35,12 +64,12 @@ func (n *Nodes) Key() rune    { return 'O' }
 
 func (n *Nodes) Items() []ResourceItem {
 	items := []ResourceItem{
-		{Name: "worker-01", Status: "Ready", Ready: "48/110", Age: "90d"},
-		{Name: "worker-02", Status: "Ready", Ready: "35/110", Age: "90d"},
-		{Name: "worker-03", Status: "Ready", Ready: "52/110", Age: "60d"},
-		{Name: "worker-04", Status: "NotReady", Ready: "0/110", Age: "30d"},
-		{Name: "control-plane-01", Status: "Ready", Ready: "12/110", Age: "180d"},
-		{Name: "control-plane-02", Status: "Ready", Ready: "11/110", Age: "180d"},
+		{Name: "worker-01", Status: "Ready", Ready: "48/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
+		{Name: "worker-02", Status: "Ready", Ready: "35/110", Age: "90d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
+		{Name: "worker-03", Status: "Ready", Ready: "52/110", Age: "60d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic"}},
+		{Name: "worker-04", Status: "NotReady", Ready: "0/110", Age: "30d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-91-generic"}},
+		{Name: "control-plane-01", Status: "Ready", Ready: "12/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
+		{Name: "control-plane-02", Status: "Ready", Ready: "11/110", Age: "180d", Extra: map[string]string{"os": "linux", "arch": "amd64", "kernel-version": "5.15.0-76-generic"}},
 	}
 	items = expandMockItems(items, 20)
 	n.Sort(items)

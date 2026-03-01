@@ -445,7 +445,13 @@ func relationTableColumns(resource resources.ResourceType) []resources.TableColu
 
 func relationTableRow(resource resources.ResourceType, res resources.ResourceItem) []string {
 	if table, ok := resource.(resources.TableResource); ok {
-		return table.TableRow(res)
+		rowMap := table.TableRow(res)
+		columns := table.TableColumns()
+		row := make([]string, len(columns))
+		for i, col := range columns {
+			row[i] = rowMap[col.ID]
+		}
+		return row
 	}
 	return []string{res.Name, res.Status, res.Ready, res.Restarts, res.Age}
 }
