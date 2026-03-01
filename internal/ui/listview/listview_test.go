@@ -15,7 +15,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := ansi.Strip(view.Footer())
-	wants := []string{"/ filter", "s sort", "v state", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
+	wants := []string{"/ filter", "s sort", "r related", "nav", "? help", "W", "P", "D", "S", "E"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)
@@ -39,10 +39,9 @@ func TestContainersFooterHidesSortHint(t *testing.T) {
 }
 
 func TestWorkloadsViewShowsForbiddenBanner(t *testing.T) {
+	t.Setenv("PODJI_SCENARIO", "forbidden")
 	registry := resources.DefaultRegistry()
 	w := resources.NewWorkloads()
-	w.CycleScenario() // empty
-	w.CycleScenario() // forbidden
 	view := New(w, registry)
 
 	rendered := view.View()

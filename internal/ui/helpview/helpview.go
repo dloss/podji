@@ -35,7 +35,6 @@ TABLE
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)
-  v                    State (workloads)
   w                    Wide columns on/off
   p                    Column visibility picker
   f <char>             Jump to first item by char

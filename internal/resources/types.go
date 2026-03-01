@@ -103,8 +103,3 @@ type BannerProvider interface {
 	Banner() string
 }
 
-// ScenarioCycler allows mock resources to expose switchable demo states.
-type ScenarioCycler interface {
-	CycleScenario()
-	Scenario() string
-}

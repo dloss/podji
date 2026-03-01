@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"os"
 	"sort"
 	"strings"
 )
@@ -12,7 +13,14 @@ type Workloads struct {
 }
 
 func NewWorkloads() *Workloads {
-	return &Workloads{sortMode: "name", scenario: "normal"}
+	scenario := os.Getenv("PODJI_SCENARIO")
+	switch scenario {
+	case "empty", "forbidden", "partial", "offline":
+		// valid
+	default:
+		scenario = "normal"
+	}
+	return &Workloads{sortMode: "name", scenario: scenario}
 }
 
 func (w *Workloads) Name() string { return "workloads" }
@@ -203,25 +211,6 @@ func (w *Workloads) SortMode() string { return w.sortMode }
 func (w *Workloads) SortDesc() bool   { return w.sortDesc }
 func (w *Workloads) SortKeys() []SortKey {
 	return sortKeysFor([]string{"name", "kind", "ready", "status", "restarts", "age"})
-}
-
-func (w *Workloads) CycleScenario() {
-	switch w.scenario {
-	case "normal":
-		w.scenario = "empty"
-	case "empty":
-		w.scenario = "forbidden"
-	case "forbidden":
-		w.scenario = "partial"
-	case "partial":
-		w.scenario = "offline"
-	default:
-		w.scenario = "normal"
-	}
-}
-
-func (w *Workloads) Scenario() string {
-	return w.scenario
 }
 
 func (w *Workloads) Banner() string {

@@ -401,12 +401,6 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.sortPickMode = true
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
-		case "v":
-			if cycler, ok := v.resource.(resources.ScenarioCycler); ok {
-				cycler.CycleScenario()
-				v.refreshItems()
-				return viewstate.Update{Action: viewstate.None, Next: v}
-			}
 		case "y":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
@@ -534,9 +528,6 @@ func (v *View) SelectedBreadcrumb() string {
 func (v *View) Footer() string {
 	// Line 1: status indicators + pagination right-aligned.
 	var indicators []style.Binding
-	if cycler, ok := v.resource.(resources.ScenarioCycler); ok && cycler.Scenario() != "normal" {
-		indicators = append(indicators, style.B("state", cycler.Scenario()))
-	}
 	if v.wideMode {
 		indicators = append(indicators, style.B("wide", ""))
 	}
@@ -662,17 +653,11 @@ func (v *View) Footer() string {
 		}
 	} else {
 		var actions []style.Binding
-		isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
 		actions = append(actions, style.B("/", "filter"))
 		if _, ok := v.resource.(resources.Sortable); ok {
 			actions = append(actions, style.B("s", "sort"))
-		}
-		if isWorkloads {
-			if _, ok := v.resource.(resources.ScenarioCycler); ok {
-				actions = append(actions, style.B("v", "state"))
-			}
 		}
 		if !isContainers {
 			actions = append(actions, style.B("r", "related"))
