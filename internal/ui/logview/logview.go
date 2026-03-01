@@ -163,20 +163,32 @@ func (v *View) Footer() string {
 	if sinceWindows[v.sinceIdx] != "5m" {
 		indicators = append(indicators, style.B("since", sinceWindows[v.sinceIdx]))
 	}
-	if v.searchActive {
-		indicators = append(indicators, style.B("/", v.searchQuery+"█"))
-	} else if len(v.matchLines) > 0 {
+	if len(v.matchLines) > 0 && !v.searchActive {
 		indicators = append(indicators, style.B("match", matchSummary(v.matchIndex, len(v.matchLines))))
 	}
 	line1 := style.FormatBindings(indicators)
 
-	// Line 2: actions.
-	actions := []style.Binding{
-		style.B("t", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
-		style.B("/", "search"), style.B("[ ]", "since"), style.B("c", "container"),
-		style.B("pgup/pgdn", "page"),
+	// Line 2: search mode prompt or normal actions.
+	var line2 string
+	if v.searchActive {
+		searchLabel := style.FooterKey.Render("search")
+		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
+		opts := "  " + style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		line2 = searchLabel + "  " + searchVal + opts
+		if v.viewport.Width > 0 {
+			line2 = ansi.Truncate(line2, v.viewport.Width-2, "…")
+		}
+	} else {
+		actions := []style.Binding{
+			style.B("t", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
+			style.B("/", "search"), style.B("[ ]", "since"), style.B("c", "container"),
+			style.B("pgup/pgdn", "page"),
+		}
+		line2 = style.ActionFooter(actions, v.viewport.Width)
 	}
-	line2 := style.ActionFooter(actions, v.viewport.Width)
 	return line1 + "\n" + line2
 }
 

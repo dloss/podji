@@ -660,6 +660,14 @@ func (v *View) Footer() string {
 		if v.list.Width() > 0 {
 			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
+	} else if v.list.SettingFilter() {
+		filterLabel := style.FooterKey.Render("filter")
+		filterVal := style.FooterKey.Render("/ " + v.list.FilterValue() + "▌")
+		opts := "  " + style.FormatBindings([]style.Binding{style.B("esc", "cancel")})
+		line2 = filterLabel + "  " + filterVal + opts
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
 	} else {
 		var actions []style.Binding
 		isWorkloads := strings.EqualFold(v.resource.Name(), "workloads")
