@@ -16,6 +16,8 @@ GLOBAL
   esc                  Clear filter, then back
   N                    Namespace
   X                    Context
+  m <1-9>              Set bookmark (context + namespace + resource type)
+  1-9                  Jump to bookmark
   A                    All resource types (built-ins + CRDs)
   W                    Workloads
   P                    Pods
