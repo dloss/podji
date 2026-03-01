@@ -255,6 +255,24 @@ func TestExecMenuKeepsStateForUnsupportedAction(t *testing.T) {
 	}
 }
 
+func TestFilterModeFooterIndicator(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('/'))
+	footer := ansi.Strip(view.Footer())
+	if !strings.Contains(footer, "filter") {
+		t.Fatalf("expected filter mode indicator in footer, got: %s", footer)
+	}
+	if !strings.Contains(footer, "▌") {
+		t.Fatalf("expected cursor in footer when filter active, got: %s", footer)
+	}
+	if !strings.Contains(footer, "esc") {
+		t.Fatalf("expected esc cancel hint in filter footer, got: %s", footer)
+	}
+}
+
 func TestFindModeFooterIndicator(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
