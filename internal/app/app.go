@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/columnpicker"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
 	"github.com/dloss/podji/internal/ui/overlaypicker"
@@ -26,20 +27,21 @@ type Bookmark struct {
 }
 
 type Model struct {
-	registry         *resources.Registry
-	stack            []viewstate.View
-	crumbs           []string
-	overlay          *overlaypicker.Picker
-	relatedPicker    *relatedview.Picker
-	context          string
-	namespace        string
-	errorMsg         string
-	statusMsg        string
-	bookmarks        [9]*Bookmark
-	bookmarkMode     bool
+	registry          *resources.Registry
+	stack             []viewstate.View
+	crumbs            []string
+	overlay           *overlaypicker.Picker
+	relatedPicker     *relatedview.Picker
+	colPicker         *columnpicker.Picker
+	context           string
+	namespace         string
+	errorMsg          string
+	statusMsg         string
+	bookmarks         [9]*Bookmark
+	bookmarkMode      bool
 	activeResourceKey rune
-	width            int
-	height           int
+	width             int
+	height            int
 }
 
 type globalKeySuppresser interface {
@@ -88,6 +90,15 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, update.Cmd
 		}
 	}
+	if m.colPicker != nil {
+		if _, ok := msg.(bubbletea.KeyMsg); ok {
+			update := m.colPicker.Update(msg)
+			if update.Action == viewstate.Pop {
+				m.colPicker = nil
+			}
+			return m, update.Cmd
+		}
+	}
 
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
@@ -99,6 +110,21 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 		if m.relatedPicker != nil {
 			m.relatedPicker.SetSize(m.width, m.height-1)
+		}
+		if m.colPicker != nil {
+			m.colPicker.SetSize(m.width, m.height-1)
+		}
+		return m, nil
+
+	case listview.OpenColumnPickerMsg:
+		picker := columnpicker.New(msg.ResourceName, msg.Pool, msg.LabelPool, msg.Current)
+		picker.SetSize(m.width, m.height-1)
+		m.colPicker = picker
+		return m, nil
+
+	case columnpicker.PickedMsg:
+		if lv, ok := m.top().(*listview.View); ok {
+			lv.ApplyColumnConfig(msg.ResourceName, msg.Visible)
 		}
 		return m, nil
 
@@ -331,6 +357,9 @@ func (m Model) View() string {
 	}
 	if m.relatedPicker != nil {
 		return compositeOverlay(main, m.relatedPicker.View(), m.relatedPicker.AnchorX(), 1)
+	}
+	if m.colPicker != nil {
+		return compositeOverlay(main, m.colPicker.View(), m.colPicker.AnchorX(), 1)
 	}
 	return main
 }

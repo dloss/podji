@@ -19,22 +19,50 @@ func (g *Ingresses) Key() rune    { return 'I' }
 
 func (g *Ingresses) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{Name: "NAME", Width: 24},
-		{Name: "CLASS", Width: 10},
-		{Name: "HOSTS", Width: 30},
-		{Name: "ADDRESS", Width: 16},
-		{Name: "PORTS", Width: 10},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 24, Default: true},
+		{ID: "class", Name: "CLASS", Width: 10, Default: true},
+		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
+		{ID: "address", Name: "ADDRESS", Width: 16, Default: true},
+		{ID: "ports", Name: "PORTS", Width: 10, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
 
-func (g *Ingresses) TableRow(item ResourceItem) []string {
+func (g *Ingresses) TableRow(item ResourceItem) map[string]string {
 	// Kind holds the ingress class, Ready holds the hostname.
 	class := item.Kind
 	if class == "" {
 		class = "nginx"
 	}
-	return namespacedRow(item.Namespace, []string{item.Name, class, item.Ready, ingressAddress(item.Status), ingressPorts(item.Name), item.Age})
+	return map[string]string{
+		"namespace": item.Namespace,
+		"name":      item.Name,
+		"class":     class,
+		"hosts":     item.Ready,
+		"address":   ingressAddress(item.Status),
+		"ports":     ingressPorts(item.Name),
+		"age":       item.Age,
+	}
+}
+
+func (g *Ingresses) TableColumnsWide() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{ID: "name", Name: "NAME", Width: 24, Default: true},
+		{ID: "class", Name: "CLASS", Width: 10, Default: true},
+		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
+		{ID: "address", Name: "ADDRESS", Width: 16, Default: true},
+		{ID: "ports", Name: "PORTS", Width: 10, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "tls", Name: "TLS", Width: 8, Default: false},
+		{ID: "rules", Name: "RULES", Width: 6, Default: false},
+	})
+}
+
+func (g *Ingresses) TableRowWide(item ResourceItem) map[string]string {
+	row := g.TableRow(item)
+	row["tls"] = item.Extra["tls"]
+	row["rules"] = item.Extra["rules"]
+	return row
 }
 
 func ingressAddress(status string) string {
@@ -69,19 +97,19 @@ func ingressItemsForNamespace(ns string) []ResourceItem {
 	switch ns {
 	case "production":
 		return []ResourceItem{
-			{Name: "admin", Status: "Healthy", Kind: "nginx", Ready: "admin.example.com", Age: "30d"},
-			{Name: "api-gateway", Status: "Healthy", Kind: "nginx", Ready: "api.example.com", Age: "14d"},
-			{Name: "frontend", Status: "Healthy", Kind: "nginx", Ready: "app.example.com", Age: "7d"},
-			{Name: "status-page", Status: "Healthy", Kind: "nginx", Ready: "status.example.com", Age: "60d"},
+			{Name: "admin", Status: "Healthy", Kind: "nginx", Ready: "admin.example.com", Age: "30d", Extra: map[string]string{"tls": "True", "rules": "1"}},
+			{Name: "api-gateway", Status: "Healthy", Kind: "nginx", Ready: "api.example.com", Age: "14d", Extra: map[string]string{"tls": "True", "rules": "3"}},
+			{Name: "frontend", Status: "Healthy", Kind: "nginx", Ready: "app.example.com", Age: "7d", Extra: map[string]string{"tls": "True", "rules": "2"}},
+			{Name: "status-page", Status: "Healthy", Kind: "nginx", Ready: "status.example.com", Age: "60d", Extra: map[string]string{"tls": "True", "rules": "1"}},
 		}
 	case "kube-system":
 		return []ResourceItem{
-			{Name: "grafana", Status: "Healthy", Kind: "nginx", Ready: "grafana.internal", Age: "30d"},
+			{Name: "grafana", Status: "Healthy", Kind: "nginx", Ready: "grafana.internal", Age: "30d", Extra: map[string]string{"tls": "False", "rules": "1"}},
 		}
 	default:
 		return []ResourceItem{
-			{Name: "api-gateway", Status: "Healthy", Kind: "nginx", Ready: "api.example.com", Age: "14d"},
-			{Name: "grafana", Status: "Healthy", Kind: "nginx", Ready: "grafana.example.com", Age: "30d"},
+			{Name: "api-gateway", Status: "Healthy", Kind: "nginx", Ready: "api.example.com", Age: "14d", Extra: map[string]string{"tls": "True", "rules": "3"}},
+			{Name: "grafana", Status: "Healthy", Kind: "nginx", Ready: "grafana.example.com", Age: "30d", Extra: map[string]string{"tls": "False", "rules": "1"}},
 		}
 	}
 }

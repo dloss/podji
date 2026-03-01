@@ -12,13 +12,13 @@ type ConfigMaps struct {
 
 func (c *ConfigMaps) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 48},
-		{Name: "DATA", Width: 8},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "data", Name: "DATA", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (c *ConfigMaps) TableRow(item ResourceItem) []string {
+func (c *ConfigMaps) TableRow(item ResourceItem) map[string]string {
 	dataCount := 3
 	switch item.Name {
 	case "coredns":
@@ -32,7 +32,11 @@ func (c *ConfigMaps) TableRow(item ResourceItem) []string {
 	case "nginx-config":
 		dataCount = 2
 	}
-	return []string{item.Name, fmt.Sprintf("%d", dataCount), item.Age}
+	return map[string]string{
+		"name": item.Name,
+		"data": fmt.Sprintf("%d", dataCount),
+		"age":  item.Age,
+	}
 }
 
 func NewConfigMaps() *ConfigMaps {

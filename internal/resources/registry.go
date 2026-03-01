@@ -18,15 +18,7 @@ func namespacedColumns(cols []TableColumn) []TableColumn {
 	if ActiveNamespace != AllNamespaces {
 		return cols
 	}
-	return append([]TableColumn{{Name: "NAMESPACE", Width: 16}}, cols...)
-}
-
-// namespacedRow prepends the item's Namespace field when in all-namespaces mode.
-func namespacedRow(ns string, row []string) []string {
-	if ActiveNamespace != AllNamespaces {
-		return row
-	}
-	return append([]string{ns}, row...)
+	return append([]TableColumn{{ID: "namespace", Name: "NAMESPACE", Width: 16, Default: true}}, cols...)
 }
 
 // allNamespaceItems merges stub items from a representative set of namespaces,

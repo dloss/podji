@@ -9,15 +9,39 @@ type Deployments struct {
 
 func (d *Deployments) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{Name: "NAME", Width: 35},
-		{Name: "STATUS", Width: 14},
-		{Name: "READY", Width: 8},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 35, Default: true},
+		{ID: "status", Name: "STATUS", Width: 14, Default: true},
+		{ID: "ready", Name: "READY", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
 
-func (d *Deployments) TableRow(item ResourceItem) []string {
-	return namespacedRow(item.Namespace, []string{item.Name, item.Status, item.Ready, item.Age})
+func (d *Deployments) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"namespace": item.Namespace,
+		"name":      item.Name,
+		"status":    item.Status,
+		"ready":     item.Ready,
+		"age":       item.Age,
+	}
+}
+
+func (d *Deployments) TableColumnsWide() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{ID: "name", Name: "NAME", Width: 35, Default: true},
+		{ID: "status", Name: "STATUS", Width: 14, Default: true},
+		{ID: "ready", Name: "READY", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "selector", Name: "SELECTOR", Width: 28, Default: false},
+		{ID: "strategy", Name: "STRATEGY", Width: 14, Default: false},
+	})
+}
+
+func (d *Deployments) TableRowWide(item ResourceItem) map[string]string {
+	row := d.TableRow(item)
+	row["selector"] = item.Extra["selector"]
+	row["strategy"] = item.Extra["strategy"]
+	return row
 }
 
 func NewDeployments() *Deployments {
@@ -43,32 +67,32 @@ func deploymentItemsForNamespace(ns string) []ResourceItem {
 	switch ns {
 	case "production":
 		return []ResourceItem{
-			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d"},
-			{Name: "frontend", Status: "Healthy", Ready: "4/4", Age: "7d"},
-			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d"},
-			{Name: "notification-worker", Status: "Healthy", Ready: "2/2", Age: "10d"},
-			{Name: "user-service", Status: "Healthy", Ready: "3/3", Age: "3d"},
+			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d", Extra: map[string]string{"selector": "app=api-gateway", "strategy": "RollingUpdate"}},
+			{Name: "frontend", Status: "Healthy", Ready: "4/4", Age: "7d", Extra: map[string]string{"selector": "app=frontend", "strategy": "RollingUpdate"}},
+			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d", Extra: map[string]string{"selector": "app=auth-service", "strategy": "RollingUpdate"}},
+			{Name: "notification-worker", Status: "Healthy", Ready: "2/2", Age: "10d", Extra: map[string]string{"selector": "app=notification-worker", "strategy": "Recreate"}},
+			{Name: "user-service", Status: "Healthy", Ready: "3/3", Age: "3d", Extra: map[string]string{"selector": "app=user-service", "strategy": "RollingUpdate"}},
 		}
 	case "staging":
 		return []ResourceItem{
-			{Name: "api-gateway", Status: "Healthy", Ready: "1/1", Age: "5d"},
-			{Name: "frontend", Status: "Healthy", Ready: "1/1", Age: "3h"},
-			{Name: "search-indexer", Status: "Progressing", Ready: "0/1", Age: "10m"},
+			{Name: "api-gateway", Status: "Healthy", Ready: "1/1", Age: "5d", Extra: map[string]string{"selector": "app=api-gateway", "strategy": "RollingUpdate"}},
+			{Name: "frontend", Status: "Healthy", Ready: "1/1", Age: "3h", Extra: map[string]string{"selector": "app=frontend", "strategy": "RollingUpdate"}},
+			{Name: "search-indexer", Status: "Progressing", Ready: "0/1", Age: "10m", Extra: map[string]string{"selector": "app=search-indexer", "strategy": "Recreate"}},
 		}
 	case "monitoring":
 		return []ResourceItem{
-			{Name: "grafana", Status: "Healthy", Ready: "1/1", Age: "15d"},
-			{Name: "kube-state-metrics", Status: "Healthy", Ready: "1/1", Age: "20d"},
+			{Name: "grafana", Status: "Healthy", Ready: "1/1", Age: "15d", Extra: map[string]string{"selector": "app=grafana", "strategy": "RollingUpdate"}},
+			{Name: "kube-state-metrics", Status: "Healthy", Ready: "1/1", Age: "20d", Extra: map[string]string{"selector": "app=kube-state-metrics", "strategy": "RollingUpdate"}},
 		}
 	default:
 		return []ResourceItem{
-			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d"},
-			{Name: "frontend", Status: "Healthy", Ready: "2/2", Age: "7d"},
-			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d"},
-			{Name: "payment-service", Status: "Degraded", Ready: "1/2", Age: "5d"},
-			{Name: "notification-worker", Status: "Healthy", Ready: "1/1", Age: "10d"},
-			{Name: "search-indexer", Status: "Progressing", Ready: "2/3", Age: "45m"},
-			{Name: "user-service", Status: "Healthy", Ready: "2/2", Age: "3d"},
+			{Name: "api-gateway", Status: "Healthy", Ready: "3/3", Age: "14d", Extra: map[string]string{"selector": "app=api-gateway", "strategy": "RollingUpdate"}},
+			{Name: "frontend", Status: "Healthy", Ready: "2/2", Age: "7d", Extra: map[string]string{"selector": "app=frontend", "strategy": "RollingUpdate"}},
+			{Name: "auth-service", Status: "Healthy", Ready: "2/2", Age: "21d", Extra: map[string]string{"selector": "app=auth-service", "strategy": "RollingUpdate"}},
+			{Name: "payment-service", Status: "Degraded", Ready: "1/2", Age: "5d", Extra: map[string]string{"selector": "app=payment-service", "strategy": "RollingUpdate"}},
+			{Name: "notification-worker", Status: "Healthy", Ready: "1/1", Age: "10d", Extra: map[string]string{"selector": "app=notification-worker", "strategy": "Recreate"}},
+			{Name: "search-indexer", Status: "Progressing", Ready: "2/3", Age: "45m", Extra: map[string]string{"selector": "app=search-indexer", "strategy": "Recreate"}},
+			{Name: "user-service", Status: "Healthy", Ready: "2/2", Age: "3d", Extra: map[string]string{"selector": "app=user-service", "strategy": "RollingUpdate"}},
 		}
 	}
 }

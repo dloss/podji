@@ -29,21 +29,26 @@ func NewScopedEvents(object string, count int) *ScopedEvents {
 
 func (e *Events) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 48},
-		{Name: "TYPE", Width: 10},
-		{Name: "REASON", Width: 24},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "type", Name: "TYPE", Width: 10, Default: true},
+		{ID: "reason", Name: "REASON", Width: 24, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (e *Events) TableRow(item ResourceItem) []string {
+func (e *Events) TableRow(item ResourceItem) map[string]string {
 	parts := strings.SplitN(item.Name, ".", 2)
 	object := parts[0]
 	reason := ""
 	if len(parts) > 1 {
 		reason = parts[1]
 	}
-	return []string{object, item.Kind, reason, item.Age}
+	return map[string]string{
+		"name":   object,
+		"type":   item.Kind,
+		"reason": reason,
+		"age":    item.Age,
+	}
 }
 
 func NewEvents() *Events {
@@ -75,7 +80,7 @@ func (e *ScopedEvents) Key() rune    { return 'E' }
 func (e *ScopedEvents) TableColumns() []TableColumn {
 	return e.base.TableColumns()
 }
-func (e *ScopedEvents) TableRow(item ResourceItem) []string {
+func (e *ScopedEvents) TableRow(item ResourceItem) map[string]string {
 	return e.base.TableRow(item)
 }
 

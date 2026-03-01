@@ -12,14 +12,14 @@ type Secrets struct {
 
 func (s *Secrets) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 35},
-		{Name: "TYPE", Width: 38},
-		{Name: "DATA", Width: 8},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 35, Default: true},
+		{ID: "type", Name: "TYPE", Width: 38, Default: true},
+		{ID: "data", Name: "DATA", Width: 8, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (s *Secrets) TableRow(item ResourceItem) []string {
+func (s *Secrets) TableRow(item ResourceItem) map[string]string {
 	kind := item.Kind
 	if kind == "" {
 		kind = "Opaque"
@@ -33,7 +33,12 @@ func (s *Secrets) TableRow(item ResourceItem) []string {
 	case "api-gateway-tls":
 		dataCount = 2
 	}
-	return []string{item.Name, kind, fmt.Sprintf("%d", dataCount), item.Age}
+	return map[string]string{
+		"name": item.Name,
+		"type": kind,
+		"data": fmt.Sprintf("%d", dataCount),
+		"age":  item.Age,
+	}
 }
 
 func NewSecrets() *Secrets {

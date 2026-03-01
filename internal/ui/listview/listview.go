@@ -3,6 +3,7 @@ package listview
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/dloss/podji/internal/columnconfig"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
@@ -23,6 +25,14 @@ import (
 )
 
 const columnSeparator = "  "
+
+// OpenColumnPickerMsg signals app.go to open the column picker overlay.
+type OpenColumnPickerMsg struct {
+	ResourceName string
+	Pool         []resources.TableColumn // resource-defined columns (normal + wide extras)
+	LabelPool    []resources.TableColumn // dynamic label-derived columns
+	Current      []string                // currently active column IDs
+}
 
 type clearCopiedMsg struct{}
 
@@ -102,6 +112,8 @@ type View struct {
 	list         list.Model
 	columns      []resources.TableColumn
 	colWidths    []int
+	wideMode     bool
+	labelPool    []resources.TableColumn
 	sortPickMode bool
 	findMode     bool
 	findTargets  map[int]bool
@@ -113,30 +125,21 @@ type View struct {
 }
 
 func New(resource resources.ResourceType, registry *resources.Registry) *View {
-	columns := tableColumns(resource)
 	items := resource.Items()
-	rows := make([][]string, 0, len(items))
-	for _, res := range items {
-		rows = append(rows, tableRow(resource, res))
-	}
+	labelPool := labelColumnsFromItems(items)
+	pool := buildColumnPool(resource, labelPool)
+	columns := columnconfig.Default().Get(resource.Name(), pool)
+	rows := assembleRows(resource, false, columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
 	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
-	listItems := make([]list.Item, 0, len(items))
-	for idx, res := range items {
-		row := rows[idx]
-		listItems = append(listItems, item{
-			data:   res,
-			row:    row,
-			status: res.Status,
-			widths: widths,
-		})
-	}
+	listItems := makeListItems(items, rows, widths)
 
 	v := &View{
 		resource:  resource,
 		registry:  registry,
 		columns:   columns,
 		colWidths: widths,
+		labelPool: labelPool,
 	}
 	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
@@ -351,6 +354,37 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   dv,
 				}
 			}
+		case "w":
+			// Wide mode toggle (only if resource implements WideResource).
+			if _, ok := v.resource.(resources.WideResource); ok {
+				v.wideMode = !v.wideMode
+				v.refreshColumns()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+		case "p":
+			// Column picker (exit wide mode first if active).
+			if _, ok := v.resource.(resources.TableResource); ok {
+				if v.wideMode {
+					v.wideMode = false
+					v.refreshColumns()
+				}
+				pool := buildColumnPool(v.resource, v.labelPool)
+				current := columnIDs(v.columns)
+				resourceName := v.resource.Name()
+				labelPool := v.labelPool
+				return viewstate.Update{
+					Action: viewstate.None,
+					Next:   v,
+					Cmd: func() bubbletea.Msg {
+						return OpenColumnPickerMsg{
+							ResourceName: resourceName,
+							Pool:         pool,
+							LabelPool:    labelPool,
+							Current:      current,
+						}
+					},
+				}
+			}
 		case "s":
 			if _, ok := v.resource.(resources.Sortable); ok {
 				v.sortPickMode = true
@@ -495,6 +529,12 @@ func (v *View) Footer() string {
 	if cycler, ok := v.resource.(resources.ScenarioCycler); ok && cycler.Scenario() != "normal" {
 		indicators = append(indicators, style.B("state", cycler.Scenario()))
 	}
+	if v.wideMode {
+		indicators = append(indicators, style.B("wide", ""))
+	}
+	if columnconfig.Default().IsCustom(v.resource.Name()) && !v.wideMode {
+		indicators = append(indicators, style.B("columns", "custom"))
+	}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
@@ -619,6 +659,16 @@ func (v *View) Footer() string {
 		if !isContainers {
 			actions = append(actions, style.B("r", "related"))
 		}
+		if _, ok := v.resource.(resources.TableResource); ok {
+			actions = append(actions, style.B("p", "columns"))
+		}
+		if _, ok := v.resource.(resources.WideResource); ok {
+			if v.wideMode {
+				actions = append(actions, style.B("w", "[wide]"))
+			} else {
+				actions = append(actions, style.B("w", "wide"))
+			}
+		}
 		actions = append(actions, style.B("c", "copy"))
 		actions = append(actions, style.B("x", "execute"))
 		line2 = style.ActionFooter(actions, v.list.Width())
@@ -650,6 +700,17 @@ func (v *View) SelectedItem() resources.ResourceItem {
 // Resource returns the underlying resource type for this view.
 func (v *View) Resource() resources.ResourceType {
 	return v.resource
+}
+
+// ApplyColumnConfig is called by app.go after the column picker confirms a selection.
+func (v *View) ApplyColumnConfig(resourceName string, visible []string) {
+	if resourceName != v.resource.Name() {
+		return
+	}
+	columnconfig.Default().Set(resourceName, visible)
+	pool := buildColumnPool(v.resource, v.labelPool)
+	v.columns = columnconfig.Default().Get(resourceName, pool)
+	v.refreshItems()
 }
 
 func (v *View) NextBreadcrumb() string {
@@ -776,19 +837,97 @@ func tableColumns(resource resources.ResourceType) []resources.TableColumn {
 		return table.TableColumns()
 	}
 	return []resources.TableColumn{
-		{Name: "NAME", Width: 48},
-		{Name: "STATUS", Width: 12},
-		{Name: "READY", Width: 7},
-		{Name: "RESTARTS", Width: 14},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "ready", Name: "READY", Width: 7, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func tableRow(resource resources.ResourceType, res resources.ResourceItem) []string {
+func tableRowMap(resource resources.ResourceType, res resources.ResourceItem) map[string]string {
 	if table, ok := resource.(resources.TableResource); ok {
 		return table.TableRow(res)
 	}
-	return []string{res.Name, res.Status, res.Ready, res.Restarts, res.Age}
+	return map[string]string{
+		"name":     res.Name,
+		"status":   res.Status,
+		"ready":    res.Ready,
+		"restarts": res.Restarts,
+		"age":      res.Age,
+	}
+}
+
+// buildColumnPool returns the full set of columns available for a resource:
+// normal columns + wide-only extras + label columns.
+func buildColumnPool(resource resources.ResourceType, labelPool []resources.TableColumn) []resources.TableColumn {
+	pool := tableColumns(resource)
+
+	if wide, ok := resource.(resources.WideResource); ok {
+		poolIDs := make(map[string]bool, len(pool))
+		for _, col := range pool {
+			poolIDs[col.ID] = true
+		}
+		for _, col := range wide.TableColumnsWide() {
+			if !poolIDs[col.ID] {
+				pool = append(pool, col)
+			}
+		}
+	}
+
+	pool = append(pool, labelPool...)
+	return pool
+}
+
+// assembleRow builds a []string row for a single item, using either wide or normal map.
+func assembleRow(resource resources.ResourceType, wideMode bool, columns []resources.TableColumn, res resources.ResourceItem) []string {
+	var rowMap map[string]string
+	if wideMode {
+		if wide, ok := resource.(resources.WideResource); ok {
+			rowMap = wide.TableRowWide(res)
+		}
+	}
+	if rowMap == nil {
+		rowMap = tableRowMap(resource, res)
+	}
+
+	row := make([]string, len(columns))
+	for i, col := range columns {
+		if strings.HasPrefix(col.ID, "label:") {
+			labelKey := strings.TrimPrefix(col.ID, "label:")
+			row[i] = res.Labels[labelKey]
+		} else {
+			row[i] = rowMap[col.ID]
+		}
+	}
+	return row
+}
+
+// assembleRows builds all rows for a resource's item list.
+func assembleRows(resource resources.ResourceType, wideMode bool, columns []resources.TableColumn, items []resources.ResourceItem) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, res := range items {
+		rows = append(rows, assembleRow(resource, wideMode, columns, res))
+	}
+	return rows
+}
+
+// makeListItems creates bubbletea list items from resource items and pre-computed rows/widths.
+func makeListItems(items []resources.ResourceItem, rows [][]string, widths []int) []list.Item {
+	listItems := make([]list.Item, 0, len(items))
+	for idx, res := range items {
+		var row []string
+		if idx < len(rows) {
+			row = rows[idx]
+		}
+		listItems = append(listItems, item{
+			data:   res,
+			row:    row,
+			status: res.Status,
+			widths: widths,
+		})
+	}
+	return listItems
 }
 
 func columnWidths(columns []resources.TableColumn) []int {
@@ -920,19 +1059,19 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 	case "name":
 		return 0
 	case "age":
-		return firstColumnNamed(columns, "AGE")
+		return firstColumnWithID(columns, "age")
 	case "kind":
-		if idx := firstColumnNamed(columns, "KIND"); idx >= 0 {
+		if idx := firstColumnWithID(columns, "kind"); idx >= 0 {
 			return idx
 		}
-		return firstColumnNamed(columns, "TYPE")
+		return firstColumnWithID(columns, "type")
 	case "status":
-		if idx := firstColumnNamed(columns, "STATUS"); idx >= 0 {
+		if idx := firstColumnWithID(columns, "status"); idx >= 0 {
 			return idx
 		}
 		// Events surface severity in TYPE and also support status sort.
 		if resource != nil && strings.EqualFold(resource.Name(), "events") {
-			return firstColumnNamed(columns, "TYPE")
+			return firstColumnWithID(columns, "type")
 		}
 	}
 	return -1
@@ -950,37 +1089,93 @@ func isDefaultSort(resource resources.ResourceType) bool {
 	return sortable.SortMode() == keys[0].Mode && !sortable.SortDesc()
 }
 
-func firstColumnNamed(columns []resources.TableColumn, name string) int {
+func firstColumnWithID(columns []resources.TableColumn, id string) int {
 	for idx, col := range columns {
-		if strings.EqualFold(strings.TrimSpace(col.Name), name) {
+		if col.ID == id {
 			return idx
 		}
 	}
 	return -1
 }
 
+// refreshColumns swaps columns (and reloads items) based on current wideMode.
+func (v *View) refreshColumns() {
+	if v.wideMode {
+		if wide, ok := v.resource.(resources.WideResource); ok {
+			v.columns = wide.TableColumnsWide()
+			v.refreshItems()
+			return
+		}
+	}
+	// Normal mode: apply column config.
+	pool := buildColumnPool(v.resource, v.labelPool)
+	v.columns = columnconfig.Default().Get(v.resource.Name(), pool)
+	v.refreshItems()
+}
+
 func (v *View) refreshItems() {
 	items := v.resource.Items()
-	rows := make([][]string, 0, len(items))
-	for _, res := range items {
-		rows = append(rows, tableRow(v.resource, res))
+
+	// Refresh label pool from current items.
+	v.labelPool = labelColumnsFromItems(items)
+
+	// In normal mode, re-apply column config (label pool may have changed).
+	if !v.wideMode {
+		pool := buildColumnPool(v.resource, v.labelPool)
+		v.columns = columnconfig.Default().Get(v.resource.Name(), pool)
 	}
+
+	rows := assembleRows(v.resource, v.wideMode, v.columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
 	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
-	listItems := make([]list.Item, 0, len(items))
-	for idx, res := range items {
-		listItems = append(listItems, item{
-			data:   res,
-			row:    rows[idx],
-			status: res.Status,
-			widths: v.colWidths,
-		})
-	}
+	listItems := makeListItems(items, rows, v.colWidths)
 	selected := v.list.Index()
 	v.list.SetItems(listItems)
 	if selected >= 0 && selected < len(listItems) {
 		v.list.Select(selected)
 	}
+}
+
+// columnIDs returns the IDs of the given columns in order.
+func columnIDs(columns []resources.TableColumn) []string {
+	ids := make([]string, len(columns))
+	for i, col := range columns {
+		ids[i] = col.ID
+	}
+	return ids
+}
+
+// labelColumnsFromItems discovers unique label keys across all items and returns
+// synthetic TableColumn entries for Phase 3 label columns.
+func labelColumnsFromItems(items []resources.ResourceItem) []resources.TableColumn {
+	seen := make(map[string]bool)
+	var keys []string
+	for _, item := range items {
+		for k := range item.Labels {
+			if !seen[k] {
+				seen[k] = true
+				keys = append(keys, k)
+			}
+		}
+	}
+	sort.Strings(keys)
+	cols := make([]resources.TableColumn, 0, len(keys))
+	for _, k := range keys {
+		width := len(k)
+		if width < 12 {
+			width = 12
+		}
+		if width > 20 {
+			width = 20
+		}
+		cols = append(cols, resources.TableColumn{
+			ID:      "label:" + k,
+			Name:    strings.ToUpper(k),
+			Width:   width,
+			Default: false,
+		})
+	}
+	return cols
 }
 
 func breadcrumbLabel(resourceName string) string {
@@ -1150,7 +1345,6 @@ func preferredLogPod(items []resources.ResourceItem) resources.ResourceItem {
 }
 
 // supportsDelete reports whether the current resource type supports deletion.
-// All resource types in the main scope support delete.
 func (v *View) supportsDelete() bool {
 	return true
 }

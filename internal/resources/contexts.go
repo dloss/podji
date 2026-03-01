@@ -9,15 +9,15 @@ type Contexts struct {
 
 func (c *Contexts) TableColumns() []TableColumn {
 	return []TableColumn{
-		{Name: "NAME", Width: 30},
-		{Name: "STATUS", Width: 13},
-		{Name: "CLUSTER", Width: 28},
-		{Name: "SERVER", Width: 50},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 30, Default: true},
+		{ID: "status", Name: "STATUS", Width: 13, Default: true},
+		{ID: "cluster", Name: "CLUSTER", Width: 28, Default: true},
+		{ID: "server", Name: "SERVER", Width: 50, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
-func (c *Contexts) TableRow(item ResourceItem) []string {
+func (c *Contexts) TableRow(item ResourceItem) map[string]string {
 	cluster := item.Name
 	server := "https://127.0.0.1:6443"
 	switch item.Name {
@@ -40,7 +40,13 @@ func (c *Contexts) TableRow(item ResourceItem) []string {
 		cluster = "docker-desktop"
 		server = "https://127.0.0.1:6443"
 	}
-	return []string{item.Name, item.Status, cluster, server, item.Age}
+	return map[string]string{
+		"name":    item.Name,
+		"status":  item.Status,
+		"cluster": cluster,
+		"server":  server,
+		"age":     item.Age,
+	}
 }
 
 func NewContexts() *Contexts {

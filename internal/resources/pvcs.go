@@ -19,18 +19,26 @@ func (p *PersistentVolumeClaims) Key() rune    { return 'V' }
 
 func (p *PersistentVolumeClaims) TableColumns() []TableColumn {
 	return namespacedColumns([]TableColumn{
-		{Name: "NAME", Width: 32},
-		{Name: "CAPACITY", Width: 10},
-		{Name: "ACCESS MODE", Width: 13},
-		{Name: "STATUS", Width: 10},
-		{Name: "STORAGECLASS", Width: 14},
-		{Name: "AGE", Width: 6},
+		{ID: "name", Name: "NAME", Width: 32, Default: true},
+		{ID: "capacity", Name: "CAPACITY", Width: 10, Default: true},
+		{ID: "access-mode", Name: "ACCESS MODE", Width: 13, Default: true},
+		{ID: "status", Name: "STATUS", Width: 10, Default: true},
+		{ID: "storage-class", Name: "STORAGECLASS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
 
-func (p *PersistentVolumeClaims) TableRow(item ResourceItem) []string {
+func (p *PersistentVolumeClaims) TableRow(item ResourceItem) map[string]string {
 	// Kind holds the access mode, Ready holds the capacity.
-	return namespacedRow(item.Namespace, []string{item.Name, item.Ready, item.Kind, item.Status, pvcStorageClass(item.Name), item.Age})
+	return map[string]string{
+		"namespace":     item.Namespace,
+		"name":          item.Name,
+		"capacity":      item.Ready,
+		"access-mode":   item.Kind,
+		"status":        item.Status,
+		"storage-class": pvcStorageClass(item.Name),
+		"age":           item.Age,
+	}
 }
 
 func pvcStorageClass(name string) string {
