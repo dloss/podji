@@ -31,6 +31,11 @@ type View struct {
 	searchQuery  string
 	matchLines   []int
 	matchIndex   int
+
+	// ContainerViewFactory, when set, is called to produce a container-picker
+	// view for the pod. Pressing c opens that picker so the user can switch
+	// containers without leaving the log view stack.
+	ContainerViewFactory func(item resources.ResourceItem, res resources.ResourceType) viewstate.View
 }
 
 func New(item resources.ResourceItem, resource resources.ResourceType) *View {
@@ -119,10 +124,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			v.refreshWindow()
 			v.refreshContent()
 		case "c":
-			// When logs were opened for a specific container, pop back to the
-			// container list so the user can choose a different one.
 			if v.container != "" {
+				// Came here via the container picker — pop back so the user can
+				// choose a different container.
 				return viewstate.Update{Action: viewstate.Pop}
+			}
+			if v.ContainerViewFactory != nil {
+				// Opened directly (e.g. workloads 'o' shortcut) but the pod has
+				// multiple containers — push the container picker now.
+				return viewstate.Update{Action: viewstate.Push, Next: v.ContainerViewFactory(v.item, v.resource)}
 			}
 		case "pgdown", "pgdn", " ":
 			v.viewport.LineDown(pageStep(v.viewport.Height))
@@ -184,9 +194,12 @@ func (v *View) Footer() string {
 	} else {
 		actions := []style.Binding{
 			style.B("t", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
-			style.B("/", "search"), style.B("[ ]", "since"), style.B("c", "container"),
-			style.B("pgup/pgdn", "page"),
+			style.B("/", "search"), style.B("[ ]", "since"),
 		}
+		if v.container != "" || v.ContainerViewFactory != nil {
+			actions = append(actions, style.B("c", "container"))
+		}
+		actions = append(actions, style.B("pgup/pgdn", "page"))
 		line2 = style.ActionFooter(actions, v.viewport.Width)
 	}
 	return line1 + "\n" + line2
