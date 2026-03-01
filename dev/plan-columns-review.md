@@ -109,7 +109,7 @@ If the user has wide mode enabled and opens the column picker with `p`:
 - The picker could show the **wide column pool** (what's currently visible)
 - Or the **normal column pool** (editing the non-wide config)
 
-These are fundamentally different UX models. Option 1 means wide mode and column config are merged into one. Option 2 means pressing `C` while in wide mode applies changes to the normal config that only take effect when wide mode is off — confusing.
+These are fundamentally different UX models. Option 1 means wide mode and column config are merged into one. Option 2 means the picker edits the normal config but changes only take effect when wide mode is off — confusing.
 
 **Resolved**: Pressing `p` while wide mode is active exits wide mode first, then opens the normal column picker. Show a brief footer hint: `w to re-enable wide`. Document this interaction in the plan.
 
