@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/dloss/podji/internal/ui/describeview"
+	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/listview"
 	"github.com/dloss/podji/internal/ui/overlaypicker"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -55,9 +58,9 @@ func (v *keySpyView) Update(msg bubbletea.Msg) viewstate.Update {
 	return viewstate.Update{Action: viewstate.None, Next: v}
 }
 
-func (*keySpyView) View() string       { return "" }
-func (*keySpyView) Breadcrumb() string { return "workloads" }
-func (*keySpyView) Footer() string     { return "status\nq quit" }
+func (*keySpyView) View() string              { return "" }
+func (*keySpyView) Breadcrumb() string        { return "workloads" }
+func (*keySpyView) Footer() string            { return "status\nq quit" }
 func (*keySpyView) SetSize(width, height int) {}
 func (v *keySpyView) SuppressGlobalKeys() bool {
 	return v.suppress
@@ -180,10 +183,10 @@ func TestSelectedNamespaceMsgUpdatesNamespaceAndReloads(t *testing.T) {
 func TestInputRoutedToOverlayWhenActive(t *testing.T) {
 	spy := &keySpyView{}
 	m := Model{
-		stack:   []viewstate.View{spy},
-		crumbs:  []string{"workloads"},
-		overlay: overlaypicker.New("namespace", []string{"default", "staging"}),
-		context: "default",
+		stack:     []viewstate.View{spy},
+		crumbs:    []string{"workloads"},
+		overlay:   overlaypicker.New("namespace", []string{"default", "staging"}),
+		context:   "default",
 		namespace: "default",
 	}
 	m.overlay.SetSize(120, 40)
@@ -293,5 +296,70 @@ func TestContextSwitchPreservesCurrentListViewResource(t *testing.T) {
 	}
 	if got.crumbs[0] != "services" {
 		t.Fatalf("expected services crumb preserved after context switch, got %q", got.crumbs[0])
+	}
+}
+
+func TestCommandBarSingleMatchPushesListAndDetail(t *testing.T) {
+	m := New()
+	m.width = 120
+	m.height = 40
+	err := m.runCommand("deploy zz-api-gateway-01")
+	if err != "" {
+		t.Fatalf("expected no error running command, got %q", err)
+	}
+	model := m
+
+	if len(model.stack) != 3 {
+		t.Fatalf("expected stack len 3 (workloads->deployments->detail), got %d", len(model.stack))
+	}
+	if _, ok := model.stack[1].(*listview.View); !ok {
+		t.Fatalf("expected second stack view to be listview, got %T", model.stack[1])
+	}
+	if _, ok := model.stack[2].(*detailview.View); !ok {
+		t.Fatalf("expected third stack view to be detailview, got %T", model.stack[2])
+	}
+}
+
+func TestCommandBarDescribeSubviewPushesDetailAndDescribe(t *testing.T) {
+	m := New()
+	m.width = 120
+	m.height = 40
+
+	err := m.runCommand("deploy zz-api-gateway-01 describe")
+	if err != "" {
+		t.Fatalf("expected no error running command, got %q", err)
+	}
+	model := m
+
+	if len(model.stack) != 4 {
+		t.Fatalf("expected stack depth 4 for describe path, got %d", len(model.stack))
+	}
+	if _, ok := model.stack[2].(*detailview.View); !ok {
+		t.Fatalf("expected detail view before describe, got %T", model.stack[2])
+	}
+	if _, ok := model.stack[len(model.stack)-1].(*describeview.View); !ok {
+		t.Fatalf("expected top view to be describeview, got %T", model.stack[len(model.stack)-1])
+	}
+}
+
+func TestCommandBarLogsSubviewPushesDetailAndLogs(t *testing.T) {
+	m := New()
+	m.width = 120
+	m.height = 40
+
+	err := m.runCommand("deploy zz-api-gateway-01 logs")
+	if err != "" {
+		t.Fatalf("expected no error running command, got %q", err)
+	}
+	model := m
+
+	if len(model.stack) != 4 {
+		t.Fatalf("expected stack depth 4 for logs path, got %d", len(model.stack))
+	}
+	if _, ok := model.stack[2].(*detailview.View); !ok {
+		t.Fatalf("expected detail view before logs, got %T", model.stack[2])
+	}
+	if _, ok := model.stack[len(model.stack)-1].(*listview.View); !ok {
+		t.Fatalf("expected top view to be listview for deployment log target, got %T", model.stack[len(model.stack)-1])
 	}
 }

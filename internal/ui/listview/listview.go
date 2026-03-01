@@ -758,6 +758,22 @@ func (v *View) NextBreadcrumb() string {
 	return "detail"
 }
 
+// ForwardViewForCommand exposes subview routing for app-level command handling.
+func (v *View) ForwardViewForCommand(item resources.ResourceItem, subview string) (viewstate.Action, viewstate.View) {
+	key := subview
+	switch subview {
+	case "yaml":
+		key = "y"
+	case "events":
+		key = "e"
+	case "describe":
+		key = "d"
+	case "logs":
+		key = "l"
+	}
+	return v.forwardView(item, key)
+}
+
 func (v *View) paginationStatus() string {
 	totalVisible := len(v.list.VisibleItems())
 	if totalVisible == 0 {

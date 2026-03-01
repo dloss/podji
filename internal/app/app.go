@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/columnpicker"
+	"github.com/dloss/podji/internal/ui/commandbar"
+	"github.com/dloss/podji/internal/ui/describeview"
+	"github.com/dloss/podji/internal/ui/detailview"
+	"github.com/dloss/podji/internal/ui/eventview"
 	"github.com/dloss/podji/internal/ui/helpview"
 	"github.com/dloss/podji/internal/ui/listview"
 	"github.com/dloss/podji/internal/ui/overlaypicker"
@@ -17,6 +22,7 @@ import (
 	"github.com/dloss/podji/internal/ui/resourcebrowser"
 	"github.com/dloss/podji/internal/ui/style"
 	"github.com/dloss/podji/internal/ui/viewstate"
+	"github.com/dloss/podji/internal/ui/yamlview"
 )
 
 // Bookmark captures a navigation target: resource type, namespace, and context.
@@ -33,6 +39,7 @@ type Model struct {
 	overlay           *overlaypicker.Picker
 	relatedPicker     *relatedview.Picker
 	colPicker         *columnpicker.Picker
+	cmdBar            *commandbar.Model
 	context           string
 	namespace         string
 	errorMsg          string
@@ -105,6 +112,22 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, update.Cmd
 		}
 	}
+	if m.cmdBar != nil {
+		if key, ok := msg.(bubbletea.KeyMsg); ok {
+			if key.String() == "tab" {
+				m.cmdBar.Complete(m.commandSuggestion())
+				return m, nil
+			}
+			_, cmd, closeBar := m.cmdBar.Update(key)
+			if closeBar {
+				if key.String() == "enter" {
+					return m, cmd
+				}
+				m.cmdBar = nil
+			}
+			return m, cmd
+		}
+	}
 
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
@@ -120,6 +143,21 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if m.colPicker != nil {
 			m.colPicker.SetSize(m.width, m.height-1)
 		}
+		if m.cmdBar != nil {
+			m.cmdBar.SetSize(m.width)
+		}
+		return m, nil
+
+	case commandbar.SubmitMsg:
+		if strings.TrimSpace(msg.Value) == "" {
+			m.cmdBar = nil
+			return m, nil
+		}
+		if err := m.runCommand(msg.Value); err != "" {
+			m.cmdBar.SetError(err)
+			return m, nil
+		}
+		m.cmdBar = nil
 		return m, nil
 
 	case listview.OpenColumnPickerMsg:
@@ -183,7 +221,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.bookmarkMode = false
 			runes := []rune(msg.String())
 			if len(runes) == 1 && runes[0] >= '1' && runes[0] <= '9' {
-				slot := int(runes[0]-'1')
+				slot := int(runes[0] - '1')
 				m.bookmarks[slot] = &Bookmark{
 					ResourceKey: m.activeResourceKey,
 					Namespace:   m.namespace,
@@ -195,6 +233,12 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 
 		switch msg.String() {
+		case ":":
+			if _, ok := m.top().(*listview.View); ok {
+				m.cmdBar = commandbar.New()
+				m.cmdBar.SetSize(m.width)
+			}
+			return m, nil
 		case "q", "ctrl+c":
 			return m, bubbletea.Quit
 		case "esc":
@@ -348,6 +392,9 @@ func (m Model) renderMain() string {
 	header := m.renderHeader()
 	body := m.renderBody()
 	footer := m.top().Footer()
+	if m.cmdBar != nil {
+		footer = m.cmdBar.View(m.commandSuggestion())
+	}
 
 	sections := []string{header}
 	if body != "" {
@@ -522,7 +569,11 @@ func (m Model) availableHeight() int {
 	if m.height == 0 {
 		return 0
 	}
-	height := m.height - m.headerLineCount() - 2 // subtract 2 footer lines
+	footerLines := 2
+	if m.cmdBar != nil {
+		footerLines = 1
+	}
+	height := m.height - m.headerLineCount() - footerLines
 	if height < 1 {
 		return 1
 	}
@@ -533,7 +584,11 @@ func (m Model) bodyHeightLimit() int {
 	if m.height <= 0 {
 		return 0
 	}
-	limit := m.height - m.headerLineCount() - 2 // subtract 2 footer lines
+	footerLines := 2
+	if m.cmdBar != nil {
+		footerLines = 1
+	}
+	limit := m.height - m.headerLineCount() - footerLines
 	if limit < 0 {
 		return 0
 	}
@@ -565,6 +620,245 @@ func titleCase(value string) string {
 	runes := []rune(value)
 	runes[0] = unicode.ToUpper(runes[0])
 	return string(runes)
+}
+
+type parsedCommand struct {
+	kindToken string
+	name      string
+	selector  string
+	subview   string
+}
+
+func (m *Model) runCommand(raw string) string {
+	cmd := parseCommand(raw)
+	if cmd.kindToken == "unhealthy" {
+		base := m.registry.ResourceByKey('W')
+		view := listview.New(resources.NewQueryResource("workloads", resources.UnhealthyItems(), base), m.registry)
+		view.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, view)
+		m.crumbs = append(m.crumbs, "unhealthy")
+		return ""
+	}
+	if cmd.kindToken == "restarts" {
+		base := m.registry.ResourceByKey('P')
+		view := listview.New(resources.NewQueryResource("pods", resources.PodsByRestarts(), base), m.registry)
+		view.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, view)
+		m.crumbs = append(m.crumbs, "restarts")
+		return ""
+	}
+	res := m.commandResource(cmd.kindToken)
+	if res == nil {
+		return "unknown command"
+	}
+	if cmd.selector != "" {
+		if cmd.subview != "" {
+			return "unknown command"
+		}
+		var filtered []resources.ResourceItem
+		for _, it := range res.Items() {
+			if resources.MatchesLabelSelector(it, cmd.selector) {
+				filtered = append(filtered, it)
+			}
+		}
+		view := listview.New(resources.NewQueryResource(res.Name(), filtered, res), m.registry)
+		view.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, view)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(res.Name()+": "+cmd.selector))
+		return ""
+	}
+	if cmd.name == "" {
+		if lv, ok := m.top().(*listview.View); ok && lv.Resource().Name() == res.Name() {
+			return ""
+		}
+		view := listview.New(res, m.registry)
+		view.SetSize(m.width, m.availableHeight())
+		m.stack = []viewstate.View{view}
+		m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+		m.activeResourceKey = res.Key()
+		return ""
+	}
+	items := res.Items()
+	matches := nameMatches(items, cmd.name)
+	if len(matches) == 0 {
+		return "no match"
+	}
+	if len(matches) > 1 {
+		view := listview.New(resources.NewQueryResource(res.Name(), matches, res), m.registry)
+		view.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, view)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(res.Name()+": "+cmd.name))
+		return ""
+	}
+	selected := matches[0]
+	if lv, ok := m.top().(*listview.View); !ok || lv.Resource().Name() != res.Name() {
+		resView := listview.New(res, m.registry)
+		resView.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, resView)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(resView.Breadcrumb()))
+	}
+	if len(m.crumbs) > 0 {
+		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(res.Name() + ": " + selected.Name)
+	}
+	var next viewstate.View
+	detail := detailViewFor(selected, res, m.registry)
+	if cmd.subview == "" || cmd.subview == "detail" {
+		detail.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, detail)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(detail.Breadcrumb()))
+		return ""
+	}
+	detail.SetSize(m.width, m.availableHeight())
+	m.stack = append(m.stack, detail)
+	m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(detail.Breadcrumb()))
+
+	v := listview.New(res, m.registry)
+	switch cmd.subview {
+	case "logs":
+		_, next = v.ForwardViewForCommand(selected, cmd.subview)
+	case "yaml":
+		next = yamlview.New(selected, res)
+	case "events":
+		next = eventview.New(selected, res)
+	case "describe":
+		next = describeview.New(selected, res)
+	default:
+		m.stack = m.stack[:len(m.stack)-1]
+		m.crumbs = m.crumbs[:len(m.crumbs)-1]
+		return "unknown command"
+	}
+	if next == nil {
+		m.stack = m.stack[:len(m.stack)-1]
+		m.crumbs = m.crumbs[:len(m.crumbs)-1]
+		return "unknown command"
+	}
+	next.SetSize(m.width, m.availableHeight())
+	m.stack = append(m.stack, next)
+	m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(next.Breadcrumb()))
+	return ""
+}
+
+func detailViewFor(item resources.ResourceItem, res resources.ResourceType, registry *resources.Registry) viewstate.View {
+	dv := detailview.New(item, res, registry)
+	dv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+		return listview.New(resources.NewContainerResource(item, res), registry)
+	}
+	return dv
+}
+
+func parseCommand(raw string) parsedCommand {
+	toks := strings.Fields(strings.ToLower(strings.TrimSpace(raw)))
+	if len(toks) == 0 {
+		return parsedCommand{}
+	}
+	cmd := parsedCommand{kindToken: toks[0]}
+	if len(toks) >= 2 {
+		if strings.Contains(toks[1], "=") {
+			cmd.selector = toks[1]
+		} else {
+			cmd.name = toks[1]
+		}
+	}
+	if len(toks) >= 3 {
+		cmd.subview = toks[2]
+	}
+	return cmd
+}
+
+func nameMatches(items []resources.ResourceItem, frag string) []resources.ResourceItem {
+	var pref, subs []resources.ResourceItem
+	for _, it := range items {
+		name := strings.ToLower(it.Name)
+		if strings.HasPrefix(name, frag) {
+			pref = append(pref, it)
+		} else if strings.Contains(name, frag) {
+			subs = append(subs, it)
+		}
+	}
+	return append(pref, subs...)
+}
+
+func (m Model) commandResource(token string) resources.ResourceType {
+	aliases := map[string]string{"po": "pods", "pods": "pods", "deploy": "deployments", "deployments": "deployments", "svc": "services", "services": "services", "cm": "configmaps", "configmaps": "configmaps", "secret": "secrets", "sec": "secrets", "secrets": "secrets", "node": "nodes", "nodes": "nodes", "ing": "ingresses", "ingresses": "ingresses", "pvc": "pvcs", "pvcs": "pvcs", "ev": "events", "events": "events", "ns": "namespaces", "namespaces": "namespaces"}
+	name := aliases[token]
+	if name == "" {
+		return nil
+	}
+	return m.registry.ByName(name)
+}
+
+func (m Model) commandSuggestion() string {
+	if m.cmdBar == nil {
+		return ""
+	}
+	input := strings.ToLower(strings.TrimSpace(m.cmdBar.Input()))
+	if input == "" {
+		return ""
+	}
+	endsSpace := strings.HasSuffix(input, " ")
+	tokens := strings.Fields(input)
+	kinds := []string{"po", "deploy", "svc", "cm", "sec", "node", "ing", "pvc", "ev", "ns", "unhealthy", "restarts"}
+
+	if len(tokens) == 1 && !endsSpace {
+		sort.Strings(kinds)
+		for _, c := range kinds {
+			if strings.HasPrefix(c, tokens[0]) && c != tokens[0] {
+				return strings.TrimPrefix(c, tokens[0])
+			}
+		}
+		return ""
+	}
+
+	res := m.commandResource(tokens[0])
+	if res == nil {
+		return ""
+	}
+
+	if (len(tokens) == 1 && endsSpace) || (len(tokens) == 2 && !endsSpace && !strings.Contains(tokens[1], "=")) {
+		prefix := ""
+		if len(tokens) >= 2 {
+			prefix = tokens[1]
+		}
+		names := uniqueSortedNames(res.Items())
+		for _, n := range names {
+			if strings.HasPrefix(strings.ToLower(n), prefix) && strings.ToLower(n) != prefix {
+				return strings.TrimPrefix(strings.ToLower(n), prefix)
+			}
+		}
+		return ""
+	}
+
+	if (len(tokens) == 2 && endsSpace && !strings.Contains(tokens[1], "=")) || (len(tokens) == 3 && !endsSpace) {
+		prefix := ""
+		if len(tokens) == 3 {
+			prefix = tokens[2]
+		}
+		subviews := []string{"logs", "yaml", "events", "describe"}
+		for _, sv := range subviews {
+			if strings.HasPrefix(sv, prefix) && sv != prefix {
+				return strings.TrimPrefix(sv, prefix)
+			}
+		}
+	}
+	return ""
+}
+
+func uniqueSortedNames(items []resources.ResourceItem) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, it := range items {
+		if it.Name == "" {
+			continue
+		}
+		k := strings.ToLower(it.Name)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, it.Name)
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	return out
 }
 
 func normalizeBreadcrumbPart(value string) string {
