@@ -37,13 +37,13 @@ Podji is a read-focused navigation and debugging tool.
 
 ## Global Navigation Keys
 
-- Right / Enter: drill down
+- Right / Enter / `l`: drill down (`l` = cursor-right, hjkl convention)
 - Left / Backspace / `h`: back
+- `o`: open logs directly (skip pod list; works from any list view)
 - `r`: open related resource picker
 - `N`: namespace picker
 - `X`: context picker
 - `/`: filter current list
-- `l`: open logs directly (skip pod list)
 
 ## Primary Drill-Down Model
 
@@ -184,7 +184,7 @@ Pods header should include context, for example: `CronJob pods (newest job: <job
 
 Example:
 
-`→ pods   l logs   r related   / filter   s sort`
+`→ pods   o logs   r related   / filter   s sort`
 
 Show `s sort` only if sorting is implemented.
 
@@ -286,7 +286,7 @@ Pod detail sections:
 
 ## Logs View
 
-Accessible via drill-down or `l`. Must be good enough to replace `kubectl logs`/`stern` for common debugging.
+Accessible via drill-down or `o`. Must be good enough to replace `kubectl logs`/`stern` for common debugging.
 
 Defaults:
 
@@ -365,7 +365,7 @@ Users can:
 - reach crash logs in <= 4 steps
 - diagnose "Service has no backends" in one view + one drill-down
 - find ConfigMap consumers quickly
-- navigate with arrows + `r` + `Tab` + `l`
+- navigate with arrows + `r` + `Tab` + `o`
 - switch namespace without losing their place in the navigation stack
 
 ## Future Extensions

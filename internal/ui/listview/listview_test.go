@@ -144,8 +144,8 @@ func TestEmptyStateMessageAlignedWithTable(t *testing.T) {
 	if strings.Contains(rendered, "Hint: press r to view Related") {
 		t.Fatalf("expected simplified empty-state message, got: %s", rendered)
 	}
-	if !strings.Contains(rendered, "  No pods found for workload `sync-reports`.") {
-		t.Fatalf("expected indented empty-state message, got: %s", rendered)
+	if !strings.Contains(rendered, "  No jobs have run for CronJob `sync-reports` yet.") {
+		t.Fatalf("expected indented CronJob empty-state message, got: %s", rendered)
 	}
 }
 

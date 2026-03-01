@@ -82,12 +82,12 @@ func TestWorkloadsScenarioCycleAndBanner(t *testing.T) {
 func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 	pods := NewWorkloadPods(ResourceItem{Name: "sync-reports", Kind: "CJ"}, nil)
 
-	if got := pods.Name(); got != "pods (sync-reports)" {
-		t.Fatalf("expected concise pods name, got %q", got)
+	if got := pods.Name(); got != "pods (CronJob: sync-reports, newest job: —)" {
+		t.Fatalf("expected CronJob pods name with job context, got %q", got)
 	}
 
 	msg := pods.EmptyMessage(false, "")
-	if msg != "No pods found for workload `sync-reports`." {
-		t.Fatalf("expected simplified empty-state message, got %q", msg)
+	if msg != "No jobs have run for CronJob `sync-reports` yet." {
+		t.Fatalf("expected CronJob-specific empty-state message, got %q", msg)
 	}
 }
