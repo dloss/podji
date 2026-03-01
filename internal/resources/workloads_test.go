@@ -32,8 +32,25 @@ func TestWorkloadsSortByStatus(t *testing.T) {
 	if items[0].Status != "Failed" {
 		t.Fatalf("expected first status Failed, got %q", items[0].Status)
 	}
-	if items[len(items)-1].Status != "Suspended" {
-		t.Fatalf("expected last status Suspended, got %q", items[len(items)-1].Status)
+	// Suspended is intentional: it should sort after Pending but before Healthy.
+	lastSuspendedIdx := -1
+	firstHealthyIdx := -1
+	for i, it := range items {
+		if it.Status == "Suspended" {
+			lastSuspendedIdx = i
+		}
+		if it.Status == "Healthy" && firstHealthyIdx == -1 {
+			firstHealthyIdx = i
+		}
+	}
+	if lastSuspendedIdx == -1 {
+		t.Fatal("expected at least one Suspended item")
+	}
+	if firstHealthyIdx == -1 {
+		t.Fatal("expected at least one Healthy item")
+	}
+	if firstHealthyIdx < lastSuspendedIdx {
+		t.Fatalf("Healthy items should appear after Suspended in problem-first sort (firstHealthyIdx=%d, lastSuspendedIdx=%d)", firstHealthyIdx, lastSuspendedIdx)
 	}
 }
 
@@ -45,8 +62,25 @@ func TestWorkloadsSortByStatusDesc(t *testing.T) {
 		t.Fatalf("expected mock workloads")
 	}
 
-	if items[0].Status != "Suspended" {
-		t.Fatalf("expected first status Suspended (reversed), got %q", items[0].Status)
+	if items[0].Status != "Healthy" {
+		t.Fatalf("expected first status Healthy (reversed), got %q", items[0].Status)
+	}
+	// Suspended should appear after all Healthy items but before Pending/Degraded/Failed.
+	lastHealthyIdx := -1
+	firstSuspendedIdx := -1
+	for i, it := range items {
+		if it.Status == "Healthy" {
+			lastHealthyIdx = i
+		}
+		if it.Status == "Suspended" && firstSuspendedIdx == -1 {
+			firstSuspendedIdx = i
+		}
+	}
+	if firstSuspendedIdx == -1 {
+		t.Fatal("expected at least one Suspended item")
+	}
+	if firstSuspendedIdx < lastHealthyIdx {
+		t.Fatalf("Suspended items should appear after Healthy in reversed sort (firstSuspendedIdx=%d, lastHealthyIdx=%d)", firstSuspendedIdx, lastHealthyIdx)
 	}
 }
 

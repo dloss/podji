@@ -11,8 +11,8 @@ func TestStatusStylesBySeverity(t *testing.T) {
 		t.Fatalf("expected warning status, got %v", got)
 	}
 
-	if got := classifyStatus("Suspended"); got != statusNeutral {
-		t.Fatalf("expected neutral status, got %v", got)
+	if got := classifyStatus("Suspended"); got != statusSuspended {
+		t.Fatalf("expected suspended status, got %v", got)
 	}
 
 	if got := classifyStatus("Running"); got != statusHealthy {

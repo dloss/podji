@@ -21,6 +21,7 @@ var (
 	FooterKey        = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
 	FooterLabel      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	Muted            = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	Suspended        = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
 	Warning          = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 	Error            = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
 	Healthy          = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
@@ -31,7 +32,7 @@ type statusSeverity int
 
 const (
 	statusHealthy statusSeverity = iota
-	statusNeutral
+	statusSuspended
 	statusWarning
 	statusError
 )
@@ -42,8 +43,8 @@ func Status(value string) string {
 		return Error.Render(value)
 	case statusWarning:
 		return Warning.Render(value)
-	case statusNeutral:
-		return Muted.Render(value)
+	case statusSuspended:
+		return Suspended.Render(value)
 	default:
 		return Healthy.Render(value)
 	}
@@ -67,7 +68,7 @@ func classifyStatus(value string) statusSeverity {
 		strings.Contains(normalized, "unknown"):
 		return statusWarning
 	case strings.Contains(normalized, "suspend"):
-		return statusNeutral
+		return statusSuspended
 	default:
 		return statusHealthy
 	}

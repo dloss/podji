@@ -153,7 +153,7 @@ func statusANSI(value string) string {
 		strings.Contains(trimmed, "unknown"):
 		return "\x1b[1;33m" // bold yellow
 	case strings.Contains(trimmed, "suspend"):
-		return "\x1b[38;5;241m" // muted (no bold)
+		return "\x1b[94m" // bright blue (intentional, not a problem)
 	default:
 		return "\x1b[92m" // bright green
 	}

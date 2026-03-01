@@ -108,9 +108,9 @@ func statusWeight(status string) int {
 		return 1
 	case "Pending", "Progressing", "Unknown":
 		return 2
-	case "Healthy", "Running", "Ready":
-		return 3
 	case "Suspended":
+		return 3
+	case "Healthy", "Running", "Ready":
 		return 4
 	default:
 		return 5
