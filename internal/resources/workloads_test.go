@@ -62,18 +62,9 @@ func TestWorkloadsSortByName(t *testing.T) {
 	}
 }
 
-func TestWorkloadsScenarioCycleAndBanner(t *testing.T) {
+func TestWorkloadsScenarioBanner(t *testing.T) {
+	t.Setenv("PODJI_SCENARIO", "forbidden")
 	w := NewWorkloads()
-
-	w.CycleScenario() // empty
-	if w.Scenario() != "empty" {
-		t.Fatalf("expected empty scenario, got %q", w.Scenario())
-	}
-
-	w.CycleScenario() // forbidden
-	if w.Scenario() != "forbidden" {
-		t.Fatalf("expected forbidden scenario, got %q", w.Scenario())
-	}
 	if !strings.Contains(w.Banner(), "Access denied") {
 		t.Fatalf("expected access denied banner, got %q", w.Banner())
 	}
