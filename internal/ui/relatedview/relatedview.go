@@ -89,7 +89,7 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 		return viewstate.Update{Action: viewstate.None}
 	}
 	switch key.String() {
-	case "esc":
+	case "esc", "r":
 		return viewstate.Update{Action: viewstate.Pop}
 	case "enter":
 		if len(p.entries) > 0 && p.entries[p.cursor].open != nil {
