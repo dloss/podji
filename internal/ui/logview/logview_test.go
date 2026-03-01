@@ -112,3 +112,57 @@ func TestContainerKeyPopsWhenContainerSelected(t *testing.T) {
 		t.Fatalf("expected c to pop from container logs, got %v", update.Action)
 	}
 }
+
+func TestContainerKeyDoesNothingWithoutFactory(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	update := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'c'}})
+	if update.Action != viewstate.None {
+		t.Fatalf("expected c to be a no-op without factory, got %v", update.Action)
+	}
+}
+
+func TestContainerKeyPushesPickerWhenFactorySet(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	var factoryCalled bool
+	v.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+		factoryCalled = true
+		return New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	}
+	update := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'c'}})
+	if update.Action != viewstate.Push {
+		t.Fatalf("expected c to push container picker, got %v", update.Action)
+	}
+	if !factoryCalled {
+		t.Fatal("expected ContainerViewFactory to be called")
+	}
+}
+
+func TestFooterOmitsContainerKeyWithoutFactory(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(80, 20)
+	footer := ansi.Strip(v.Footer())
+	if strings.Contains(footer, "container") {
+		t.Fatalf("expected footer to omit container binding when no container context, got %q", footer)
+	}
+}
+
+func TestFooterShowsContainerKeyWhenContainerSelected(t *testing.T) {
+	v := NewWithContainer(resources.ResourceItem{Name: "api"}, resources.NewPods(), "api")
+	v.SetSize(80, 20)
+	footer := ansi.Strip(v.Footer())
+	if !strings.Contains(footer, "container") {
+		t.Fatalf("expected footer to show 'c container' when container is selected, got %q", footer)
+	}
+}
+
+func TestFooterShowsContainerKeyWhenFactorySet(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(80, 20)
+	v.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+		return New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	}
+	footer := ansi.Strip(v.Footer())
+	if !strings.Contains(footer, "container") {
+		t.Fatalf("expected footer to show 'c container' when factory is set, got %q", footer)
+	}
+}

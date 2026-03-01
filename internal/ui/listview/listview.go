@@ -1383,7 +1383,11 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 			return viewstate.OpenRelated, nil
 		}
 		if key == "o" {
-			return viewstate.Push, logview.New(preferredLogPod(items), pods)
+			lv := logview.New(preferredLogPod(items), pods)
+			lv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+				return New(resources.NewContainerResource(item, res), v.registry)
+			}
+			return viewstate.Push, lv
 		}
 		return viewstate.Push, New(pods, v.registry)
 	}
