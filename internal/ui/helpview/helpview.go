@@ -60,6 +60,10 @@ LOGS
   up / down / j / k    Scroll
   space / pgup / pgdn  Page up / down
 
+BOOKMARKS
+  m <1-9>              Set bookmark (context + namespace + resource type)
+  1-9                  Jump to bookmark
+
 APP
   ?                    This help
   q / ctrl+c           Quit
