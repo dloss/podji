@@ -288,7 +288,11 @@ func (w *Workloads) Describe(item ResourceItem) string {
 func (w *Workloads) YAML(item ResourceItem) string {
 	apiVersion := "apps/v1"
 	kind := "Deployment"
-	spec := `  replicas: 2
+	desired := "2"
+	if parts := strings.SplitN(item.Ready, "/", 2); len(parts) == 2 {
+		desired = strings.TrimSpace(parts[1])
+	}
+	spec := `  replicas: ` + desired + `
   selector:
     matchLabels:
       app: ` + item.Name + `

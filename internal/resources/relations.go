@@ -195,6 +195,10 @@ func NewWorkloadPods(workload ResourceItem, registry *Registry) *WorkloadPods {
 }
 
 func (w *WorkloadPods) Name() string {
+	if w.workload.Kind == "CJ" {
+		job := w.NewestJobName()
+		return "pods (CronJob: " + w.workload.Name + ", newest job: " + job + ")"
+	}
 	return "pods (" + w.workload.Name + ")"
 }
 
@@ -261,14 +265,52 @@ func (w *WorkloadPods) Detail(item ResourceItem) DetailData {
 	}
 }
 func (w *WorkloadPods) Logs(item ResourceItem) []string {
-	return expandMockLogs([]string{
-		"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Booting",
-		"2026-02-20T15:01:02Z  pod=" + item.Name + "  container=app  Ready",
-		"2026-02-20T15:01:09Z  pod=" + item.Name + "  container=sidecar  Sync complete",
-	}, 120)
+	switch item.Status {
+	case "CrashLoop", "Error":
+		return expandMockLogs([]string{
+			"2026-02-20T15:03:11Z  pod=" + item.Name + "  container=app  Starting server",
+			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  panic: runtime error: invalid memory address or nil pointer dereference",
+			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  goroutine 1 [running]:",
+			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  main.run(0xc0001a6000)",
+			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  \t/app/main.go:42 +0x1c4",
+			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  exit status 2",
+		}, 120)
+	case "Completed":
+		return expandMockLogs([]string{
+			"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Starting job",
+			"2026-02-20T15:01:04Z  pod=" + item.Name + "  container=app  Processed 1420 records",
+			"2026-02-20T15:01:05Z  pod=" + item.Name + "  container=app  Done. Exiting 0.",
+		}, 120)
+	default:
+		return expandMockLogs([]string{
+			"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Booting",
+			"2026-02-20T15:01:02Z  pod=" + item.Name + "  container=app  Ready",
+			"2026-02-20T15:01:09Z  pod=" + item.Name + "  container=sidecar  Sync complete",
+		}, 120)
+	}
 }
 func (w *WorkloadPods) Events(item ResourceItem) []string {
-	return []string{"2m ago   Normal   Scheduled   Assigned to node worker-01"}
+	base := "5m ago   Normal    Scheduled    Assigned to node worker-01"
+	switch item.Status {
+	case "CrashLoop":
+		return []string{
+			base,
+			"5m ago   Normal    Pulled       Pulled container image successfully",
+			"5m ago   Normal    Started      Started container app",
+			"4m ago   Warning   BackOff      Back-off restarting failed container app in pod " + item.Name,
+			"4m ago   Warning   BackOff      Back-off restarting failed container app in pod " + item.Name,
+		}
+	case "Error":
+		return []string{
+			base,
+			"18m ago  Normal    Pulled       Pulled container image successfully",
+			"18m ago  Normal    Started      Started container app",
+			"17m ago  Warning   Failed       Error: failed to create containerd task: " + item.Name + ": exit status 1",
+			"3m ago   Warning   BackOff      Back-off restarting failed container app in pod " + item.Name,
+		}
+	default:
+		return []string{base}
+	}
 }
 func (w *WorkloadPods) Describe(item ResourceItem) string {
 	return "Name:             " + item.Name + "\n" +
@@ -341,7 +383,9 @@ func (w *WorkloadPods) EmptyMessage(filtered bool, filter string) string {
 	if filtered {
 		return "No pods match `" + filter + "`."
 	}
-
+	if w.workload.Kind == "CJ" && w.NewestJobName() == "—" {
+		return "No jobs have run for CronJob `" + w.workload.Name + "` yet."
+	}
 	return "No pods found for workload `" + w.workload.Name + "`."
 }
 
