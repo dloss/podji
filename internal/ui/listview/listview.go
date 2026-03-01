@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -231,16 +232,22 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		if v.copyMode {
 			v.copyMode = false
 			if selected, ok := v.list.SelectedItem().(item); ok {
+				var text string
 				switch key.String() {
 				case "n":
-					v.copiedMsg = "copied: " + selected.data.Name
-					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+					text = selected.data.Name
 				case "k":
 					kind := resources.SingularName(breadcrumbLabel(v.resource.Name()))
-					v.copiedMsg = "copied: " + kind + "/" + selected.data.Name
-					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
+					text = kind + "/" + selected.data.Name
 				case "p":
-					v.copiedMsg = "copied: -n " + resources.ActiveNamespace + " " + selected.data.Name
+					text = "-n " + resources.ActiveNamespace + " " + selected.data.Name
+				}
+				if text != "" {
+					if err := clipboard.WriteAll(text); err != nil {
+						v.copiedMsg = "clipboard error: " + err.Error()
+					} else {
+						v.copiedMsg = "copied: " + text
+					}
 					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearCopiedCmd()}
 				}
 			}
