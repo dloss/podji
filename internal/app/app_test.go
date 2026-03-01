@@ -363,3 +363,40 @@ func TestCommandBarLogsSubviewPushesDetailAndLogs(t *testing.T) {
 		t.Fatalf("expected top view to be listview for deployment log target, got %T", model.stack[len(model.stack)-1])
 	}
 }
+
+func TestBookmarkSetAndJump(t *testing.T) {
+	m := New()
+
+	// Start on workloads — set bookmark 1 via m+1.
+	m1, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'m'}})
+	afterM := m1.(Model)
+	if !afterM.bookmarkMode {
+		t.Fatal("expected bookmarkMode after pressing m")
+	}
+	m2, _ := afterM.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'1'}})
+	afterSet := m2.(Model)
+	if afterSet.bookmarks[0] == nil {
+		t.Fatal("expected bookmark 0 to be set")
+	}
+	if len(afterSet.bookmarks[0].stack) == 0 {
+		t.Fatal("expected bookmark to capture the view stack")
+	}
+
+	// Navigate to Pods.
+	m3, _ := afterSet.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'P'}})
+	onPods := m3.(Model)
+	if lv, ok := onPods.top().(*listview.View); !ok || lv.Resource().Name() != "pods" {
+		t.Fatal("expected to be on pods after pressing P")
+	}
+
+	// Jump back to bookmark 1 — should restore the workloads stack.
+	m4, _ := onPods.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'1'}})
+	afterJump := m4.(Model)
+	lv, ok := afterJump.top().(*listview.View)
+	if !ok {
+		t.Fatal("expected top view to be a listview after jump")
+	}
+	if lv.Resource().Name() != "workloads" {
+		t.Fatalf("expected workloads after jump, got %q", lv.Resource().Name())
+	}
+}

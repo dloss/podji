@@ -25,11 +25,13 @@ import (
 	"github.com/dloss/podji/internal/ui/yamlview"
 )
 
-// Bookmark captures a navigation target: resource type, namespace, and context.
+// Bookmark captures a full navigation state: the complete view stack, breadcrumbs,
+// namespace, and context, so a jump restores the exact screen where it was set.
 type Bookmark struct {
-	ResourceKey rune
-	Namespace   string
-	Context     string
+	stack     []viewstate.View
+	crumbs    []string
+	namespace string
+	context   string
 }
 
 type Model struct {
@@ -223,9 +225,10 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			if len(runes) == 1 && runes[0] >= '1' && runes[0] <= '9' {
 				slot := int(runes[0] - '1')
 				m.bookmarks[slot] = &Bookmark{
-					ResourceKey: m.activeResourceKey,
-					Namespace:   m.namespace,
-					Context:     m.context,
+					stack:     append([]viewstate.View{}, m.stack...),
+					crumbs:    append([]string{}, m.crumbs...),
+					namespace: m.namespace,
+					context:   m.context,
 				}
 				m.statusMsg = fmt.Sprintf("Bookmark %d set", slot+1)
 			}
@@ -306,17 +309,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						m.statusMsg = fmt.Sprintf("Bookmark %d not set", slot+1)
 					} else {
 						b := m.bookmarks[slot]
-						m.context = b.Context
-						m.namespace = b.Namespace
-						resources.ActiveNamespace = b.Namespace
-						if res := m.registry.ResourceByKey(b.ResourceKey); res != nil {
-							view := listview.New(res, m.registry)
-							view.SetSize(m.width, m.availableHeight())
-							m.stack = []viewstate.View{view}
-							m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
-							m.activeResourceKey = b.ResourceKey
-						}
-						m.statusMsg = fmt.Sprintf("Jumped to bookmark %d", slot+1)
+						m.context = b.context
+						m.namespace = b.namespace
+						resources.ActiveNamespace = b.namespace
+						m.stack = append([]viewstate.View{}, b.stack...)
+						m.crumbs = append([]string{}, b.crumbs...)
+						m.top().SetSize(m.width, m.availableHeight())
+						m.activeResourceKey = m.rootResourceKey()
+						m.statusMsg = fmt.Sprintf("Bookmark %d", slot+1)
 					}
 					return m, nil
 				}
@@ -370,14 +370,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 }
 
 func (m Model) renderHeader() string {
-	head := m.scopeLine() + "\n" + m.breadcrumbLine()
-	if m.errorMsg != "" {
-		return style.ErrorBanner.Render(m.errorMsg) + "\n" + head
-	}
-	if m.statusMsg != "" {
-		return style.StatusBanner.Render(m.statusMsg) + "\n" + head
-	}
-	return head
+	return m.scopeLine() + "\n" + m.breadcrumbLine()
 }
 
 func (m Model) renderBody() string {
@@ -394,6 +387,17 @@ func (m Model) renderMain() string {
 	footer := m.top().Footer()
 	if m.cmdBar != nil {
 		footer = m.cmdBar.View(m.commandSuggestion())
+	} else if m.statusMsg != "" || m.errorMsg != "" {
+		msg := m.statusMsg
+		if m.errorMsg != "" {
+			msg = m.errorMsg
+		}
+		lines := strings.SplitN(footer, "\n", 2)
+		if len(lines) > 1 {
+			footer = msg + "\n" + lines[1]
+		} else {
+			footer = msg
+		}
 	}
 
 	sections := []string{header}
@@ -480,6 +484,21 @@ func (m Model) top() viewstate.View {
 	return m.stack[len(m.stack)-1]
 }
 
+// rootResourceKey returns the key of the root-level registered resource in the
+// current view stack. It walks from the bottom up to find the first listview
+// whose resource has a non-zero key (i.e. a top-level resource, not a
+// sub-resource like containers). Falls back to m.activeResourceKey.
+func (m Model) rootResourceKey() rune {
+	for i := 0; i < len(m.stack); i++ {
+		if lv, ok := m.stack[i].(*listview.View); ok {
+			if key := lv.Resource().Key(); key != 0 {
+				return key
+			}
+		}
+	}
+	return m.activeResourceKey
+}
+
 // bestResourceForScope returns the best resource to show after a scope change.
 // It walks the view stack from top to bottom looking for a list view, then
 // falls back to workloads ('W'), and finally to the first registered resource.
@@ -557,11 +576,7 @@ func formatCrumb(crumb string) string {
 }
 
 // headerLineCount returns the number of lines consumed by the header section.
-// Normally 2 (scope + breadcrumb); 3 when an error or status banner is shown.
 func (m Model) headerLineCount() int {
-	if m.errorMsg != "" || m.statusMsg != "" {
-		return 3
-	}
 	return 2
 }
 
