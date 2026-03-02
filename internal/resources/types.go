@@ -1,16 +1,18 @@
 package resources
 
 type ResourceItem struct {
-	Name      string
-	Namespace string
-	Kind      string
-	Status    string
-	Ready     string
-	Restarts  string
-	Age       string
-	Labels    map[string]string // pod/resource labels (e.g. {"app": "api", "env": "prod"})
-	Selector  map[string]string // label selector for resources that select other resources
-	Extra     map[string]string // wide-mode and future fields: "node", "ip", "qos", "selector", etc.
+	UID        string
+	APIVersion string
+	Name       string
+	Namespace  string
+	Kind       string
+	Status     string
+	Ready      string
+	Restarts   string
+	Age        string
+	Labels     map[string]string // pod/resource labels (e.g. {"app": "api", "env": "prod"})
+	Selector   map[string]string // label selector for resources that select other resources
+	Extra      map[string]string // wide-mode and future fields: "node", "ip", "qos", "selector", etc.
 }
 
 // MatchesSelector reports whether labels satisfies selector: every key/value
