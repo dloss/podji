@@ -247,7 +247,12 @@ func (w *Workloads) Detail(item ResourceItem) DetailData {
 		status = "Healthy"
 	}
 	return DetailData{
-		StatusLine: status + " " + item.Ready + "    kind: " + item.Kind + "    age: " + item.Age,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: status},
+			{Key: "ready", Label: "Ready", Value: item.Ready},
+			{Key: "kind", Label: "Kind", Value: item.Kind},
+			{Key: "age", Label: "Age", Value: item.Age},
+		},
 		Events: []string{
 			"2m ago   Normal   Reconciled   Workload " + item.Name + " is up to date",
 		},

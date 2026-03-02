@@ -2,6 +2,7 @@ package detailview
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -53,12 +54,22 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 
 func (v *View) View() string {
 	detail := v.resource.Detail(v.item)
-	sections := []string{style.Header.Render(detail.StatusLine)}
+	summary := make([]resources.SummaryField, 0, len(detail.Summary)+1)
+	summary = append(summary, detail.Summary...)
 	if n := relatedview.RelatedCount(v.item, v.resource, v.registry); n > 0 {
-		sections = append(sections, style.Muted.Render(fmt.Sprintf("r: %d related", n)))
+		summary = append(summary, resources.SummaryField{
+			Key:   "related",
+			Label: "Related",
+			Value: strconv.Itoa(n),
+			Tone:  resources.SummaryToneNeutral,
+		})
+	}
+	sections := []string{}
+	if line := renderSummary(summary); line != "" {
+		sections = append(sections, line)
 	}
 
-	if v.width >= 120 {
+	if useTwoColumnLayout(v.width, detail) {
 		leftWidth, rightWidth := splitWidths(v.width, 2)
 		left := []string{}
 		left = append(left, renderContainers(detail.Containers, leftWidth)...)
@@ -189,6 +200,53 @@ func splitWidths(totalWidth, gap int) (int, int) {
 	left := clamp((totalWidth*62)/100, 60, totalWidth-gap-28)
 	right := totalWidth - left - gap
 	return left, right
+}
+
+func useTwoColumnLayout(width int, detail resources.DetailData) bool {
+	if width < 120 {
+		return false
+	}
+	// Reserve two-column layout for resources with richer primary detail.
+	return len(detail.Containers) > 0 || len(detail.Conditions) > 0
+}
+
+func renderSummary(fields []resources.SummaryField) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := strings.TrimSpace(field.Value)
+		if value == "" {
+			continue
+		}
+
+		label := strings.TrimSpace(field.Label)
+		if label == "" {
+			label = strings.TrimSpace(field.Key)
+		}
+		if label == "" {
+			continue
+		}
+
+		parts = append(parts, style.Crumb.Render(label+": ")+renderSummaryValue(field, value))
+	}
+	return strings.Join(parts, "    ")
+}
+
+func renderSummaryValue(field resources.SummaryField, value string) string {
+	switch field.Tone {
+	case resources.SummaryToneGood:
+		return style.Healthy.Render(value)
+	case resources.SummaryToneWarn:
+		return style.Warning.Render(value)
+	case resources.SummaryToneBad:
+		return style.Error.Render(value)
+	case resources.SummaryToneNeutral:
+		return style.ScopeValue.Render(value)
+	}
+
+	if strings.EqualFold(field.Key, "status") {
+		return style.Status(value)
+	}
+	return value
 }
 
 func cell(value string, width int) string {

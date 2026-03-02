@@ -202,7 +202,12 @@ func (s *Services) Detail(item ResourceItem) DetailData {
 	clusterIP := serviceClusterIP(item.Name, svcType)
 
 	return DetailData{
-		StatusLine: item.Status + "    type: " + svcType + "    clusterIP: " + clusterIP + "    ports: 80/TCP",
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "type", Label: "Type", Value: svcType},
+			{Key: "cluster-ip", Label: "Cluster IP", Value: clusterIP},
+			{Key: "ports", Label: "Ports", Value: "80/TCP"},
+		},
 		Events: []string{
 			"—   No recent events",
 		},

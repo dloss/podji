@@ -43,9 +43,11 @@ func (c *CRDResource) Sort(items []ResourceItem) { defaultSort(items) }
 
 func (c *CRDResource) Detail(item ResourceItem) DetailData {
 	return DetailData{
-		StatusLine: fmt.Sprintf("%s/%s  %s/%s",
-			c.meta.Group, c.meta.Version,
-			strings.ToLower(c.meta.Kind), item.Name),
+		Summary: []SummaryField{
+			{Key: "group", Label: "Group", Value: c.meta.Group},
+			{Key: "version", Label: "Version", Value: c.meta.Version},
+			{Key: "resource", Label: "Resource", Value: strings.ToLower(c.meta.Kind) + "/" + item.Name},
+		},
 	}
 }
 

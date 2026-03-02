@@ -143,8 +143,18 @@ func (p *Pods) SortKeys() []SortKey {
 }
 
 func (p *Pods) Detail(item ResourceItem) DetailData {
+	status := item.Status
+	if status == "" {
+		status = "Running"
+	}
 	return DetailData{
-		StatusLine: "Running " + item.Ready + "    node: worker-03    ip: 10.244.2.15    qos: Burstable",
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: status},
+			{Key: "ready", Label: "Ready", Value: item.Ready},
+			{Key: "node", Label: "Node", Value: "worker-03"},
+			{Key: "ip", Label: "IP", Value: "10.244.2.15"},
+			{Key: "qos", Label: "QoS", Value: "Burstable"},
+		},
 		Containers: []ContainerRow{
 			{Name: "api", Image: "myco/api:v2.3.1", State: "Running", Restarts: "0", Reason: ""},
 			{Name: "sidecar", Image: "envoy:1.28", State: "CrashLoopBackOff", Restarts: "5", Reason: "OOMKilled (10m ago)"},

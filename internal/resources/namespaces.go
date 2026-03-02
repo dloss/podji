@@ -98,9 +98,12 @@ func (n *Namespaces) Detail(item ResourceItem) DetailData {
 	}
 
 	return DetailData{
-		StatusLine: item.Status + "    age: " + item.Age,
-		Events:     events,
-		Labels:     labels,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "age", Label: "Age", Value: item.Age},
+		},
+		Events: events,
+		Labels: labels,
 	}
 }
 

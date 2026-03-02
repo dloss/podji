@@ -89,7 +89,12 @@ func (s *Secrets) Detail(item ResourceItem) DetailData {
 		kind = "Opaque"
 	}
 	return DetailData{
-		StatusLine: "Healthy    type: " + kind + "    data-keys: 2    age: " + item.Age,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: "Healthy"},
+			{Key: "type", Label: "Type", Value: kind},
+			{Key: "data-keys", Label: "Data keys", Value: "2"},
+			{Key: "age", Label: "Age", Value: item.Age},
+		},
 		Events: []string{
 			"—   No recent events",
 		},

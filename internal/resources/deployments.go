@@ -153,7 +153,12 @@ func (d *Deployments) SortKeys() []SortKey {
 
 func (d *Deployments) Detail(item ResourceItem) DetailData {
 	return DetailData{
-		StatusLine: item.Status + " " + item.Ready + "    strategy: RollingUpdate    revision: 12",
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "ready", Label: "Ready", Value: item.Ready},
+			{Key: "strategy", Label: "Strategy", Value: "RollingUpdate"},
+			{Key: "revision", Label: "Revision", Value: "12"},
+		},
 		Conditions: []string{
 			"Available = True              Deployment has minimum availability",
 			"Progressing = True            ReplicaSet has successfully progressed",

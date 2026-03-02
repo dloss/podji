@@ -11,7 +11,6 @@ type relatedResource struct {
 	items       []ResourceItem
 	empty       string
 	logPrefix   string
-	statusLine  string
 	description string
 	exact       bool // when true, items are computed matches — skip expandMockItems
 }
@@ -29,9 +28,9 @@ func (r *relatedResource) Items() []ResourceItem {
 }
 func (r *relatedResource) Sort(items []ResourceItem) { defaultSort(items) }
 func (r *relatedResource) Detail(item ResourceItem) DetailData {
-	line := r.statusLine
-	if line == "" {
-		line = "Healthy    relation: " + r.name + "    object: " + item.Name
+	status := item.Status
+	if status == "" {
+		status = "Healthy"
 	}
 
 	events := []string{
@@ -42,9 +41,13 @@ func (r *relatedResource) Detail(item ResourceItem) DetailData {
 	}
 
 	return DetailData{
-		StatusLine: line,
-		Events:     events,
-		Labels:     []string{"relation=" + strings.ReplaceAll(r.name, " ", "-")},
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: status},
+			{Key: "relation", Label: "Relation", Value: r.name},
+			{Key: "object", Label: "Object", Value: item.Name},
+		},
+		Events: events,
+		Labels: []string{"relation=" + strings.ReplaceAll(r.name, " ", "-")},
 	}
 }
 func (r *relatedResource) Logs(item ResourceItem) []string {
@@ -277,7 +280,11 @@ func (w *WorkloadPods) Items() []ResourceItem {
 func (w *WorkloadPods) Sort(items []ResourceItem) { defaultSort(items) }
 func (w *WorkloadPods) Detail(item ResourceItem) DetailData {
 	return DetailData{
-		StatusLine: item.Status + " " + item.Ready + "    workload: " + w.workload.Name,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "ready", Label: "Ready", Value: item.Ready},
+			{Key: "workload", Label: "Workload", Value: w.workload.Name},
+		},
 		Containers: []ContainerRow{
 			{Name: "app", Image: "ghcr.io/example/" + w.workload.Name + ":latest", State: "Running", Restarts: "0"},
 			{Name: "sidecar", Image: "busybox:stable", State: "Running", Restarts: "0"},
@@ -628,7 +635,11 @@ func (n *NodePods) Sort(items []ResourceItem) { problemSort(items, false) }
 
 func (n *NodePods) Detail(item ResourceItem) DetailData {
 	return DetailData{
-		StatusLine: item.Status + " " + item.Ready + "    node: " + n.node,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "ready", Label: "Ready", Value: item.Ready},
+			{Key: "node", Label: "Node", Value: n.node},
+		},
 		Containers: []ContainerRow{
 			{Name: "app", Image: "ghcr.io/example/" + item.Name + ":latest", State: "Running", Restarts: "0"},
 		},

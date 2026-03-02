@@ -92,7 +92,11 @@ func (c *ConfigMaps) SortKeys() []SortKey {
 
 func (c *ConfigMaps) Detail(item ResourceItem) DetailData {
 	return DetailData{
-		StatusLine: "Healthy    data-keys: 3    age: " + item.Age,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: "Healthy"},
+			{Key: "data-keys", Label: "Data keys", Value: "3"},
+			{Key: "age", Label: "Age", Value: item.Age},
+		},
 		Events: []string{
 			"—   No recent events",
 		},

@@ -121,8 +121,12 @@ func (c *Contexts) Detail(item ResourceItem) DetailData {
 	}
 
 	return DetailData{
-		StatusLine: item.Status + "    cluster: " + cluster + "    server: " + server,
-		Events:     []string{"—   Contexts do not produce events"},
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "cluster", Label: "Cluster", Value: cluster},
+			{Key: "server", Label: "Server", Value: server},
+		},
+		Events: []string{"—   Contexts do not produce events"},
 		Labels: []string{
 			"cluster=" + cluster,
 			"user=" + user,

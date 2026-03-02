@@ -136,15 +136,18 @@ func (p *PersistentVolumeClaims) Sort(items []ResourceItem) {
 	}
 }
 
-func (p *PersistentVolumeClaims) SetSort(mode string, desc bool) { p.sortMode = mode; p.sortDesc = desc }
-func (p *PersistentVolumeClaims) SortMode() string               { return p.sortMode }
-func (p *PersistentVolumeClaims) SortDesc() bool                 { return p.sortDesc }
+func (p *PersistentVolumeClaims) SetSort(mode string, desc bool) {
+	p.sortMode = mode
+	p.sortDesc = desc
+}
+func (p *PersistentVolumeClaims) SortMode() string { return p.sortMode }
+func (p *PersistentVolumeClaims) SortDesc() bool   { return p.sortDesc }
 func (p *PersistentVolumeClaims) SortKeys() []SortKey {
 	return sortKeysFor([]string{"name", "status", "age"})
 }
 
 func (p *PersistentVolumeClaims) Detail(item ResourceItem) DetailData {
-	statusLine := item.Status + "    capacity: " + item.Ready + "    access: " + item.Kind + "    class: " + pvcStorageClass(item.Name)
+	storageClass := pvcStorageClass(item.Name)
 	events := []string{"—   No recent events"}
 	if item.Status == "Pending" {
 		events = []string{
@@ -156,7 +159,12 @@ func (p *PersistentVolumeClaims) Detail(item ResourceItem) DetailData {
 		"Volume:   " + pvcVolumeName(item.Name, item.Status),
 	}
 	return DetailData{
-		StatusLine: statusLine,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "capacity", Label: "Capacity", Value: item.Ready},
+			{Key: "access", Label: "Access", Value: item.Kind},
+			{Key: "class", Label: "Class", Value: storageClass},
+		},
 		Conditions: conditions,
 		Events:     events,
 		Labels:     []string{"app.kubernetes.io/managed-by=helm"},

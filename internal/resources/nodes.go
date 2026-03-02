@@ -144,7 +144,13 @@ func (n *Nodes) Detail(item ResourceItem) DetailData {
 	}
 
 	return DetailData{
-		StatusLine: item.Status + "    pods: " + item.Ready + "    ip: " + ip + "    os: linux/amd64    kubelet: v1.29.2",
+		Summary: []SummaryField{
+			{Key: "status", Label: "Status", Value: item.Status},
+			{Key: "pods", Label: "Pods", Value: item.Ready},
+			{Key: "ip", Label: "IP", Value: ip},
+			{Key: "os", Label: "OS", Value: "linux/amd64"},
+			{Key: "kubelet", Label: "Kubelet", Value: "v1.29.2"},
+		},
 		Conditions: conditions,
 		Events:     events,
 		Labels: []string{

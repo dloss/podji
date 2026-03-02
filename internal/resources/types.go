@@ -29,11 +29,28 @@ func MatchesSelector(selector, labels map[string]string) bool {
 }
 
 type DetailData struct {
-	StatusLine string
+	Summary    []SummaryField
 	Containers []ContainerRow
 	Conditions []string
 	Events     []string
 	Labels     []string
+}
+
+type SummaryTone string
+
+const (
+	SummaryToneAuto    SummaryTone = "auto"
+	SummaryToneNeutral SummaryTone = "neutral"
+	SummaryToneGood    SummaryTone = "good"
+	SummaryToneWarn    SummaryTone = "warn"
+	SummaryToneBad     SummaryTone = "bad"
+)
+
+type SummaryField struct {
+	Key   string
+	Label string
+	Value string
+	Tone  SummaryTone
 }
 
 type ContainerRow struct {
@@ -102,4 +119,3 @@ type EmptyStateProvider interface {
 type BannerProvider interface {
 	Banner() string
 }
-

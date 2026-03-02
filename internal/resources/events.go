@@ -124,11 +124,11 @@ func (e *ScopedEvents) Items() []ResourceItem {
 	e.base.Sort(items)
 	return items
 }
-func (e *ScopedEvents) Sort(items []ResourceItem)          { e.base.Sort(items) }
-func (e *ScopedEvents) SetSort(mode string, desc bool)     { e.base.SetSort(mode, desc) }
-func (e *ScopedEvents) SortMode() string                   { return e.base.SortMode() }
-func (e *ScopedEvents) SortDesc() bool                     { return e.base.SortDesc() }
-func (e *ScopedEvents) SortKeys() []SortKey                { return e.base.SortKeys() }
+func (e *ScopedEvents) Sort(items []ResourceItem)      { e.base.Sort(items) }
+func (e *ScopedEvents) SetSort(mode string, desc bool) { e.base.SetSort(mode, desc) }
+func (e *ScopedEvents) SortMode() string               { return e.base.SortMode() }
+func (e *ScopedEvents) SortDesc() bool                 { return e.base.SortDesc() }
+func (e *ScopedEvents) SortKeys() []SortKey            { return e.base.SortKeys() }
 func (e *ScopedEvents) Detail(item ResourceItem) DetailData {
 	return e.base.Detail(item)
 }
@@ -194,7 +194,12 @@ func (e *Events) Detail(item ResourceItem) DetailData {
 	}
 
 	return DetailData{
-		StatusLine: item.Kind + "    reason: " + reason + "    object: " + object + "    age: " + item.Age,
+		Summary: []SummaryField{
+			{Key: "status", Label: "Type", Value: item.Kind},
+			{Key: "reason", Label: "Reason", Value: reason},
+			{Key: "object", Label: "Object", Value: object},
+			{Key: "age", Label: "Age", Value: item.Age},
+		},
 		Events: []string{
 			item.Age + " ago   " + item.Kind + "   " + reason + "   " + message,
 		},
