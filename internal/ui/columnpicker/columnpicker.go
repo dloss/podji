@@ -37,7 +37,7 @@ type Picker struct {
 	rows         []pickerRow
 	pool         []resources.TableColumn // ordered pool for emitting results
 	cursor       int
-	initial      []string // snapshot for reset
+	defaults     map[string]bool
 	width        int
 	height       int
 }
@@ -62,8 +62,8 @@ func New(resourceName string, pool, labelPool []resources.TableColumn, current [
 
 	var rows []pickerRow
 
-	// Standard + wide columns section.
-	rows = append(rows, pickerRow{kind: rowHeader, headerText: "standard"})
+	// Built-in resource columns section (regular + wide-only extras).
+	rows = append(rows, pickerRow{kind: rowHeader, headerText: "built-in"})
 	for _, col := range pool {
 		locked := col.ID == "name" || col.ID == "namespace"
 		wide := !defaultIDs[col.ID] && col.ID != "name" && col.ID != "namespace"
@@ -89,15 +89,11 @@ func New(resourceName string, pool, labelPool []resources.TableColumn, current [
 		}
 	}
 
-	// Snapshot current selection for reset.
-	initial := make([]string, len(current))
-	copy(initial, current)
-
 	p := &Picker{
 		resourceName: resourceName,
 		rows:         rows,
 		pool:         append(pool, labelPool...),
-		initial:      initial,
+		defaults:     defaultIDs,
 	}
 	p.cursor = p.firstSelectable()
 	return p
@@ -173,15 +169,11 @@ func (p *Picker) visibleIDs() []string {
 	return result
 }
 
-// resetToInitial restores checkboxes to the snapshot taken at construction.
-func (p *Picker) resetToInitial() {
-	initialSet := make(map[string]bool, len(p.initial))
-	for _, id := range p.initial {
-		initialSet[id] = true
-	}
+// resetToDefault restores checkboxes to the resource-defined default columns.
+func (p *Picker) resetToDefault() {
 	for i := range p.rows {
 		if p.rows[i].kind == rowColumn {
-			p.rows[i].checked = initialSet[p.rows[i].col.ID] || p.rows[i].locked
+			p.rows[i].checked = p.defaults[p.rows[i].col.ID] || p.rows[i].locked
 		}
 	}
 }
@@ -208,8 +200,8 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 			},
 		}
 
-	case "r":
-		p.resetToInitial()
+	case "d":
+		p.resetToDefault()
 
 	case "up", "k":
 		p.moveCursor(-1)
@@ -231,7 +223,7 @@ func (p *Picker) View() string {
 
 	var lines []string
 	titleStyle := lipgloss.NewStyle().Bold(true)
-	lines = append(lines, titleStyle.Render("  columns  "))
+	lines = append(lines, titleStyle.Render("  Column  "))
 	lines = append(lines, strings.Repeat("─", innerWidth))
 
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
@@ -307,11 +299,10 @@ func (p *Picker) View() string {
 	}
 
 	lines = append(lines, strings.Repeat("─", innerWidth))
-	footer := muted.Render("spc toggle  enter apply  r reset  esc cancel")
-	if len([]rune(footer)) > innerWidth {
-		footer = muted.Render("spc toggle  enter apply")
-	}
-	lines = append(lines, footer)
+	footerPrimary := muted.Render("spc toggle  enter apply")
+	footerSecondary := muted.Render("d default  esc cancel")
+	lines = append(lines, footerPrimary)
+	lines = append(lines, footerSecondary)
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
