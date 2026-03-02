@@ -470,6 +470,10 @@ func compositeOverlay(bg, box string, anchorX, startRow int) string {
 // styling. Text to the right of the box is shown as plain text.
 func mergeLine(bgLine, boxLine string, anchorX int) string {
 	left := ansi.Truncate(bgLine, anchorX, "")
+	leftWidth := lipgloss.Width(left)
+	if leftWidth < anchorX {
+		left += strings.Repeat(" ", anchorX-leftWidth)
+	}
 	boxWidth := lipgloss.Width(boxLine)
 	plainBg := ansi.Strip(bgLine)
 	bgRunes := []rune(plainBg)

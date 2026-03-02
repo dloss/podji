@@ -400,3 +400,22 @@ func TestBookmarkSetAndJump(t *testing.T) {
 		t.Fatalf("expected workloads after jump, got %q", lv.Resource().Name())
 	}
 }
+
+func TestMergeLinePadsToAnchorWhenBackgroundIsShort(t *testing.T) {
+	got := mergeLine("short", "BOX", 10)
+	if got != "short     BOX" {
+		t.Fatalf("expected overlay to start at anchor column, got %q", got)
+	}
+}
+
+func TestCompositeOverlayKeepsAnchorOnShortHeaderLines(t *testing.T) {
+	bg := "h1\nh2\nthis line is long enough"
+	got := compositeOverlay(bg, "A\nB", 8, 0)
+	lines := strings.Split(got, "\n")
+	if lines[0] != "h1      A" {
+		t.Fatalf("expected first overlaid line to honor anchor, got %q", lines[0])
+	}
+	if lines[1] != "h2      B" {
+		t.Fatalf("expected second overlaid line to honor anchor, got %q", lines[1])
+	}
+}
