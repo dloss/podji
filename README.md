@@ -54,6 +54,19 @@ go build ./cmd/podji
 
 The app uses stub data — no real Kubernetes cluster needed.
 
+## Runtime Mode
+
+`PODJI_MODE` controls which store backend is used at startup:
+
+- `mock` (default): deterministic stub data
+- `kube`: kubectl-backed context/namespace discovery; falls back to mock if unavailable
+
+Example:
+
+```bash
+PODJI_MODE=kube ./podji
+```
+
 ## Test
 
 ```bash

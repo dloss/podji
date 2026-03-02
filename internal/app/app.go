@@ -66,7 +66,12 @@ type bodyRowProvider interface {
 }
 
 func New() Model {
-	return NewWithStore(data.NewMockStore())
+	store, warning := data.NewStoreFromEnv()
+	model := NewWithStore(store)
+	if warning != "" {
+		model.statusMsg = warning
+	}
+	return model
 }
 
 func NewWithStore(store data.Store) Model {
