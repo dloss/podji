@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 )
@@ -11,6 +12,9 @@ import (
 // expandMockItems pads a stub item list to a target length by cloning entries
 // with deterministic "zz-" names so existing sort expectations stay stable.
 func expandMockItems(items []ResourceItem, target int) []ResourceItem {
+	if !mockExpansionEnabled() {
+		return items
+	}
 	if len(items) == 0 || len(items) >= target {
 		return items
 	}
@@ -29,6 +33,14 @@ func expandMockItems(items []ResourceItem, target int) []ResourceItem {
 		cloneRound++
 	}
 	return out
+}
+
+func mockExpansionEnabled() bool {
+	stress := strings.TrimSpace(strings.ToLower(os.Getenv("PODJI_STRESS")))
+	if stress == "1" || stress == "true" || stress == "yes" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("PODJI_SCENARIO")), "stress")
 }
 
 // expandMockLogs appends deterministic, flog-style synthetic lines so log

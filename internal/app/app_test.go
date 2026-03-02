@@ -304,7 +304,7 @@ func TestCommandBarSingleMatchPushesListAndDetail(t *testing.T) {
 	m := New()
 	m.width = 120
 	m.height = 40
-	err := m.runCommand("deploy zz-api-gateway-01")
+	err := m.runCommand("deploy api-gateway")
 	if err != "" {
 		t.Fatalf("expected no error running command, got %q", err)
 	}
@@ -326,7 +326,7 @@ func TestCommandBarDescribeSubviewPushesDetailAndDescribe(t *testing.T) {
 	m.width = 120
 	m.height = 40
 
-	err := m.runCommand("deploy zz-api-gateway-01 describe")
+	err := m.runCommand("deploy api-gateway describe")
 	if err != "" {
 		t.Fatalf("expected no error running command, got %q", err)
 	}
@@ -348,7 +348,7 @@ func TestCommandBarLogsSubviewPushesDetailAndLogs(t *testing.T) {
 	m.width = 120
 	m.height = 40
 
-	err := m.runCommand("deploy zz-api-gateway-01 logs")
+	err := m.runCommand("deploy api-gateway logs")
 	if err != "" {
 		t.Fatalf("expected no error running command, got %q", err)
 	}
