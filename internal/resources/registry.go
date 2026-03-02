@@ -212,22 +212,35 @@ func readySort(items []ResourceItem, desc bool) {
 	})
 }
 
-// parseRestarts extracts the restart count from strings like "5" or "5 (10m)".
-func parseRestarts(restarts string) int {
+// parseRestartSortKey extracts sortable restart information.
+// Numeric values (for example "5", "5 (10m)") are treated as known counts.
+// Placeholders like "-", "—", empty, or invalid values are treated as unknown.
+func parseRestartSortKey(restarts string) (count int, known bool) {
 	s := strings.TrimSpace(restarts)
-	if s == "" {
-		return 0
+	if s == "" || s == "-" || s == "—" {
+		return 0, false
 	}
-	n, _ := strconv.Atoi(strings.Fields(s)[0])
-	return n
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // restartsSort sorts by restart count ascending (fewest first), then by name.
 // Pass desc=true for most-restarts-first.
+// Unknown restart values ("-", "—", empty) are always placed after numeric values.
 func restartsSort(items []ResourceItem, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
-		ri := parseRestarts(items[i].Restarts)
-		rj := parseRestarts(items[j].Restarts)
+		ri, knownI := parseRestartSortKey(items[i].Restarts)
+		rj, knownJ := parseRestartSortKey(items[j].Restarts)
+		if knownI != knownJ {
+			return knownI
+		}
 		if ri != rj {
 			if desc {
 				return ri > rj
