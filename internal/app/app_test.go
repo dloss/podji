@@ -83,7 +83,7 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	if !strings.Contains(lines[0], "Context:") || !strings.Contains(lines[0], "Namespace:") {
 		t.Fatalf("expected scope line with context and namespace, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "[Workload]") {
+	if !strings.Contains(lines[1], "Workload") {
 		t.Fatalf("expected breadcrumb line with root resource tag, got %q", lines[1])
 	}
 }

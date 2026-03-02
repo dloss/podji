@@ -586,13 +586,13 @@ func (m Model) namespaceLabelX() int {
 }
 
 func (m Model) breadcrumbLine() string {
-	rootTag := style.Scope.Render("[" + crumbText(m.crumbs[0]) + "]")
+	rootTag := formatCrumb(m.crumbs[0])
 	ancestors := m.crumbs[:len(m.crumbs)-1]
 	if len(ancestors) <= 1 {
 		return rootTag
 	}
 
-	sep := style.NavSep.Render(" > ")
+	sep := style.CrumbSep.Render(" > ")
 	segments := make([]string, 0, len(ancestors)-1)
 	for _, part := range ancestors[1:] {
 		segments = append(segments, formatCrumb(part))
