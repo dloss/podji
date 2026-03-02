@@ -82,3 +82,29 @@ func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 		t.Fatalf("expected CronJob-specific empty-state message, got %q", msg)
 	}
 }
+
+func TestWorkloadPodsShowsNamespaceColumnInAllNamespacesMode(t *testing.T) {
+	prev := ActiveNamespace
+	ActiveNamespace = AllNamespaces
+	t.Cleanup(func() { ActiveNamespace = prev })
+
+	pods := NewWorkloadPods(ResourceItem{
+		Name:     "api",
+		Kind:     "DEP",
+		Selector: map[string]string{"app": "api"},
+	}, DefaultRegistry())
+
+	cols := pods.TableColumns()
+	if len(cols) == 0 || cols[0].ID != "namespace" {
+		t.Fatalf("expected namespace column first in all-namespaces mode, got %#v", cols)
+	}
+
+	items := pods.Items()
+	if len(items) == 0 {
+		t.Fatal("expected workload pods")
+	}
+	row := pods.TableRow(items[0])
+	if row["namespace"] == "" {
+		t.Fatalf("expected namespace value in row, got %#v", row)
+	}
+}

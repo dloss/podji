@@ -204,6 +204,27 @@ func (w *WorkloadPods) Name() string {
 
 func (w *WorkloadPods) Key() rune { return 'P' }
 
+func (w *WorkloadPods) TableColumns() []TableColumn {
+	return namespacedColumns([]TableColumn{
+		{ID: "name", Name: "NAME", Width: 48, Default: true},
+		{ID: "status", Name: "STATUS", Width: 12, Default: true},
+		{ID: "ready", Name: "READY", Width: 7, Default: true},
+		{ID: "restarts", Name: "RESTARTS", Width: 14, Default: true},
+		{ID: "age", Name: "AGE", Width: 6, Default: true},
+	})
+}
+
+func (w *WorkloadPods) TableRow(item ResourceItem) map[string]string {
+	return map[string]string{
+		"namespace": item.Namespace,
+		"name":      item.Name,
+		"status":    item.Status,
+		"ready":     item.Ready,
+		"restarts":  item.Restarts,
+		"age":       item.Age,
+	}
+}
+
 func (w *WorkloadPods) Items() []ResourceItem {
 	var items []ResourceItem
 	switch w.workload.Kind {
