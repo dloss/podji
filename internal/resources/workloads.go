@@ -1,7 +1,6 @@
 package resources
 
 import (
-	"os"
 	"sort"
 	"strings"
 )
@@ -14,7 +13,7 @@ type Workloads struct {
 }
 
 func NewWorkloads() *Workloads {
-	scenario := os.Getenv("PODJI_SCENARIO")
+	scenario := mockScenario()
 	switch scenario {
 	case "empty", "forbidden", "partial", "offline":
 		// valid

@@ -40,7 +40,15 @@ func mockExpansionEnabled() bool {
 	if stress == "1" || stress == "true" || stress == "yes" {
 		return true
 	}
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("PODJI_SCENARIO")), "stress")
+	return strings.EqualFold(mockScenario(), "stress")
+}
+
+func mockScenario() string {
+	scenario := strings.TrimSpace(os.Getenv("PODJI_MOCK_SCENARIO"))
+	if scenario == "" {
+		scenario = strings.TrimSpace(os.Getenv("PODJI_SCENARIO"))
+	}
+	return strings.ToLower(scenario)
 }
 
 // expandMockLogs appends deterministic, flog-style synthetic lines so log

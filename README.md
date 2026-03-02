@@ -73,6 +73,31 @@ CLI flag alternative:
 ./podji --mode kube
 ```
 
+## Mock Scenarios
+
+Mock mode supports deterministic scenarios for development and demos.
+
+Use:
+
+- `PODJI_MOCK_SCENARIO` (preferred)
+- `PODJI_SCENARIO` (legacy fallback)
+
+Supported values:
+
+- `normal` (default)
+- `empty`
+- `forbidden`
+- `partial`
+- `offline`
+- `stress` (enables synthetic list expansion)
+
+Examples:
+
+```bash
+PODJI_MODE=mock PODJI_MOCK_SCENARIO=forbidden ./podji
+PODJI_MODE=mock PODJI_STRESS=1 ./podji
+```
+
 ## Test
 
 ```bash
