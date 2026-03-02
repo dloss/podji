@@ -9,6 +9,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/columnpicker"
 	"github.com/dloss/podji/internal/ui/commandbar"
@@ -35,6 +36,7 @@ type Bookmark struct {
 }
 
 type Model struct {
+	store             data.Store
 	registry          *resources.Registry
 	stack             []viewstate.View
 	crumbs            []string
@@ -64,18 +66,26 @@ type bodyRowProvider interface {
 }
 
 func New() Model {
-	registry := resources.DefaultRegistry()
-	registry.SetNamespace(resources.DefaultNamespace)
+	return NewWithStore(data.NewMockStore())
+}
+
+func NewWithStore(store data.Store) Model {
+	if store == nil {
+		store = data.NewMockStore()
+	}
+	registry := store.Registry()
+	scope := store.Scope()
 	workloads := registry.ResourceByKey('W')
 	root := listview.New(workloads, registry)
 	rootCrumb := normalizeBreadcrumbPart(root.Breadcrumb())
 
 	return Model{
+		store:             store,
 		registry:          registry,
 		stack:             []viewstate.View{root},
 		crumbs:            []string{rootCrumb},
-		context:           "default",
-		namespace:         "default",
+		context:           scope.Context,
+		namespace:         scope.Namespace,
 		activeResourceKey: 'W',
 	}
 }
@@ -183,11 +193,23 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 
 	case overlaypicker.SelectedMsg:
 		m.overlay = nil
-		if msg.Kind == "namespace" {
-			m.namespace = msg.Value
-			m.registry.SetNamespace(msg.Value)
+		if m.store != nil {
+			scope := m.store.Scope()
+			if msg.Kind == "namespace" {
+				scope.Namespace = msg.Value
+			} else {
+				scope.Context = msg.Value
+			}
+			m.store.SetScope(scope)
+			m.context = scope.Context
+			m.namespace = scope.Namespace
 		} else {
-			m.context = msg.Value
+			if msg.Kind == "namespace" {
+				m.namespace = msg.Value
+				m.registry.SetNamespace(msg.Value)
+			} else {
+				m.context = msg.Value
+			}
 		}
 		// Choose the best resource using the fallback chain:
 		// current resource → parent resource(s) → workloads (W) → first registry resource.
@@ -274,12 +296,18 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, nil
 		case "N":
 			items := resources.NamespaceNames()
+			if m.store != nil {
+				items = m.store.NamespaceNames()
+			}
 			m.overlay = overlaypicker.New("namespace", items)
 			m.overlay.SetAnchor(m.namespaceLabelX())
 			m.overlay.SetSize(m.width, m.height-1)
 			return m, nil
 		case "X":
 			items := resources.ContextNames()
+			if m.store != nil {
+				items = m.store.ContextNames()
+			}
 			m.overlay = overlaypicker.New("context", items)
 			m.overlay.SetAnchor(0)
 			m.overlay.SetSize(m.width, m.height-1)
@@ -318,7 +346,14 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						b := m.bookmarks[slot]
 						m.context = b.context
 						m.namespace = b.namespace
-						m.registry.SetNamespace(b.namespace)
+						if m.store != nil {
+							scope := m.store.Scope()
+							scope.Context = b.context
+							scope.Namespace = b.namespace
+							m.store.SetScope(scope)
+						} else {
+							m.registry.SetNamespace(b.namespace)
+						}
 						m.stack = append([]viewstate.View{}, b.stack...)
 						m.crumbs = append([]string{}, b.crumbs...)
 						m.top().SetSize(m.width, m.availableHeight())
@@ -697,7 +732,11 @@ func (m *Model) runCommand(raw string) string {
 	cmd := parseCommand(raw)
 	if cmd.kindToken == "unhealthy" {
 		base := m.registry.ResourceByKey('W')
-		view := listview.New(resources.NewQueryResource("workloads", resources.UnhealthyItems(m.namespace), base), m.registry)
+		items := resources.UnhealthyItems(m.namespace)
+		if m.store != nil {
+			items = m.store.UnhealthyItems()
+		}
+		view := listview.New(resources.NewQueryResource("workloads", items, base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, view)
 		m.crumbs = append(m.crumbs, "unhealthy")
@@ -705,7 +744,11 @@ func (m *Model) runCommand(raw string) string {
 	}
 	if cmd.kindToken == "restarts" {
 		base := m.registry.ResourceByKey('P')
-		view := listview.New(resources.NewQueryResource("pods", resources.PodsByRestarts(m.namespace), base), m.registry)
+		items := resources.PodsByRestarts(m.namespace)
+		if m.store != nil {
+			items = m.store.PodsByRestarts()
+		}
+		view := listview.New(resources.NewQueryResource("pods", items, base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, view)
 		m.crumbs = append(m.crumbs, "restarts")
