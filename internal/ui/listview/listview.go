@@ -208,6 +208,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 						if colIdx, desc, ok := numericSortKey(r); ok {
 							mode := sortModeForColumn(v.resource, v.columns, colIdx)
 							if mode != "" {
+								// Layout-agnostic behavior: plain number keys toggle direction
+								// when selecting the currently active sort column again.
+								if r >= '0' && r <= '9' && sortable.SortMode() == mode {
+									desc = !sortable.SortDesc()
+								}
 								sortable.SetSort(mode, desc)
 								v.refreshItems()
 							}
@@ -1166,18 +1171,16 @@ func sortModeForColumn(resource resources.ResourceType, columns []resources.Tabl
 	return ""
 }
 
-// numericSortKey interprets digit and US-keyboard shift-digit runes as
-// (0-based column index, descending, ok). Digits 1-9 map to columns 0-8
-// ascending; !@#$%^&*( (shift+1-9) map to columns 0-8 descending.
+// numericSortKey interprets digit runes as
+// (0-based column index, descending, ok). Digits 1-9 map to columns 0-8,
+// and 0 maps to column 9 (10th column). Descending is controlled by reselecting
+// the same column key (direction toggle), not by keyboard-layout-specific aliases.
 func numericSortKey(r rune) (int, bool, bool) {
 	if r >= '1' && r <= '9' {
 		return int(r - '1'), false, true
 	}
-	const shiftDigits = "!@#$%^&*("
-	for i, s := range shiftDigits {
-		if r == s {
-			return i, true, true
-		}
+	if r == '0' {
+		return 9, false, true
 	}
 	return 0, false, false
 }

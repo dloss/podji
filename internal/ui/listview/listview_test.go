@@ -454,12 +454,12 @@ func TestSortByColumnNumber(t *testing.T) {
 		t.Fatalf("expected kind sort arrow from numeric key, got: %s", rendered)
 	}
 
-	// '@' (shift+2) sorts by column 2 descending → ↓KIND.
+	// Pressing '2' again toggles column 2 descending → ↓KIND.
 	view.Update(keyRunes('s'))
-	view.Update(keyRunes('@'))
+	view.Update(keyRunes('2'))
 	rendered = ansi.Strip(view.View())
 	if !strings.Contains(rendered, "↓KIND") {
-		t.Fatalf("expected descending kind sort arrow from shift-numeric key, got: %s", rendered)
+		t.Fatalf("expected descending kind sort arrow from repeated numeric key, got: %s", rendered)
 	}
 
 	// '1' sorts by column 1 (WORKLOAD/name) ascending — arrow on ↑WORKLOAD.
@@ -468,6 +468,31 @@ func TestSortByColumnNumber(t *testing.T) {
 	rendered = ansi.Strip(view.View())
 	if !strings.Contains(rendered, "↑WORKLOAD") {
 		t.Fatalf("expected ↑WORKLOAD for default sort via numeric key, got: %s", rendered)
+	}
+}
+
+func TestSortByTenthColumnNumber(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(160, 40)
+
+	// Enable wide mode so workloads expose 10 columns.
+	view.Update(keyRunes('w'))
+
+	// '0' sorts by column 10 (SERVICEACCOUNT) ascending.
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('0'))
+	rendered := ansi.Strip(view.View())
+	if !strings.Contains(rendered, "↑SERVICEACCOUNT") {
+		t.Fatalf("expected service-account sort arrow from numeric key 0, got: %s", rendered)
+	}
+
+	// Pressing '0' again toggles column 10 descending.
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('0'))
+	rendered = ansi.Strip(view.View())
+	if !strings.Contains(rendered, "↓SERVICEACCOUNT") {
+		t.Fatalf("expected descending service-account sort arrow from repeated numeric key, got: %s", rendered)
 	}
 }
 
