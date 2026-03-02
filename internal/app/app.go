@@ -151,9 +151,15 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		return m, nil
 
 	case commandbar.SubmitMsg:
-		if strings.TrimSpace(msg.Value) == "" {
+		trimmed := strings.TrimSpace(msg.Value)
+		if trimmed == "" {
 			m.cmdBar = nil
 			return m, nil
+		}
+		switch strings.ToLower(trimmed) {
+		case "q", "quit":
+			m.cmdBar = nil
+			return m, bubbletea.Quit
 		}
 		if err := m.runCommand(msg.Value); err != "" {
 			m.cmdBar.SetError(err)

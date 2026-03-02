@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/dloss/podji/internal/ui/commandbar"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
 	"github.com/dloss/podji/internal/ui/listview"
@@ -361,6 +362,42 @@ func TestCommandBarLogsSubviewPushesDetailAndLogs(t *testing.T) {
 	}
 	if _, ok := model.stack[len(model.stack)-1].(*listview.View); !ok {
 		t.Fatalf("expected top view to be listview for deployment log target, got %T", model.stack[len(model.stack)-1])
+	}
+}
+
+func TestCommandBarQSubmitQuits(t *testing.T) {
+	m := New()
+	m.cmdBar = commandbar.New()
+
+	updated, cmd := m.Update(commandbar.SubmitMsg{Value: "q"})
+	got := updated.(Model)
+	if got.cmdBar != nil {
+		t.Fatal("expected command bar to close on :q")
+	}
+	if cmd == nil {
+		t.Fatal("expected quit command for :q")
+	}
+	msg := cmd()
+	if _, ok := msg.(bubbletea.QuitMsg); !ok {
+		t.Fatalf("expected bubbletea.QuitMsg for :q, got %T", msg)
+	}
+}
+
+func TestCommandBarQuitSubmitQuits(t *testing.T) {
+	m := New()
+	m.cmdBar = commandbar.New()
+
+	updated, cmd := m.Update(commandbar.SubmitMsg{Value: "  QuIt  "})
+	got := updated.(Model)
+	if got.cmdBar != nil {
+		t.Fatal("expected command bar to close on :quit")
+	}
+	if cmd == nil {
+		t.Fatal("expected quit command for :quit")
+	}
+	msg := cmd()
+	if _, ok := msg.(bubbletea.QuitMsg); !ok {
+		t.Fatalf("expected bubbletea.QuitMsg for :quit, got %T", msg)
 	}
 }
 
