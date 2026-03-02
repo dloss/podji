@@ -67,6 +67,12 @@ Example:
 PODJI_MODE=kube ./podji
 ```
 
+CLI flag alternative:
+
+```bash
+./podji --mode kube
+```
+
 ## Test
 
 ```bash

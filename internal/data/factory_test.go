@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -24,5 +25,21 @@ func TestNewStoreFromEnvUnknownModeFallsBackToMock(t *testing.T) {
 	}
 	if !strings.Contains(warning, "unknown PODJI_MODE") {
 		t.Fatalf("expected unknown-mode warning, got %q", warning)
+	}
+}
+
+func TestNewStoreForModeKubeFallbackOnError(t *testing.T) {
+	prev := newKubeStoreFn
+	newKubeStoreFn = func() (*KubeStore, error) {
+		return nil, errors.New("kube unavailable")
+	}
+	t.Cleanup(func() { newKubeStoreFn = prev })
+
+	store, warning := NewStoreForMode(ModeKube)
+	if _, ok := store.(*MockStore); !ok {
+		t.Fatalf("expected mock store fallback, got %T", store)
+	}
+	if !strings.Contains(warning, "kube mode unavailable") {
+		t.Fatalf("expected kube fallback warning, got %q", warning)
 	}
 }
