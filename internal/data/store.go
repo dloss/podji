@@ -11,6 +11,7 @@ type Store interface {
 	Registry() *resources.Registry
 	ReadModel() ReadModel
 	RelationIndex() RelationIndex
+	AdaptResource(resource resources.ResourceType) resources.ResourceType
 	Scope() Scope
 	SetScope(scope Scope)
 	NamespaceNames() []string

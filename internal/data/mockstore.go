@@ -40,6 +40,13 @@ func (s *MockStore) RelationIndex() RelationIndex {
 	return s.relations
 }
 
+func (s *MockStore) AdaptResource(resource resources.ResourceType) resources.ResourceType {
+	if resource == nil {
+		return nil
+	}
+	return NewReadBackedResource(resource, s.read, s.Scope)
+}
+
 func (s *MockStore) SetScope(scope Scope) {
 	if scope.Context == "" {
 		scope.Context = "default"

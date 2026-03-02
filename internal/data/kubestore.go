@@ -91,6 +91,13 @@ func (s *KubeStore) RelationIndex() RelationIndex {
 	return s.relations
 }
 
+func (s *KubeStore) AdaptResource(resource resources.ResourceType) resources.ResourceType {
+	if resource == nil {
+		return nil
+	}
+	return NewReadBackedResource(resource, s.read, s.Scope)
+}
+
 func (s *KubeStore) SetScope(scope Scope) {
 	if scope.Context == "" {
 		scope.Context = s.scope.Context

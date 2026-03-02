@@ -80,7 +80,7 @@ func NewWithStore(store data.Store) Model {
 	}
 	registry := store.Registry()
 	scope := store.Scope()
-	workloads := registry.ResourceByKey('W')
+	workloads := store.AdaptResource(registry.ResourceByKey('W'))
 	root := listview.New(workloads, registry)
 	rootCrumb := normalizeBreadcrumbPart(root.Breadcrumb())
 
@@ -219,7 +219,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		// Choose the best resource using the fallback chain:
 		// current resource → parent resource(s) → workloads (W) → first registry resource.
 		if res := m.bestResourceForScope(); res != nil {
-			view := listview.New(res, m.registry)
+			view := listview.New(m.adaptResource(res), m.registry)
 			view.SetSize(m.width, m.availableHeight())
 			m.stack = []viewstate.View{view}
 			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
@@ -368,7 +368,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 					return m, nil
 				}
 				if res := m.registry.ResourceByKey(key); res != nil {
-					view := listview.New(res, m.registry)
+					view := listview.New(m.adaptResource(res), m.registry)
 					view.SetSize(m.width, m.availableHeight())
 					m.stack = []viewstate.View{view}
 					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
@@ -736,7 +736,7 @@ type parsedCommand struct {
 func (m *Model) runCommand(raw string) string {
 	cmd := parseCommand(raw)
 	if cmd.kindToken == "unhealthy" {
-		base := m.registry.ResourceByKey('W')
+		base := m.adaptResource(m.registry.ResourceByKey('W'))
 		items := resources.UnhealthyItems(m.namespace)
 		if m.store != nil {
 			items = m.store.UnhealthyItems()
@@ -748,7 +748,7 @@ func (m *Model) runCommand(raw string) string {
 		return ""
 	}
 	if cmd.kindToken == "restarts" {
-		base := m.registry.ResourceByKey('P')
+		base := m.adaptResource(m.registry.ResourceByKey('P'))
 		items := resources.PodsByRestarts(m.namespace)
 		if m.store != nil {
 			items = m.store.PodsByRestarts()
@@ -783,7 +783,7 @@ func (m *Model) runCommand(raw string) string {
 		if lv, ok := m.top().(*listview.View); ok && lv.Resource().Name() == res.Name() {
 			return ""
 		}
-		view := listview.New(res, m.registry)
+		view := listview.New(m.adaptResource(res), m.registry)
 		view.SetSize(m.width, m.availableHeight())
 		m.stack = []viewstate.View{view}
 		m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
@@ -804,7 +804,7 @@ func (m *Model) runCommand(raw string) string {
 	}
 	selected := matches[0]
 	if lv, ok := m.top().(*listview.View); !ok || lv.Resource().Name() != res.Name() {
-		resView := listview.New(res, m.registry)
+		resView := listview.New(m.adaptResource(res), m.registry)
 		resView.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, resView)
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(resView.Breadcrumb()))
@@ -813,7 +813,7 @@ func (m *Model) runCommand(raw string) string {
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(res.Name() + ": " + selected.Name)
 	}
 	var next viewstate.View
-	detail := detailViewFor(selected, res, m.registry)
+	detail := detailViewFor(selected, m.adaptResource(res), m.registry)
 	if cmd.subview == "" || cmd.subview == "detail" {
 		detail.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, detail)
@@ -824,7 +824,7 @@ func (m *Model) runCommand(raw string) string {
 	m.stack = append(m.stack, detail)
 	m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(detail.Breadcrumb()))
 
-	v := listview.New(res, m.registry)
+	v := listview.New(m.adaptResource(res), m.registry)
 	switch cmd.subview {
 	case "logs":
 		_, next = v.ForwardViewForCommand(selected, cmd.subview)
@@ -965,6 +965,13 @@ func (m Model) listResourceItems(res resources.ResourceType) []resources.Resourc
 		}
 	}
 	return res.Items()
+}
+
+func (m Model) adaptResource(res resources.ResourceType) resources.ResourceType {
+	if m.store != nil {
+		return m.store.AdaptResource(res)
+	}
+	return res
 }
 
 func uniqueSortedNames(items []resources.ResourceItem) []string {
