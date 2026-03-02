@@ -261,12 +261,14 @@ func TestFilterModeFooterIndicator(t *testing.T) {
 	view.SetSize(120, 40)
 
 	view.Update(keyRunes('/'))
+	// Add some text to trigger cursor display
+	view.Update(keyRunes('t', 'e', 's', 't'))
 	footer := ansi.Strip(view.Footer())
-	if !strings.Contains(footer, "filter") {
-		t.Fatalf("expected filter mode indicator in footer, got: %s", footer)
+	if !strings.Contains(footer, "/") {
+		t.Fatalf("expected filter input in footer, got: %s", footer)
 	}
-	if !strings.Contains(footer, "▌") {
-		t.Fatalf("expected cursor in footer when filter active, got: %s", footer)
+	if !strings.Contains(footer, "test") {
+		t.Fatalf("expected filter text in footer, got: %s", footer)
 	}
 	if !strings.Contains(footer, "esc") {
 		t.Fatalf("expected esc cancel hint in filter footer, got: %s", footer)

@@ -515,8 +515,7 @@ func (v *View) View() string {
 			out[msgRow] = style.Muted.Render("  " + v.emptyMessage())
 		}
 	}
-	view := strings.Join(out, "\n")
-	return filterbar.Append(view, v.list)
+	return strings.Join(out, "\n")
 }
 
 func (v *View) Breadcrumb() string {
@@ -533,6 +532,17 @@ func (v *View) SelectedBreadcrumb() string {
 }
 
 func (v *View) Footer() string {
+	// When setting filter, show filter input in status row instead of normal footer
+	if v.list.SettingFilter() {
+		filterInput := filterbar.FilterInputView(v.list)
+		line1 := filterInput
+		line2 := style.FormatBindings([]style.Binding{style.B("esc", "cancel")})
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
+	
 	// Line 1: status indicators + pagination right-aligned.
 	var indicators []style.Binding
 	if v.wideMode {
@@ -658,14 +668,7 @@ func (v *View) Footer() string {
 		if v.list.Width() > 0 {
 			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
-	} else if v.list.SettingFilter() {
-		filterLabel := style.FooterKey.Render("filter")
-		filterVal := style.FooterKey.Render("/ " + v.list.FilterValue() + "▌")
-		opts := "  " + style.FormatBindings([]style.Binding{style.B("esc", "cancel")})
-		line2 = filterLabel + "  " + filterVal + opts
-		if v.list.Width() > 0 {
-			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
-		}
+
 	} else {
 		var actions []style.Binding
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")

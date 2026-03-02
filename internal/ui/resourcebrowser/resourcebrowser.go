@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/listview"
@@ -200,7 +201,7 @@ func (v *View) View() string {
 			}
 		}
 	}
-	return filterbar.Append(strings.Join(out, "\n"), v.list)
+	return strings.Join(out, "\n")
 }
 
 func (v *View) Breadcrumb() string { return "resources" }
@@ -210,6 +211,18 @@ func (v *View) Footer() string {
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
+	
+	// When setting filter, show filter input in status row instead of indicators
+	if v.list.SettingFilter() {
+		filterInput := filterbar.FilterInputView(v.list)
+		line1 := filterInput
+		line2 := style.FormatBindings([]style.Binding{style.B("esc", "cancel")})
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
+	
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}

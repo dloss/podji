@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/filterbar"
@@ -336,12 +337,23 @@ func (v *relationList) View() string {
 			view += "\n\n" + style.Muted.Render("No related items.")
 		}
 	}
-	return filterbar.Append(view, v.list)
+	return view
 }
 
 func (v *relationList) Breadcrumb() string { return v.resource.Name() }
 
 func (v *relationList) Footer() string {
+	// When setting filter, show filter input in status row instead of normal footer
+	if v.list.SettingFilter() {
+		filterInput := filterbar.FilterInputView(v.list)
+		line1 := filterInput
+		line2 := style.FormatBindings([]style.Binding{style.B("esc", "cancel")})
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
+	
 	indicators := []style.Binding{}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
