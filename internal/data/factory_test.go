@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/dloss/podji/internal/resources"
 )
 
 func TestNewStoreFromEnvDefaultsToMock(t *testing.T) {
@@ -41,5 +43,34 @@ func TestNewStoreForModeKubeFallbackOnError(t *testing.T) {
 	}
 	if !strings.Contains(warning, "kube mode unavailable") {
 		t.Fatalf("expected kube fallback warning, got %q", warning)
+	}
+}
+
+func TestNewStoreForModeKubeSuccess(t *testing.T) {
+	prev := newKubeStoreFn
+	newKubeStoreFn = func() (*KubeStore, error) {
+		reg := resources.DefaultRegistry()
+		reg.SetNamespace(resources.DefaultNamespace)
+		return &KubeStore{
+			registry:  reg,
+			read:      NewMockReadModel(reg),
+			relations: newMockRelationIndex(reg),
+			scope: Scope{
+				Context:   "dev",
+				Namespace: resources.DefaultNamespace,
+			},
+			api: fakeKubeAPI{
+				contexts: []string{"dev"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { newKubeStoreFn = prev })
+
+	store, warning := NewStoreForMode(ModeKube)
+	if _, ok := store.(*KubeStore); !ok {
+		t.Fatalf("expected kube store, got %T", store)
+	}
+	if warning != "" {
+		t.Fatalf("expected no warning, got %q", warning)
 	}
 }
