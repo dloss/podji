@@ -16,6 +16,9 @@ func (s *Secrets) TableColumns() []TableColumn {
 		{ID: "type", Name: "TYPE", Width: 38, Default: true},
 		{ID: "data", Name: "DATA", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "immutable", Name: "IMMUTABLE", Width: 10, Default: false},
+		{ID: "managed-by", Name: "MANAGED-BY", Width: 12, Default: false},
+		{ID: "sa-name", Name: "SERVICEACCOUNT", Width: 24, Default: false},
 	}
 }
 
@@ -34,11 +37,44 @@ func (s *Secrets) TableRow(item ResourceItem) map[string]string {
 		dataCount = 2
 	}
 	return map[string]string{
-		"name": item.Name,
-		"type": kind,
-		"data": fmt.Sprintf("%d", dataCount),
-		"age":  item.Age,
+		"name":       item.Name,
+		"type":       kind,
+		"data":       fmt.Sprintf("%d", dataCount),
+		"age":        item.Age,
+		"immutable":  secretImmutable(kind),
+		"managed-by": secretManagedBy(item.Name),
+		"sa-name":    secretServiceAccount(kind, item.Name),
 	}
+}
+
+func secretImmutable(kind string) string {
+	switch kind {
+	case "kubernetes.io/tls":
+		return "true"
+	default:
+		return "false"
+	}
+}
+
+func secretManagedBy(name string) string {
+	switch name {
+	case "default-token-x7m2k":
+		return "kube-controller"
+	case "docker-registry-creds":
+		return "external-secrets"
+	default:
+		return "helm"
+	}
+}
+
+func secretServiceAccount(kind, name string) string {
+	if kind != "kubernetes.io/service-account-token" {
+		return "<none>"
+	}
+	if strings.HasPrefix(name, "default-token-") {
+		return "default"
+	}
+	return "unknown"
 }
 
 func NewSecrets() *Secrets {

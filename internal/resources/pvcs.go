@@ -25,6 +25,9 @@ func (p *PersistentVolumeClaims) TableColumns() []TableColumn {
 		{ID: "status", Name: "STATUS", Width: 10, Default: true},
 		{ID: "storage-class", Name: "STORAGECLASS", Width: 14, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
+		{ID: "volume", Name: "VOLUME", Width: 28, Default: false},
+		{ID: "volume-mode", Name: "VOLUME MODE", Width: 12, Default: false},
+		{ID: "mounted-by", Name: "MOUNTED BY", Width: 24, Default: false},
 	})
 }
 
@@ -38,6 +41,9 @@ func (p *PersistentVolumeClaims) TableRow(item ResourceItem) map[string]string {
 		"status":        item.Status,
 		"storage-class": pvcStorageClass(item.Name),
 		"age":           item.Age,
+		"volume":        pvcVolumeName(item.Name, item.Status),
+		"volume-mode":   "Filesystem",
+		"mounted-by":    pvcMountedBy(item.Name, item.Status),
 	}
 }
 

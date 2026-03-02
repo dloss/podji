@@ -188,6 +188,9 @@ func (w *Workloads) TableColumnsWide() []TableColumn {
 		{ID: "restarts", Name: "RESTARTS", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 		{ID: "selector", Name: "SELECTOR", Width: 20, Default: false},
+		{ID: "pods", Name: "PODS", Width: 6, Default: false},
+		{ID: "images", Name: "IMAGES", Width: 28, Default: false},
+		{ID: "service-account", Name: "SERVICEACCOUNT", Width: 20, Default: false},
 	})
 }
 
@@ -199,7 +202,76 @@ func (w *Workloads) TableRowWide(item ResourceItem) map[string]string {
 	}
 	sort.Strings(parts)
 	row["selector"] = strings.Join(parts, ",")
+	row["pods"] = workloadPodCount(item)
+	row["images"] = workloadImages(item)
+	row["service-account"] = workloadServiceAccount(item)
 	return row
+}
+
+func workloadPodCount(item ResourceItem) string {
+	if strings.HasPrefix(item.Ready, "Last:") {
+		return "-"
+	}
+	parts := strings.SplitN(item.Ready, "/", 2)
+	if len(parts) != 2 {
+		return "-"
+	}
+	return parts[0]
+}
+
+func workloadImages(item ResourceItem) string {
+	switch item.Name {
+	case "api":
+		return "myco/api:v2.3.1"
+	case "frontend":
+		return "myco/frontend:v1.8.0"
+	case "worker":
+		return "myco/worker:v2.0.1"
+	case "db":
+		return "postgres:16"
+	case "cache":
+		return "redis:7"
+	case "prometheus":
+		return "prom/prometheus:v2.51.0"
+	case "grafana":
+		return "grafana/grafana:10.4.2"
+	case "alertmanager":
+		return "prom/alertmanager:v0.27.0"
+	case "node-exporter":
+		return "quay.io/prometheus/node-exporter:v1.8.1"
+	case "kube-state-metrics":
+		return "registry.k8s.io/kube-state-metrics:v2.13.0"
+	case "coredns":
+		return "registry.k8s.io/coredns/coredns:v1.11.1"
+	case "kube-proxy":
+		return "registry.k8s.io/kube-proxy:v1.30.0"
+	case "kube-apiserver":
+		return "registry.k8s.io/kube-apiserver:v1.30.0"
+	case "cert-manager":
+		return "quay.io/jetstack/cert-manager-controller:v1.14.5"
+	case "cert-manager-cainjector":
+		return "quay.io/jetstack/cert-manager-cainjector:v1.14.5"
+	case "cert-manager-webhook":
+		return "quay.io/jetstack/cert-manager-webhook:v1.14.5"
+	default:
+		switch item.Kind {
+		case "JOB", "CJ":
+			return "busybox:1.36"
+		default:
+			return "ghcr.io/example/" + item.Name + ":v1.0.0"
+		}
+	}
+}
+
+func workloadServiceAccount(item ResourceItem) string {
+	switch item.Kind {
+	case "JOB", "CJ":
+		return "batch-runner"
+	case "DS":
+		return "node-reader"
+	default:
+		return item.Name
+	}
 }
 
 func (w *Workloads) SetSort(mode string, desc bool) {

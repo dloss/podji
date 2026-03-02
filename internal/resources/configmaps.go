@@ -16,6 +16,8 @@ func (c *ConfigMaps) TableColumns() []TableColumn {
 		{ID: "data", Name: "DATA", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 		{ID: "immutable", Name: "IMMUTABLE", Width: 10, Default: false},
+		{ID: "binary-data", Name: "BINARY", Width: 7, Default: false},
+		{ID: "managed-by", Name: "MANAGED-BY", Width: 12, Default: false},
 	}
 }
 
@@ -38,6 +40,18 @@ func (c *ConfigMaps) TableRow(item ResourceItem) map[string]string {
 		"data":      fmt.Sprintf("%d", dataCount),
 		"age":       item.Age,
 		"immutable": configMapImmutable(item.Name),
+		"binary-data": func() string {
+			if item.Extra != nil && item.Extra["binary-data"] != "" {
+				return item.Extra["binary-data"]
+			}
+			return "0"
+		}(),
+		"managed-by": func() string {
+			if item.Extra != nil && item.Extra["managed-by"] != "" {
+				return item.Extra["managed-by"]
+			}
+			return "helm"
+		}(),
 	}
 }
 
@@ -59,13 +73,13 @@ func (c *ConfigMaps) Key() rune    { return 'C' }
 
 func (c *ConfigMaps) Items() []ResourceItem {
 	items := []ResourceItem{
-		{Name: "api-gateway-config", Status: "Healthy", Age: "14d"},
-		{Name: "auth-service-config", Status: "Healthy", Age: "21d"},
-		{Name: "coredns", Status: "Healthy", Age: "180d"},
-		{Name: "feature-flags", Status: "Healthy", Age: "1d"},
-		{Name: "kube-proxy", Status: "Healthy", Age: "180d"},
-		{Name: "nginx-config", Status: "Healthy", Age: "60d"},
-		{Name: "prometheus-rules", Status: "Healthy", Age: "15d"},
+		{Name: "api-gateway-config", Status: "Healthy", Age: "14d", Extra: map[string]string{"managed-by": "helm", "binary-data": "0"}},
+		{Name: "auth-service-config", Status: "Healthy", Age: "21d", Extra: map[string]string{"managed-by": "helm", "binary-data": "0"}},
+		{Name: "coredns", Status: "Healthy", Age: "180d", Extra: map[string]string{"managed-by": "addon-manager", "binary-data": "0"}},
+		{Name: "feature-flags", Status: "Healthy", Age: "1d", Extra: map[string]string{"managed-by": "argo-cd", "binary-data": "0"}},
+		{Name: "kube-proxy", Status: "Healthy", Age: "180d", Extra: map[string]string{"managed-by": "kubeadm", "binary-data": "0"}},
+		{Name: "nginx-config", Status: "Healthy", Age: "60d", Extra: map[string]string{"managed-by": "helm", "binary-data": "1"}},
+		{Name: "prometheus-rules", Status: "Healthy", Age: "15d", Extra: map[string]string{"managed-by": "prom-operator", "binary-data": "0"}},
 	}
 	items = expandMockItems(items, 24)
 	c.Sort(items)
