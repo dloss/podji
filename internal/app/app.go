@@ -71,6 +71,7 @@ func New() Model {
 	if warning != "" {
 		model.statusMsg = warning
 	}
+	model.syncStoreStatus()
 	return model
 }
 
@@ -216,6 +217,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				m.context = msg.Value
 			}
 		}
+		m.syncStoreStatus()
 		// Choose the best resource using the fallback chain:
 		// current resource → parent resource(s) → workloads (W) → first registry resource.
 		if res := m.bestResourceForScope(); res != nil {
@@ -303,6 +305,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			items := resources.NamespaceNames()
 			if m.store != nil {
 				items = m.store.NamespaceNames()
+				m.syncStoreStatus()
 			}
 			m.overlay = overlaypicker.New("namespace", items)
 			m.overlay.SetAnchor(m.namespaceLabelX())
@@ -312,6 +315,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			items := resources.ContextNames()
 			if m.store != nil {
 				items = m.store.ContextNames()
+				m.syncStoreStatus()
 			}
 			m.overlay = overlaypicker.New("context", items)
 			m.overlay.SetAnchor(0)
@@ -972,6 +976,20 @@ func (m Model) adaptResource(res resources.ResourceType) resources.ResourceType 
 		return m.store.AdaptResource(res)
 	}
 	return res
+}
+
+func (m *Model) syncStoreStatus() {
+	if m.store == nil {
+		return
+	}
+	status := m.store.Status()
+	if status.State == data.StoreStateDegraded {
+		m.errorMsg = "store: " + status.Message
+		return
+	}
+	if strings.HasPrefix(m.errorMsg, "store: ") {
+		m.errorMsg = ""
+	}
 }
 
 func uniqueSortedNames(items []resources.ResourceItem) []string {

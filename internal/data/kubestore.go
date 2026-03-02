@@ -38,6 +38,7 @@ type KubeStore struct {
 	relations RelationIndex
 	scope     Scope
 	runner    commandRunner
+	lastErr   string
 }
 
 func NewKubeStore() (*KubeStore, error) {
@@ -98,6 +99,16 @@ func (s *KubeStore) AdaptResource(resource resources.ResourceType) resources.Res
 	return NewReadBackedResource(resource, s.read, s.Scope)
 }
 
+func (s *KubeStore) Status() StoreStatus {
+	if strings.TrimSpace(s.lastErr) != "" {
+		return StoreStatus{
+			State:   StoreStateDegraded,
+			Message: s.lastErr,
+		}
+	}
+	return StoreStatus{State: StoreStateReady}
+}
+
 func (s *KubeStore) SetScope(scope Scope) {
 	if scope.Context == "" {
 		scope.Context = s.scope.Context
@@ -110,8 +121,14 @@ func (s *KubeStore) SetScope(scope Scope) {
 func (s *KubeStore) NamespaceNames() []string {
 	namespaces, err := kubeNamespaces(s.runner, s.scope.Context)
 	if err != nil || len(namespaces) == 0 {
+		if err != nil {
+			s.lastErr = err.Error()
+		} else {
+			s.lastErr = "no namespaces discovered"
+		}
 		return []string{resources.AllNamespaces, resources.DefaultNamespace}
 	}
+	s.lastErr = ""
 	out := make([]string, 0, len(namespaces)+1)
 	out = append(out, resources.AllNamespaces)
 	out = append(out, namespaces...)
@@ -121,8 +138,14 @@ func (s *KubeStore) NamespaceNames() []string {
 func (s *KubeStore) ContextNames() []string {
 	contexts, err := kubeContexts(s.runner)
 	if err != nil || len(contexts) == 0 {
+		if err != nil {
+			s.lastErr = err.Error()
+		} else {
+			s.lastErr = "no contexts discovered"
+		}
 		return []string{s.scope.Context}
 	}
+	s.lastErr = ""
 	return contexts
 }
 

@@ -47,6 +47,10 @@ func (s *MockStore) AdaptResource(resource resources.ResourceType) resources.Res
 	return NewReadBackedResource(resource, s.read, s.Scope)
 }
 
+func (s *MockStore) Status() StoreStatus {
+	return StoreStatus{State: StoreStateReady}
+}
+
 func (s *MockStore) SetScope(scope Scope) {
 	if scope.Context == "" {
 		scope.Context = "default"

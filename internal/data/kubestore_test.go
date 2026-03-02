@@ -96,6 +96,28 @@ func TestKubeStoreSetScopeUpdatesRegistryNamespace(t *testing.T) {
 	}
 }
 
+func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
+	store, err := newKubeStore(fakeRunner{
+		out: map[string]string{
+			"kubectl config get-contexts -o name": "dev\n",
+		},
+		err: map[string]error{
+			"kubectl --context dev get namespaces -o jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}": errors.New("discovery failed"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_ = store.NamespaceNames()
+	status := store.Status()
+	if status.State != StoreStateDegraded {
+		t.Fatalf("expected degraded status, got %#v", status)
+	}
+	if !strings.Contains(status.Message, "discovery failed") {
+		t.Fatalf("expected discovery error in status message, got %#v", status)
+	}
+}
+
 func TestKubeStorePodLogsFetcherWired(t *testing.T) {
 	runner := fakeRunner{
 		out: map[string]string{

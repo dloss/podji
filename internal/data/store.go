@@ -12,6 +12,7 @@ type Store interface {
 	ReadModel() ReadModel
 	RelationIndex() RelationIndex
 	AdaptResource(resource resources.ResourceType) resources.ResourceType
+	Status() StoreStatus
 	Scope() Scope
 	SetScope(scope Scope)
 	NamespaceNames() []string
