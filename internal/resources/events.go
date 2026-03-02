@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -32,22 +33,19 @@ func (e *Events) TableColumns() []TableColumn {
 		{ID: "name", Name: "NAME", Width: 48, Default: true},
 		{ID: "type", Name: "TYPE", Width: 10, Default: true},
 		{ID: "reason", Name: "REASON", Width: 24, Default: true},
+		{ID: "message", Name: "MESSAGE", Width: 44, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
 
 func (e *Events) TableRow(item ResourceItem) map[string]string {
-	parts := strings.SplitN(item.Name, ".", 2)
-	object := parts[0]
-	reason := ""
-	if len(parts) > 1 {
-		reason = parts[1]
-	}
+	object, reason := eventObjectAndReason(item)
 	return map[string]string{
-		"name":   object,
-		"type":   item.Kind,
-		"reason": reason,
-		"age":    item.Age,
+		"name":    object,
+		"type":    item.Kind,
+		"reason":  reason,
+		"message": eventMessage(object, reason),
+		"age":     item.Age,
 	}
 }
 
@@ -153,6 +151,8 @@ func (e *Events) Sort(items []ResourceItem) {
 		ageSort(items, e.sortDesc)
 	case "kind":
 		kindSort(items, e.sortDesc)
+	case "message":
+		eventMessageSort(items, e.sortDesc)
 	default:
 		nameSort(items, e.sortDesc)
 	}
@@ -162,36 +162,12 @@ func (e *Events) SetSort(mode string, desc bool) { e.sortMode = mode; e.sortDesc
 func (e *Events) SortMode() string               { return e.sortMode }
 func (e *Events) SortDesc() bool                 { return e.sortDesc }
 func (e *Events) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "kind", "age"})
+	return sortKeysFor([]string{"name", "status", "kind", "message", "age"})
 }
 
 func (e *Events) Detail(item ResourceItem) DetailData {
-	parts := strings.SplitN(item.Name, ".", 2)
-	object := parts[0]
-	reason := ""
-	if len(parts) > 1 {
-		reason = parts[1]
-	}
-
-	message := "Sample event message for " + object
-	switch reason {
-	case "BackOff":
-		message = "Back-off restarting failed container sidecar in pod " + object
-	case "OOMKilling":
-		message = "Memory capped at 128Mi for container sidecar"
-	case "Pulled":
-		message = "Successfully pulled image \"envoy:1.28\""
-	case "NodeNotReady":
-		message = "Node " + object + " status is now: NodeNotReady"
-	case "FailedScheduling":
-		message = "0/4 nodes are available: 1 node NotReady, 3 Insufficient cpu"
-	case "ScalingReplicaSet":
-		message = "Scaled up replica set " + object + " to 3"
-	case "EnsuredLoadBalancer":
-		message = "Load balancer provisioned: a1b2c3d4.elb.amazonaws.com"
-	case "SuccessfulCreate":
-		message = "Created pod: " + object + "-7m2kq"
-	}
+	object, reason := eventObjectAndReason(item)
+	message := eventMessage(object, reason)
 
 	return DetailData{
 		Summary: []SummaryField{
@@ -207,6 +183,55 @@ func (e *Events) Detail(item ResourceItem) DetailData {
 			"involvedObject.name=" + object,
 		},
 	}
+}
+
+func eventObjectAndReason(item ResourceItem) (string, string) {
+	parts := strings.SplitN(item.Name, ".", 2)
+	object := parts[0]
+	reason := ""
+	if len(parts) > 1 {
+		reason = parts[1]
+	}
+	return object, reason
+}
+
+func eventMessage(object, reason string) string {
+	switch reason {
+	case "BackOff":
+		return "Back-off restarting failed container sidecar in pod " + object
+	case "OOMKilling":
+		return "Memory capped at 128Mi for container sidecar"
+	case "Pulled":
+		return "Successfully pulled image \"envoy:1.28\""
+	case "NodeNotReady":
+		return "Node " + object + " status is now: NodeNotReady"
+	case "FailedScheduling":
+		return "0/4 nodes are available: 1 node NotReady, 3 Insufficient cpu"
+	case "ScalingReplicaSet":
+		return "Scaled up replica set " + object + " to 3"
+	case "EnsuredLoadBalancer":
+		return "Load balancer provisioned: a1b2c3d4.elb.amazonaws.com"
+	case "SuccessfulCreate":
+		return "Created pod: " + object + "-7m2kq"
+	default:
+		return "Sample event message for " + object
+	}
+}
+
+func eventMessageSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		oi, ri := eventObjectAndReason(items[i])
+		oj, rj := eventObjectAndReason(items[j])
+		mi := eventMessage(oi, ri)
+		mj := eventMessage(oj, rj)
+		if mi != mj {
+			if desc {
+				return mi > mj
+			}
+			return mi < mj
+		}
+		return items[i].Name < items[j].Name
+	})
 }
 
 func (e *Events) Logs(item ResourceItem) []string {

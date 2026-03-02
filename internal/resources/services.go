@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -18,6 +19,7 @@ func (s *Services) TableColumns() []TableColumn {
 		{ID: "external-ip", Name: "EXTERNAL-IP", Width: 15, Default: true},
 		{ID: "port", Name: "PORT(S)", Width: 20, Default: true},
 		{ID: "endpoints", Name: "ENDPOINTS", Width: 12, Default: true},
+		{ID: "session-affinity", Name: "SESSION-AFFINITY", Width: 18, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
@@ -39,6 +41,7 @@ func (s *Services) TableRow(item ResourceItem) map[string]string {
 		"external-ip": externalIP,
 		"port":        servicePort(item.Name, svcType),
 		"endpoints":   item.Ready,
+		"session-affinity": serviceSessionAffinity(item.Name),
 		"age":         item.Age,
 	}
 }
@@ -51,6 +54,7 @@ func (s *Services) TableColumnsWide() []TableColumn {
 		{ID: "external-ip", Name: "EXTERNAL-IP", Width: 15, Default: true},
 		{ID: "port", Name: "PORT(S)", Width: 20, Default: true},
 		{ID: "endpoints", Name: "ENDPOINTS", Width: 12, Default: true},
+		{ID: "session-affinity", Name: "SESSION-AFFINITY", Width: 18, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 		{ID: "selector", Name: "SELECTOR", Width: 24, Default: false},
 		{ID: "target-port", Name: "TARGET-PORT", Width: 16, Default: false},
@@ -118,6 +122,15 @@ func serviceClusterIP(name string, svcType string) string {
 	return fmt.Sprintf("10.96.%d.%d", int(h)%256, int(h)%200+1)
 }
 
+func serviceSessionAffinity(name string) string {
+	switch name {
+	case "api-gateway", "frontend":
+		return "None"
+	default:
+		return "None"
+	}
+}
+
 func NewServices() *Services {
 	return &Services{sortMode: "name"}
 }
@@ -182,6 +195,8 @@ func (s *Services) Sort(items []ResourceItem) {
 		ageSort(items, s.sortDesc)
 	case "kind":
 		kindSort(items, s.sortDesc)
+	case "session-affinity":
+		serviceSessionAffinitySort(items, s.sortDesc)
 	default:
 		nameSort(items, s.sortDesc)
 	}
@@ -191,7 +206,21 @@ func (s *Services) SetSort(mode string, desc bool) { s.sortMode = mode; s.sortDe
 func (s *Services) SortMode() string               { return s.sortMode }
 func (s *Services) SortDesc() bool                 { return s.sortDesc }
 func (s *Services) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "kind", "age"})
+	return sortKeysFor([]string{"name", "status", "kind", "session-affinity", "age"})
+}
+
+func serviceSessionAffinitySort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ai := serviceSessionAffinity(items[i].Name)
+		aj := serviceSessionAffinity(items[j].Name)
+		if ai != aj {
+			if desc {
+				return ai > aj
+			}
+			return ai < aj
+		}
+		return items[i].Name < items[j].Name
+	})
 }
 
 func (s *Services) Detail(item ResourceItem) DetailData {

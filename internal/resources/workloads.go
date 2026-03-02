@@ -151,6 +151,14 @@ func (w *Workloads) Sort(items []ResourceItem) {
 		readySort(items, w.sortDesc)
 	case "restarts":
 		restartsSort(items, w.sortDesc)
+	case "pods":
+		workloadPodsSort(items, w.sortDesc)
+	case "images":
+		workloadImagesSort(items, w.sortDesc)
+	case "service-account":
+		workloadServiceAccountSort(items, w.sortDesc)
+	case "selector":
+		workloadSelectorSort(items, w.sortDesc)
 	default:
 		nameSort(items, w.sortDesc)
 	}
@@ -284,7 +292,72 @@ func (w *Workloads) SetSort(mode string, desc bool) {
 func (w *Workloads) SortMode() string { return w.sortMode }
 func (w *Workloads) SortDesc() bool   { return w.sortDesc }
 func (w *Workloads) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "kind", "ready", "status", "restarts", "age"})
+	return sortKeysFor([]string{"name", "kind", "ready", "pods", "status", "restarts", "age", "selector", "images", "service-account"})
+}
+
+func workloadPodsSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		pi := workloadPodCount(items[i])
+		pj := workloadPodCount(items[j])
+		if pi != pj {
+			if desc {
+				return pi > pj
+			}
+			return pi < pj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+func workloadImagesSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ii := workloadImages(items[i])
+		ij := workloadImages(items[j])
+		if ii != ij {
+			if desc {
+				return ii > ij
+			}
+			return ii < ij
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+func workloadServiceAccountSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		si := workloadServiceAccount(items[i])
+		sj := workloadServiceAccount(items[j])
+		if si != sj {
+			if desc {
+				return si > sj
+			}
+			return si < sj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+func workloadSelectorSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		li := selectorString(items[i].Selector)
+		lj := selectorString(items[j].Selector)
+		if li != lj {
+			if desc {
+				return li > lj
+			}
+			return li < lj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+func selectorString(selector map[string]string) string {
+	parts := make([]string, 0, len(selector))
+	for k, v := range selector {
+		parts = append(parts, k+"="+v)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
 }
 
 func (w *Workloads) Banner() string {

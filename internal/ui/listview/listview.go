@@ -1227,7 +1227,7 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 	case "restarts":
 		return firstColumnWithID(columns, "restarts")
 	}
-	return -1
+	return firstColumnWithID(columns, mode)
 }
 
 func firstColumnWithID(columns []resources.TableColumn, id string) int {

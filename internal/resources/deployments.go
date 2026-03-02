@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +18,7 @@ func (d *Deployments) TableColumns() []TableColumn {
 		{ID: "ready", Name: "READY", Width: 8, Default: true},
 		{ID: "up-to-date", Name: "UP-TO-DATE", Width: 10, Default: true},
 		{ID: "available", Name: "AVAILABLE", Width: 10, Default: true},
+		{ID: "unavailable", Name: "UNAVAILABLE", Width: 12, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
@@ -28,6 +31,7 @@ func (d *Deployments) TableRow(item ResourceItem) map[string]string {
 		"ready":      item.Ready,
 		"up-to-date": deploymentUpToDate(item.Status, item.Ready),
 		"available":  deploymentAvailable(item.Ready),
+		"unavailable": deploymentUnavailable(item.Ready),
 		"age":        item.Age,
 	}
 }
@@ -39,6 +43,7 @@ func (d *Deployments) TableColumnsWide() []TableColumn {
 		{ID: "ready", Name: "READY", Width: 8, Default: true},
 		{ID: "up-to-date", Name: "UP-TO-DATE", Width: 10, Default: true},
 		{ID: "available", Name: "AVAILABLE", Width: 10, Default: true},
+		{ID: "unavailable", Name: "UNAVAILABLE", Width: 12, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 		{ID: "selector", Name: "SELECTOR", Width: 28, Default: false},
 		{ID: "strategy", Name: "STRATEGY", Width: 14, Default: false},
@@ -76,6 +81,23 @@ func deploymentAvailable(ready string) string {
 		return "-"
 	}
 	return parts[0]
+}
+
+// deploymentUnavailable returns desired - available replicas.
+func deploymentUnavailable(ready string) string {
+	parts := strings.SplitN(ready, "/", 2)
+	if len(parts) != 2 {
+		return "-"
+	}
+	available, errA := strconv.Atoi(strings.TrimSpace(parts[0]))
+	desired, errD := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errA != nil || errD != nil {
+		return "-"
+	}
+	if desired <= available {
+		return "0"
+	}
+	return strconv.Itoa(desired - available)
 }
 
 func NewDeployments() *Deployments {
@@ -139,6 +161,8 @@ func (d *Deployments) Sort(items []ResourceItem) {
 		ageSort(items, d.sortDesc)
 	case "ready":
 		readySort(items, d.sortDesc)
+	case "unavailable":
+		deploymentUnavailableSort(items, d.sortDesc)
 	default:
 		nameSort(items, d.sortDesc)
 	}
@@ -148,7 +172,37 @@ func (d *Deployments) SetSort(mode string, desc bool) { d.sortMode = mode; d.sor
 func (d *Deployments) SortMode() string               { return d.sortMode }
 func (d *Deployments) SortDesc() bool                 { return d.sortDesc }
 func (d *Deployments) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "ready", "age"})
+	return sortKeysFor([]string{"name", "status", "ready", "unavailable", "age"})
+}
+
+func deploymentUnavailableSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ui := parseDeploymentUnavailable(items[i].Ready)
+		uj := parseDeploymentUnavailable(items[j].Ready)
+		if ui != uj {
+			if desc {
+				return ui > uj
+			}
+			return ui < uj
+		}
+		return items[i].Name < items[j].Name
+	})
+}
+
+func parseDeploymentUnavailable(ready string) int {
+	parts := strings.SplitN(ready, "/", 2)
+	if len(parts) != 2 {
+		return -1
+	}
+	available, errA := strconv.Atoi(strings.TrimSpace(parts[0]))
+	desired, errD := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errA != nil || errD != nil {
+		return -1
+	}
+	if desired <= available {
+		return 0
+	}
+	return desired - available
 }
 
 func (d *Deployments) Detail(item ResourceItem) DetailData {

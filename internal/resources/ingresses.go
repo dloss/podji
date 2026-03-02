@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -24,6 +25,7 @@ func (g *Ingresses) TableColumns() []TableColumn {
 		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
 		{ID: "address", Name: "ADDRESS", Width: 16, Default: true},
 		{ID: "ports", Name: "PORTS", Width: 10, Default: true},
+		{ID: "tls", Name: "TLS", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	})
 }
@@ -41,6 +43,7 @@ func (g *Ingresses) TableRow(item ResourceItem) map[string]string {
 		"hosts":     item.Ready,
 		"address":   ingressAddress(item.Status),
 		"ports":     ingressPorts(item.Name),
+		"tls":       item.Extra["tls"],
 		"age":       item.Age,
 	}
 }
@@ -52,8 +55,8 @@ func (g *Ingresses) TableColumnsWide() []TableColumn {
 		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
 		{ID: "address", Name: "ADDRESS", Width: 16, Default: true},
 		{ID: "ports", Name: "PORTS", Width: 10, Default: true},
+		{ID: "tls", Name: "TLS", Width: 8, Default: true},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
-		{ID: "tls", Name: "TLS", Width: 8, Default: false},
 		{ID: "rules", Name: "RULES", Width: 6, Default: false},
 	})
 }
@@ -120,6 +123,8 @@ func (g *Ingresses) Sort(items []ResourceItem) {
 		problemSort(items, g.sortDesc)
 	case "age":
 		ageSort(items, g.sortDesc)
+	case "tls":
+		ingressTLSSort(items, g.sortDesc)
 	default:
 		nameSort(items, g.sortDesc)
 	}
@@ -129,7 +134,21 @@ func (g *Ingresses) SetSort(mode string, desc bool) { g.sortMode = mode; g.sortD
 func (g *Ingresses) SortMode() string               { return g.sortMode }
 func (g *Ingresses) SortDesc() bool                 { return g.sortDesc }
 func (g *Ingresses) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "age"})
+	return sortKeysFor([]string{"name", "status", "tls", "age"})
+}
+
+func ingressTLSSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ti := strings.ToLower(items[i].Extra["tls"])
+		tj := strings.ToLower(items[j].Extra["tls"])
+		if ti != tj {
+			if desc {
+				return ti > tj
+			}
+			return ti < tj
+		}
+		return items[i].Name < items[j].Name
+	})
 }
 
 func (g *Ingresses) Detail(item ResourceItem) DetailData {

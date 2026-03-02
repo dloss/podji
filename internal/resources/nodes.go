@@ -1,6 +1,9 @@
 package resources
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 type Nodes struct {
 	sortMode string
@@ -13,6 +16,7 @@ func (n *Nodes) TableColumns() []TableColumn {
 		{ID: "status", Name: "STATUS", Width: 12, Default: true},
 		{ID: "roles", Name: "ROLES", Width: 16, Default: true},
 		{ID: "version", Name: "VERSION", Width: 12, Default: true},
+		{ID: "internal-ip", Name: "INTERNAL-IP", Width: 14, Default: false},
 		{ID: "age", Name: "AGE", Width: 6, Default: true},
 	}
 }
@@ -30,6 +34,7 @@ func (n *Nodes) TableRow(item ResourceItem) map[string]string {
 		"status":  item.Status,
 		"roles":   nodeRole(item.Name),
 		"version": "v1.29.2",
+		"internal-ip": item.Extra["internal-ip"],
 		"age":     item.Age,
 	}
 }
@@ -92,6 +97,8 @@ func (n *Nodes) Sort(items []ResourceItem) {
 		problemSort(items, n.sortDesc)
 	case "age":
 		ageSort(items, n.sortDesc)
+	case "internal-ip":
+		nodeInternalIPSort(items, n.sortDesc)
 	default:
 		nameSort(items, n.sortDesc)
 	}
@@ -101,7 +108,21 @@ func (n *Nodes) SetSort(mode string, desc bool) { n.sortMode = mode; n.sortDesc 
 func (n *Nodes) SortMode() string               { return n.sortMode }
 func (n *Nodes) SortDesc() bool                 { return n.sortDesc }
 func (n *Nodes) SortKeys() []SortKey {
-	return sortKeysFor([]string{"name", "status", "age"})
+	return sortKeysFor([]string{"name", "status", "internal-ip", "age"})
+}
+
+func nodeInternalIPSort(items []ResourceItem, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ipi := items[i].Extra["internal-ip"]
+		ipj := items[j].Extra["internal-ip"]
+		if ipi != ipj {
+			if desc {
+				return ipi > ipj
+			}
+			return ipi < ipj
+		}
+		return items[i].Name < items[j].Name
+	})
 }
 
 func (n *Nodes) Detail(item ResourceItem) DetailData {

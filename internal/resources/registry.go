@@ -240,15 +240,25 @@ func restartsSort(items []ResourceItem, desc bool) {
 
 // sortKeysFor returns SortKey entries for the given mode names.
 // Supported modes: "name" (n), "status" (s), "kind" (k), "age" (a),
-// "ready" (r), "restarts" (r, may conflict — resolved by column-char derivation).
+// "ready" (r), "restarts" (r, may conflict — resolved by column-char derivation),
+// and selected column IDs for extended table sorting.
 func sortKeysFor(modes []string) []SortKey {
 	m := map[string]SortKey{
-		"name":     {Char: 'n', Mode: "name", Label: "name"},
-		"status":   {Char: 's', Mode: "status", Label: "status"},
-		"kind":     {Char: 'k', Mode: "kind", Label: "kind"},
-		"age":      {Char: 'a', Mode: "age", Label: "age"},
-		"ready":    {Char: 'r', Mode: "ready", Label: "ready"},
-		"restarts": {Char: 'r', Mode: "restarts", Label: "restarts"},
+		"name":             {Char: 'n', Mode: "name", Label: "name"},
+		"status":           {Char: 's', Mode: "status", Label: "status"},
+		"kind":             {Char: 'k', Mode: "kind", Label: "kind"},
+		"age":              {Char: 'a', Mode: "age", Label: "age"},
+		"ready":            {Char: 'r', Mode: "ready", Label: "ready"},
+		"restarts":         {Char: 'r', Mode: "restarts", Label: "restarts"},
+		"pods":             {Char: 'p', Mode: "pods", Label: "pods"},
+		"selector":         {Char: 'l', Mode: "selector", Label: "selector"},
+		"images":           {Char: 'i', Mode: "images", Label: "images"},
+		"service-account":  {Char: 'c', Mode: "service-account", Label: "service-account"},
+		"unavailable":      {Char: 'u', Mode: "unavailable", Label: "unavailable"},
+		"session-affinity": {Char: 'f', Mode: "session-affinity", Label: "session-affinity"},
+		"tls":              {Char: 't', Mode: "tls", Label: "tls"},
+		"internal-ip":      {Char: 'i', Mode: "internal-ip", Label: "internal-ip"},
+		"message":          {Char: 'm', Mode: "message", Label: "message"},
 	}
 	keys := make([]SortKey, 0, len(modes))
 	for _, mode := range modes {
