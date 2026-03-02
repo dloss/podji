@@ -192,6 +192,18 @@ func TestPickerViewRendersEntries(t *testing.T) {
 	}
 }
 
+func TestPickerViewRendersRelatedToTitle(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
+	picker := NewPickerForSelection(parent, nil)
+	picker.SetSize(120, 40)
+
+	view := picker.View()
+	if !strings.Contains(view, "Related to: ") {
+		t.Fatalf("expected picker view title prefix 'Related to: ', got: %s", view)
+	}
+}
+
 // fakeParent implements selectionProvider and resourceProvider for tests.
 type fakeParent struct {
 	item     resources.ResourceItem

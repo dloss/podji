@@ -135,9 +135,9 @@ func (p *Picker) View() string {
 		Bold(true)
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
-	title := "  related"
+	title := "  Related"
 	if p.source != "" {
-		title = "  related: " + p.source + "  "
+		title = "  Related to: " + p.source + "  "
 	}
 
 	// Column widths within innerWidth (2 chars used by cursor marker).

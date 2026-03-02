@@ -151,7 +151,7 @@ func (p *Picker) View() string {
 	innerWidth := boxWidth - 2 // minus border
 
 	// Title
-	title := "  " + p.kind + "  "
+	title := "  " + pickerTitleKind(p.kind) + "  "
 	titleStyle := lipgloss.NewStyle().Bold(true)
 
 	// Filter prompt
@@ -214,3 +214,19 @@ func (p *Picker) View() string {
 
 func (p *Picker) Breadcrumb() string { return "" }
 func (p *Picker) Footer() string     { return "" }
+
+func pickerTitleKind(kind string) string {
+	switch kind {
+	case "context":
+		return "Context"
+	case "namespace":
+		return "Namespace"
+	default:
+		if kind == "" {
+			return ""
+		}
+		runes := []rune(kind)
+		runes[0] = unicode.ToUpper(runes[0])
+		return string(runes)
+	}
+}

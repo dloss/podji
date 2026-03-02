@@ -1,6 +1,7 @@
 package overlaypicker
 
 import (
+	"strings"
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -126,5 +127,18 @@ func TestCursorClampsAtListBoundaries(t *testing.T) {
 	p.Update(keyDown())
 	if p.cursor != 2 {
 		t.Fatalf("expected cursor=2 (last item) after excess down, got %d", p.cursor)
+	}
+}
+
+func TestViewTitleUsesCapitalizedKind(t *testing.T) {
+	p := New("namespace", []string{"default"})
+	p.SetSize(120, 40)
+
+	view := p.View()
+	if !strings.Contains(view, "Namespace") {
+		t.Fatalf("expected title to contain Namespace, got %q", view)
+	}
+	if strings.Contains(view, "  namespace  ") {
+		t.Fatalf("expected lowercase namespace title to be absent, got %q", view)
 	}
 }
