@@ -6,21 +6,6 @@ import (
 	"strings"
 )
 
-// AllNamespaces is the sentinel value meaning "show resources from all namespaces".
-const AllNamespaces = "(all)"
-
-// ActiveNamespace is the currently selected namespace. Resources can use this
-// to vary their stub data so namespace switching is visible.
-var ActiveNamespace = "default"
-
-// namespacedColumns prepends a NAMESPACE column when in all-namespaces mode.
-func namespacedColumns(cols []TableColumn) []TableColumn {
-	if ActiveNamespace != AllNamespaces {
-		return cols
-	}
-	return append([]TableColumn{{ID: "namespace", Name: "NAMESPACE", Width: 16, Default: true}}, cols...)
-}
-
 // allNamespaceItems merges stub items from a representative set of namespaces,
 // setting the Namespace field on each returned item.
 func allNamespaceItems(fn func(string) []ResourceItem) []ResourceItem {
@@ -38,6 +23,7 @@ func allNamespaceItems(fn func(string) []ResourceItem) []ResourceItem {
 type Registry struct {
 	resources []ResourceType
 	byKey     map[rune]ResourceType
+	namespace string
 }
 
 func DefaultRegistry() *Registry {
@@ -61,7 +47,9 @@ func DefaultRegistry() *Registry {
 		byKey[res.Key()] = res
 	}
 
-	return &Registry{resources: resources, byKey: byKey}
+	r := &Registry{resources: resources, byKey: byKey}
+	r.SetNamespace(DefaultNamespace)
+	return r
 }
 
 func (r *Registry) ResourceByKey(key rune) ResourceType {
@@ -72,6 +60,19 @@ func (r *Registry) Resources() []ResourceType {
 	copyList := make([]ResourceType, len(r.resources))
 	copy(copyList, r.resources)
 	return copyList
+}
+
+func (r *Registry) SetNamespace(namespace string) {
+	r.namespace = normalizeNamespace(namespace)
+	for _, res := range r.resources {
+		if scoped, ok := res.(NamespaceScoped); ok {
+			scoped.SetNamespace(r.namespace)
+		}
+	}
+}
+
+func (r *Registry) Namespace() string {
+	return normalizeNamespace(r.namespace)
 }
 
 // ByName returns the ResourceType whose Name() matches name (case-insensitive),

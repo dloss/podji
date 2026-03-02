@@ -7,6 +7,7 @@ import (
 )
 
 type Workloads struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 	scenario string
@@ -20,7 +21,7 @@ func NewWorkloads() *Workloads {
 	default:
 		scenario = "normal"
 	}
-	return &Workloads{sortMode: "name", scenario: scenario}
+	return &Workloads{namespaceScope: newNamespaceScope(), sortMode: "name", scenario: scenario}
 }
 
 func (w *Workloads) Name() string { return "workloads" }
@@ -32,10 +33,10 @@ func (w *Workloads) Items() []ResourceItem {
 	}
 
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if w.Namespace() == AllNamespaces {
 		items = allNamespaceItems(workloadItemsForNamespace)
 	} else {
-		items = workloadItemsForNamespace(ActiveNamespace)
+		items = workloadItemsForNamespace(w.Namespace())
 		switch w.scenario {
 		case "partial":
 			if len(items) > 4 {
@@ -165,7 +166,7 @@ func (w *Workloads) Sort(items []ResourceItem) {
 }
 
 func (w *Workloads) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(w.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 35, Default: true},
 		{ID: "kind", Name: "KIND", Width: 4, Default: true},
 		{ID: "ready", Name: "READY", Width: 11, Default: true},
@@ -190,7 +191,7 @@ func (w *Workloads) TableRow(item ResourceItem) map[string]string {
 }
 
 func (w *Workloads) TableColumnsWide() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(w.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 35, Default: true},
 		{ID: "kind", Name: "KIND", Width: 4, Default: true},
 		{ID: "ready", Name: "READY", Width: 11, Default: true},
@@ -363,7 +364,7 @@ func selectorString(selector map[string]string) string {
 func (w *Workloads) Banner() string {
 	switch w.scenario {
 	case "forbidden":
-		return "Access denied: cannot list workloads in namespace `" + ActiveNamespace + "` (need get/list on deployments,statefulsets,daemonsets,jobs,cronjobs)."
+		return "Access denied: cannot list workloads in namespace `" + w.Namespace() + "` (need get/list on deployments,statefulsets,daemonsets,jobs,cronjobs)."
 	case "partial":
 		return "Partial access: Jobs and CronJobs are hidden by RBAC."
 	case "offline":
@@ -382,9 +383,9 @@ func (w *Workloads) EmptyMessage(filtered bool, filter string) string {
 	case "forbidden":
 		return "No workloads visible due to RBAC restrictions."
 	case "empty":
-		return "No workloads found in namespace `" + ActiveNamespace + "`. Switch namespace or clear filter."
+		return "No workloads found in namespace `" + w.Namespace() + "`. Switch namespace or clear filter."
 	default:
-		return "No workloads found in namespace `" + ActiveNamespace + "`."
+		return "No workloads found in namespace `" + w.Namespace() + "`."
 	}
 }
 
@@ -441,7 +442,7 @@ func (w *Workloads) Describe(item ResourceItem) string {
 	}
 
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + w.Namespace() + "\n" +
 		"Kind:             " + kind + "\n" +
 		"Selector:         app=" + item.Name + "\n" +
 		"Labels:           app=" + item.Name + "\n" +
@@ -564,7 +565,7 @@ func (w *Workloads) YAML(item ResourceItem) string {
 kind: ` + kind + `
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + w.Namespace() + `
   labels:
     app: ` + item.Name + `
     team: platform

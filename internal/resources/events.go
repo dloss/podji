@@ -7,6 +7,7 @@ import (
 )
 
 type Events struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
@@ -16,6 +17,9 @@ type ScopedEvents struct {
 	object string
 	count  int
 }
+
+func (e *ScopedEvents) SetNamespace(namespace string) { e.base.SetNamespace(namespace) }
+func (e *ScopedEvents) Namespace() string             { return e.base.Namespace() }
 
 func NewScopedEvents(object string, count int) *ScopedEvents {
 	if count <= 0 {
@@ -50,7 +54,7 @@ func (e *Events) TableRow(item ResourceItem) map[string]string {
 }
 
 func NewEvents() *Events {
-	return &Events{sortMode: "name"}
+	return &Events{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (e *Events) Name() string { return "events" }
@@ -261,7 +265,7 @@ func (e *Events) Describe(item ResourceItem) string {
 		}
 	}
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + e.Namespace() + "\n" +
 		"Involved Object:  " + object + "\n" +
 		"Reason:           " + reason + "\n" +
 		"Message:          " + message + "\n" +
@@ -305,13 +309,13 @@ func (e *Events) YAML(item ResourceItem) string {
 kind: Event
 metadata:
   name: ` + item.Name + `.17a3b4c5d6e7f8
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + e.Namespace() + `
   creationTimestamp: "2026-02-21T09:50:00Z"
 involvedObject:
   apiVersion: ` + objAPIVersion + `
   kind: ` + objKind + `
   name: ` + object + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + e.Namespace() + `
   uid: f1e2d3c4-b5a6-9788-7654-321fedcba098
 reason: ` + reason + `
 message: ` + message + `

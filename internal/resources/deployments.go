@@ -7,12 +7,13 @@ import (
 )
 
 type Deployments struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
 
 func (d *Deployments) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(d.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 35, Default: true},
 		{ID: "status", Name: "STATUS", Width: 14, Default: true},
 		{ID: "ready", Name: "READY", Width: 8, Default: true},
@@ -37,7 +38,7 @@ func (d *Deployments) TableRow(item ResourceItem) map[string]string {
 }
 
 func (d *Deployments) TableColumnsWide() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(d.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 35, Default: true},
 		{ID: "status", Name: "STATUS", Width: 14, Default: true},
 		{ID: "ready", Name: "READY", Width: 8, Default: true},
@@ -101,7 +102,7 @@ func deploymentUnavailable(ready string) string {
 }
 
 func NewDeployments() *Deployments {
-	return &Deployments{sortMode: "name"}
+	return &Deployments{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (d *Deployments) Name() string { return "deployments" }
@@ -109,10 +110,10 @@ func (d *Deployments) Key() rune    { return 'D' }
 
 func (d *Deployments) Items() []ResourceItem {
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if d.Namespace() == AllNamespaces {
 		items = allNamespaceItems(deploymentItemsForNamespace)
 	} else {
-		items = deploymentItemsForNamespace(ActiveNamespace)
+		items = deploymentItemsForNamespace(d.Namespace())
 		items = expandMockItems(items, 28)
 	}
 	d.Sort(items)
@@ -242,7 +243,7 @@ func (d *Deployments) Events(item ResourceItem) []string {
 
 func (d *Deployments) Describe(item ResourceItem) string {
 	return "Name:                   " + item.Name + "\n" +
-		"Namespace:              " + ActiveNamespace + "\n" +
+		"Namespace:              " + d.Namespace() + "\n" +
 		"CreationTimestamp:      Mon, 10 Feb 2026 14:00:00 +0000\n" +
 		"Labels:                 app=" + item.Name + "\n" +
 		"                        app.kubernetes.io/managed-by=helm\n" +
@@ -283,7 +284,7 @@ func (d *Deployments) YAML(item ResourceItem) string {
 kind: Deployment
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + d.Namespace() + `
   labels:
     app: ` + item.Name + `
     app.kubernetes.io/managed-by: helm

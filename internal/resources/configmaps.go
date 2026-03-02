@@ -6,6 +6,7 @@ import (
 )
 
 type ConfigMaps struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
@@ -65,7 +66,7 @@ func configMapImmutable(name string) string {
 }
 
 func NewConfigMaps() *ConfigMaps {
-	return &ConfigMaps{sortMode: "name"}
+	return &ConfigMaps{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (c *ConfigMaps) Name() string { return "configmaps" }
@@ -132,7 +133,7 @@ func (c *ConfigMaps) Events(item ResourceItem) []string {
 
 func (c *ConfigMaps) Describe(item ResourceItem) string {
 	return "Name:         " + item.Name + "\n" +
-		"Namespace:    " + ActiveNamespace + "\n" +
+		"Namespace:    " + c.Namespace() + "\n" +
 		"Labels:       app.kubernetes.io/managed-by=helm\n" +
 		"              app.kubernetes.io/part-of=" + item.Name + "\n" +
 		"Annotations:  meta.helm.sh/release-name: " + item.Name + "\n" +
@@ -149,7 +150,7 @@ func (c *ConfigMaps) Describe(item ResourceItem) string {
 		"\n" +
 		"database.yaml:\n" +
 		"----\n" +
-		"host: postgres." + ActiveNamespace + ".svc.cluster.local\n" +
+		"host: postgres." + c.Namespace() + ".svc.cluster.local\n" +
 		"port: 5432\n" +
 		"\n" +
 		"features.json:\n" +
@@ -164,7 +165,7 @@ func (c *ConfigMaps) YAML(item ResourceItem) string {
 kind: ConfigMap
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + c.Namespace() + `
   labels:
     app.kubernetes.io/managed-by: helm
     app.kubernetes.io/part-of: ` + item.Name + `
@@ -183,7 +184,7 @@ data:
       enabled: true
       port: 9090
   database.yaml: |
-    host: postgres.` + ActiveNamespace + `.svc.cluster.local
+    host: postgres.` + c.Namespace() + `.svc.cluster.local
     port: 5432
     sslMode: require
     maxConnections: 25

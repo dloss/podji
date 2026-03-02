@@ -3,12 +3,13 @@ package resources
 import "strings"
 
 type Pods struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
 
 func NewPods() *Pods {
-	return &Pods{sortMode: "name"}
+	return &Pods{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (p *Pods) Name() string {
@@ -21,10 +22,10 @@ func (p *Pods) Key() rune {
 
 func (p *Pods) Items() []ResourceItem {
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if p.Namespace() == AllNamespaces {
 		items = allNamespaceItems(podItemsForNamespace)
 	} else {
-		items = podItemsForNamespace(ActiveNamespace)
+		items = podItemsForNamespace(p.Namespace())
 		items = expandMockItems(items, 36)
 	}
 	p.Sort(items)
@@ -71,7 +72,7 @@ func podItemsForNamespace(ns string) []ResourceItem {
 }
 
 func (p *Pods) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(p.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 48, Default: true},
 		{ID: "status", Name: "STATUS", Width: 12, Default: true},
 		{ID: "ready", Name: "READY", Width: 7, Default: true},
@@ -92,7 +93,7 @@ func (p *Pods) TableRow(item ResourceItem) map[string]string {
 }
 
 func (p *Pods) TableColumnsWide() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(p.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 48, Default: true},
 		{ID: "status", Name: "STATUS", Width: 12, Default: true},
 		{ID: "ready", Name: "READY", Width: 7, Default: true},
@@ -197,7 +198,7 @@ func (p *Pods) Events(item ResourceItem) []string {
 
 func (p *Pods) Describe(item ResourceItem) string {
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + p.Namespace() + "\n" +
 		"Priority:         0\n" +
 		"Service Account:  default\n" +
 		"Node:             worker-03/10.0.1.13\n" +
@@ -261,7 +262,7 @@ func (p *Pods) YAML(item ResourceItem) string {
 kind: Pod
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + p.Namespace() + `
   labels:
     app: api
     tier: backend

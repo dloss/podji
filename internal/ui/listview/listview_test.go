@@ -424,12 +424,11 @@ func TestViewHeaderShowsSortArrowAndMovesWithSortMode(t *testing.T) {
 }
 
 func TestAllNamespacesDefaultNameSortArrowOnNameColumn(t *testing.T) {
-	origNS := resources.ActiveNamespace
-	resources.ActiveNamespace = resources.AllNamespaces
-	t.Cleanup(func() { resources.ActiveNamespace = origNS })
-
 	registry := resources.DefaultRegistry()
-	view := New(resources.NewWorkloads(), registry)
+	registry.SetNamespace(resources.AllNamespaces)
+	workloads := resources.NewWorkloads()
+	workloads.SetNamespace(resources.AllNamespaces)
+	view := New(workloads, registry)
 	view.SetSize(120, 40)
 
 	rendered := ansi.Strip(view.View())

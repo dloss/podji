@@ -65,6 +65,7 @@ type bodyRowProvider interface {
 
 func New() Model {
 	registry := resources.DefaultRegistry()
+	registry.SetNamespace(resources.DefaultNamespace)
 	workloads := registry.ResourceByKey('W')
 	root := listview.New(workloads, registry)
 	rootCrumb := normalizeBreadcrumbPart(root.Breadcrumb())
@@ -184,7 +185,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.overlay = nil
 		if msg.Kind == "namespace" {
 			m.namespace = msg.Value
-			resources.ActiveNamespace = msg.Value
+			m.registry.SetNamespace(msg.Value)
 		} else {
 			m.context = msg.Value
 		}
@@ -317,7 +318,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						b := m.bookmarks[slot]
 						m.context = b.context
 						m.namespace = b.namespace
-						resources.ActiveNamespace = b.namespace
+						m.registry.SetNamespace(b.namespace)
 						m.stack = append([]viewstate.View{}, b.stack...)
 						m.crumbs = append([]string{}, b.crumbs...)
 						m.top().SetSize(m.width, m.availableHeight())
@@ -696,7 +697,7 @@ func (m *Model) runCommand(raw string) string {
 	cmd := parseCommand(raw)
 	if cmd.kindToken == "unhealthy" {
 		base := m.registry.ResourceByKey('W')
-		view := listview.New(resources.NewQueryResource("workloads", resources.UnhealthyItems(), base), m.registry)
+		view := listview.New(resources.NewQueryResource("workloads", resources.UnhealthyItems(m.namespace), base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, view)
 		m.crumbs = append(m.crumbs, "unhealthy")
@@ -704,7 +705,7 @@ func (m *Model) runCommand(raw string) string {
 	}
 	if cmd.kindToken == "restarts" {
 		base := m.registry.ResourceByKey('P')
-		view := listview.New(resources.NewQueryResource("pods", resources.PodsByRestarts(), base), m.registry)
+		view := listview.New(resources.NewQueryResource("pods", resources.PodsByRestarts(m.namespace), base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, view)
 		m.crumbs = append(m.crumbs, "restarts")

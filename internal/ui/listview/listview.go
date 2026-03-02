@@ -247,7 +247,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					kind := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 					text = kind + "/" + selected.data.Name
 				case "p":
-					text = "-n " + resources.ActiveNamespace + " " + selected.data.Name
+					ns := selected.data.Namespace
+					if ns == "" {
+						if scoped, ok := v.resource.(resources.NamespaceScoped); ok {
+							ns = scoped.Namespace()
+						} else {
+							ns = resources.DefaultNamespace
+						}
+					}
+					text = "-n " + ns + " " + selected.data.Name
 				}
 				if text != "" {
 					if err := clipboard.WriteAll(text); err != nil {

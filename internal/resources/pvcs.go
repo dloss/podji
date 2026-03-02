@@ -6,19 +6,20 @@ import (
 )
 
 type PersistentVolumeClaims struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
 
 func NewPersistentVolumeClaims() *PersistentVolumeClaims {
-	return &PersistentVolumeClaims{sortMode: "name"}
+	return &PersistentVolumeClaims{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (p *PersistentVolumeClaims) Name() string { return "persistentvolumeclaims" }
 func (p *PersistentVolumeClaims) Key() rune    { return 'V' }
 
 func (p *PersistentVolumeClaims) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(p.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 32, Default: true},
 		{ID: "capacity", Name: "CAPACITY", Width: 10, Default: true},
 		{ID: "access-mode", Name: "ACCESS MODE", Width: 13, Default: true},
@@ -98,10 +99,10 @@ func min(a, b int) int {
 
 func (p *PersistentVolumeClaims) Items() []ResourceItem {
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if p.Namespace() == AllNamespaces {
 		items = allNamespaceItems(pvcItemsForNamespace)
 	} else {
-		items = pvcItemsForNamespace(ActiveNamespace)
+		items = pvcItemsForNamespace(p.Namespace())
 		items = expandMockItems(items, 20)
 	}
 	p.Sort(items)
@@ -204,7 +205,7 @@ func (p *PersistentVolumeClaims) Describe(item ResourceItem) string {
 	}
 
 	return "Name:          " + item.Name + "\n" +
-		"Namespace:     " + ActiveNamespace + "\n" +
+		"Namespace:     " + p.Namespace() + "\n" +
 		"StorageClass:  " + sc + "\n" +
 		"Status:        " + item.Status + "\n" +
 		"Volume:        " + volume + "\n" +
@@ -226,7 +227,7 @@ func (p *PersistentVolumeClaims) YAML(item ResourceItem) string {
 kind: PersistentVolumeClaim
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + p.Namespace() + `
   labels:
     app.kubernetes.io/managed-by: helm
   finalizers:

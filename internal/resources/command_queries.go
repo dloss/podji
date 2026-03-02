@@ -7,10 +7,13 @@ import (
 )
 
 // UnhealthyItems returns non-healthy resources across selected types.
-func UnhealthyItems() []ResourceItem {
+func UnhealthyItems(namespace string) []ResourceItem {
 	types := []ResourceType{NewPods(), NewDeployments(), NewPersistentVolumeClaims()}
 	var out []ResourceItem
 	for _, res := range types {
+		if scoped, ok := res.(NamespaceScoped); ok {
+			scoped.SetNamespace(namespace)
+		}
 		for _, item := range res.Items() {
 			if isUnhealthy(item) {
 				item.Kind = strings.ToUpper(SingularName(res.Name()))
@@ -35,8 +38,10 @@ func UnhealthyItems() []ResourceItem {
 }
 
 // PodsByRestarts returns all pods with restart count > 0 sorted desc.
-func PodsByRestarts() []ResourceItem {
-	pods := NewPods().Items()
+func PodsByRestarts(namespace string) []ResourceItem {
+	podRes := NewPods()
+	podRes.SetNamespace(namespace)
+	pods := podRes.Items()
 	out := make([]ResourceItem, 0, len(pods))
 	for _, item := range pods {
 		if parseRestartCount(item.Restarts) > 0 {

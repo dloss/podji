@@ -6,6 +6,7 @@ import (
 )
 
 type Secrets struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
@@ -78,7 +79,7 @@ func secretServiceAccount(kind, name string) string {
 }
 
 func NewSecrets() *Secrets {
-	return &Secrets{sortMode: "name"}
+	return &Secrets{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (s *Secrets) Name() string { return "secrets" }
@@ -165,7 +166,7 @@ func (s *Secrets) Describe(item ResourceItem) string {
 		dataKeys = "  .dockerconfigjson:  186 bytes"
 	}
 	return "Name:         " + item.Name + "\n" +
-		"Namespace:    " + ActiveNamespace + "\n" +
+		"Namespace:    " + s.Namespace() + "\n" +
 		"Labels:       app.kubernetes.io/managed-by=helm\n" +
 		"Annotations:  meta.helm.sh/release-name: " + item.Name + "\n" +
 		"\n" +
@@ -200,7 +201,7 @@ func (s *Secrets) YAML(item ResourceItem) string {
 kind: Secret
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + s.Namespace() + `
   labels:
     app.kubernetes.io/managed-by: helm
   annotations:

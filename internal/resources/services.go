@@ -7,12 +7,13 @@ import (
 )
 
 type Services struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
 
 func (s *Services) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(s.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 28, Default: true},
 		{ID: "type", Name: "TYPE", Width: 12, Default: true},
 		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 15, Default: true},
@@ -47,7 +48,7 @@ func (s *Services) TableRow(item ResourceItem) map[string]string {
 }
 
 func (s *Services) TableColumnsWide() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(s.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 28, Default: true},
 		{ID: "type", Name: "TYPE", Width: 12, Default: true},
 		{ID: "cluster-ip", Name: "CLUSTER-IP", Width: 15, Default: true},
@@ -132,7 +133,7 @@ func serviceSessionAffinity(name string) string {
 }
 
 func NewServices() *Services {
-	return &Services{sortMode: "name"}
+	return &Services{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (s *Services) Name() string { return "services" }
@@ -140,10 +141,10 @@ func (s *Services) Key() rune    { return 'S' }
 
 func (s *Services) Items() []ResourceItem {
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if s.Namespace() == AllNamespaces {
 		items = allNamespaceItems(serviceItemsForNamespace)
 	} else {
-		items = serviceItemsForNamespace(ActiveNamespace)
+		items = serviceItemsForNamespace(s.Namespace())
 		items = expandMockItems(items, 26)
 	}
 	s.Sort(items)
@@ -272,7 +273,7 @@ func (s *Services) Describe(item ResourceItem) string {
 		endpoints = "0 endpoints"
 	}
 	return "Name:              " + item.Name + "\n" +
-		"Namespace:         " + ActiveNamespace + "\n" +
+		"Namespace:         " + s.Namespace() + "\n" +
 		"Labels:            app=" + item.Name + "\n" +
 		"                   app.kubernetes.io/managed-by=helm\n" +
 		"Annotations:       <none>\n" +
@@ -300,7 +301,7 @@ func (s *Services) YAML(item ResourceItem) string {
 kind: Service
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + s.Namespace() + `
   labels:
     app: ` + item.Name + `
     app.kubernetes.io/managed-by: helm

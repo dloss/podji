@@ -15,12 +15,13 @@ type CRDMeta struct {
 
 // CRDResource implements ResourceType for an arbitrary CRD, using stub data.
 type CRDResource struct {
+	namespaceScope
 	meta CRDMeta
 }
 
 // NewCRDResource creates a CRDResource for the given CRD metadata.
 func NewCRDResource(meta CRDMeta) *CRDResource {
-	return &CRDResource{meta: meta}
+	return &CRDResource{namespaceScope: newNamespaceScope(), meta: meta}
 }
 
 // Name returns a qualified resource name (e.g. "certificates.cert-manager.io").
@@ -61,7 +62,7 @@ func (c *CRDResource) YAML(item ResourceItem) string {
 	}
 	ns := ""
 	if c.meta.Namespaced {
-		ns = "\n  namespace: " + ActiveNamespace
+		ns = "\n  namespace: " + c.Namespace()
 	}
 	return strings.TrimSpace(fmt.Sprintf(`apiVersion: %s/%s
 kind: %s
@@ -81,7 +82,7 @@ func (c *CRDResource) Describe(item ResourceItem) string {
 	}
 	nsLine := ""
 	if c.meta.Namespaced {
-		nsLine = "\nNamespace:  " + ActiveNamespace
+		nsLine = "\nNamespace:  " + c.Namespace()
 	}
 	return fmt.Sprintf("Name:       %s%s\nGroup:      %s\nVersion:    %s\nKind:       %s\nStatus:     %s",
 		item.Name, nsLine, group, c.meta.Version, c.meta.Kind, item.Status)

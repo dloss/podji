@@ -7,19 +7,20 @@ import (
 )
 
 type Ingresses struct {
+	namespaceScope
 	sortMode string
 	sortDesc bool
 }
 
 func NewIngresses() *Ingresses {
-	return &Ingresses{sortMode: "name"}
+	return &Ingresses{namespaceScope: newNamespaceScope(), sortMode: "name"}
 }
 
 func (g *Ingresses) Name() string { return "ingresses" }
 func (g *Ingresses) Key() rune    { return 'I' }
 
 func (g *Ingresses) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(g.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 24, Default: true},
 		{ID: "class", Name: "CLASS", Width: 10, Default: true},
 		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
@@ -49,7 +50,7 @@ func (g *Ingresses) TableRow(item ResourceItem) map[string]string {
 }
 
 func (g *Ingresses) TableColumnsWide() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(g.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 24, Default: true},
 		{ID: "class", Name: "CLASS", Width: 10, Default: true},
 		{ID: "hosts", Name: "HOSTS", Width: 30, Default: true},
@@ -86,10 +87,10 @@ func ingressPorts(name string) string {
 
 func (g *Ingresses) Items() []ResourceItem {
 	var items []ResourceItem
-	if ActiveNamespace == AllNamespaces {
+	if g.Namespace() == AllNamespaces {
 		items = allNamespaceItems(ingressItemsForNamespace)
 	} else {
-		items = ingressItemsForNamespace(ActiveNamespace)
+		items = ingressItemsForNamespace(g.Namespace())
 		items = expandMockItems(items, 22)
 	}
 	g.Sort(items)
@@ -186,7 +187,7 @@ func (g *Ingresses) Describe(item ResourceItem) string {
 	address := ingressAddress(item.Status)
 
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + g.Namespace() + "\n" +
 		"Address:          " + address + "\n" +
 		"Ingress Class:    " + class + "\n" +
 		"Default backend:  <default>\n" +
@@ -211,7 +212,7 @@ func (g *Ingresses) YAML(item ResourceItem) string {
 kind: Ingress
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + g.Namespace() + `
   labels:
     app.kubernetes.io/managed-by: helm
   annotations:

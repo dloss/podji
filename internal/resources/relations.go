@@ -6,6 +6,7 @@ import (
 )
 
 type relatedResource struct {
+	namespaceScope
 	name        string
 	key         rune
 	items       []ResourceItem
@@ -68,7 +69,7 @@ func (r *relatedResource) Events(item ResourceItem) []string {
 }
 func (r *relatedResource) Describe(item ResourceItem) string {
 	return "Name:         " + item.Name + "\n" +
-		"Namespace:    " + ActiveNamespace + "\n" +
+		"Namespace:    " + r.Namespace() + "\n" +
 		"Relation:     " + r.name + "\n" +
 		"Status:       " + item.Status + "\n" +
 		"Age:          " + item.Age
@@ -173,7 +174,7 @@ status:
 kind: ` + kind + `
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + r.Namespace() + `
   labels:
     app: ` + item.Name + `
 spec:` + extraSpec)
@@ -189,12 +190,17 @@ func (r *relatedResource) EmptyMessage(filtered bool, filter string) string {
 }
 
 type WorkloadPods struct {
+	namespaceScope
 	workload ResourceItem
 	registry *Registry
 }
 
 func NewWorkloadPods(workload ResourceItem, registry *Registry) *WorkloadPods {
-	return &WorkloadPods{workload: workload, registry: registry}
+	w := &WorkloadPods{namespaceScope: newNamespaceScope(), workload: workload, registry: registry}
+	if registry != nil {
+		w.SetNamespace(registry.Namespace())
+	}
+	return w
 }
 
 func (w *WorkloadPods) Name() string {
@@ -208,7 +214,7 @@ func (w *WorkloadPods) Name() string {
 func (w *WorkloadPods) Key() rune { return 'P' }
 
 func (w *WorkloadPods) TableColumns() []TableColumn {
-	return namespacedColumns([]TableColumn{
+	return namespacedColumnsFor(w.Namespace(), []TableColumn{
 		{ID: "name", Name: "NAME", Width: 48, Default: true},
 		{ID: "status", Name: "STATUS", Width: 12, Default: true},
 		{ID: "ready", Name: "READY", Width: 7, Default: true},
@@ -342,7 +348,7 @@ func (w *WorkloadPods) Events(item ResourceItem) []string {
 }
 func (w *WorkloadPods) Describe(item ResourceItem) string {
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + w.Namespace() + "\n" +
 		"Node:             worker-01/10.0.1.11\n" +
 		"Status:           " + item.Status + "\n" +
 		"IP:               10.244.1.35\n" +
@@ -365,7 +371,7 @@ func (w *WorkloadPods) YAML(item ResourceItem) string {
 kind: Pod
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + w.Namespace() + `
   labels:
     app: ` + w.workload.Name + `
     pod-template-hash: 7d9c7c9d4f
@@ -444,6 +450,7 @@ func NewBackends(svc ResourceItem, registry *Registry) ResourceType {
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "backends (" + svc.Name + ")",
 		items: pods,
 		empty: "No backends observed from EndpointSlices.",
@@ -453,6 +460,7 @@ func NewBackends(svc ResourceItem, registry *Registry) ResourceType {
 
 func NewConsumers(object string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "consumers (" + object + ")",
 		items: []ResourceItem{{Name: "api", Kind: "DEP", Status: "Healthy", Ready: "2/2", Restarts: "0", Age: "5d"}, {Name: "worker", Kind: "JOB", Status: "Progressing", Ready: "0/1", Restarts: "0", Age: "8m"}},
 		empty: "No consumers reference this object.",
@@ -461,6 +469,7 @@ func NewConsumers(object string) ResourceType {
 
 func NewMountedBy(pvc string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "mounted-by (" + pvc + ")",
 		items: []ResourceItem{{Name: "db-0", Status: "Healthy", Ready: "1/1", Restarts: "0", Age: "12d"}},
 		empty: "No pods mount this PVC.",
@@ -482,6 +491,7 @@ func NewRelatedServices(workload ResourceItem, registry *Registry) ResourceType 
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "services (" + workload.Name + ")",
 		items: svcs,
 		empty: "No related services.",
@@ -491,6 +501,7 @@ func NewRelatedServices(workload ResourceItem, registry *Registry) ResourceType 
 
 func NewRelatedConfig(workload string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "config (" + workload + ")",
 		items: []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
 		empty: "No related ConfigMaps or Secrets.",
@@ -499,6 +510,7 @@ func NewRelatedConfig(workload string) ResourceType {
 
 func NewRelatedStorage(workload string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "storage (" + workload + ")",
 		items: []ResourceItem{{Name: workload + "-data", Status: "Healthy", Ready: "PVC", Restarts: "-", Age: "90d"}},
 		empty: "No related storage objects.",
@@ -507,6 +519,7 @@ func NewRelatedStorage(workload string) ResourceType {
 
 func NewJobsForCronJob(name string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "jobs (" + name + ")",
 		items: []ResourceItem{{Name: name + "-289173", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "6h"}, {Name: name + "-289172", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "30h"}},
 		empty: "No jobs found for this CronJob.",
@@ -525,6 +538,7 @@ func NewPodOwner(pod string) ResourceType {
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:        "owner (" + pod + ")",
 		items:       []ResourceItem{{Name: workload, Kind: "DEP", Status: "Available", Ready: "2/2", Restarts: "-", Age: "14d"}},
 		description: "Owning workload for this pod",
@@ -545,6 +559,7 @@ func NewPodServices(pod ResourceItem, registry *Registry) ResourceType {
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:        "services (" + pod.Name + ")",
 		items:       svcs,
 		description: "Services selecting this pod via label match",
@@ -564,6 +579,7 @@ func NewPodConfig(pod string) ResourceType {
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "config (" + pod + ")",
 		items: []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
 		empty: "No ConfigMaps or Secrets mounted by this pod.",
@@ -572,6 +588,7 @@ func NewPodConfig(pod string) ResourceType {
 
 func NewIngressServices(ingress string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:        "services (" + ingress + ")",
 		items:       []ResourceItem{{Name: ingress, Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
 		description: "Backend services this Ingress routes to",
@@ -581,6 +598,7 @@ func NewIngressServices(ingress string) ResourceType {
 
 func NewRelatedIngresses(service string) ResourceType {
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:        "ingresses (" + service + ")",
 		items:       []ResourceItem{{Name: service, Status: "Healthy", Ready: service + ".example.com", Restarts: "-", Age: "14d"}},
 		description: "Ingresses exposing this service",
@@ -589,11 +607,12 @@ func NewRelatedIngresses(service string) ResourceType {
 }
 
 type NodePods struct {
+	namespaceScope
 	node string
 }
 
 func NewNodePods(node string) *NodePods {
-	return &NodePods{node: node}
+	return &NodePods{namespaceScope: newNamespaceScope(), node: node}
 }
 
 func (n *NodePods) Name() string { return "pods (node: " + n.node + ")" }
@@ -660,7 +679,7 @@ func (n *NodePods) Events(item ResourceItem) []string {
 
 func (n *NodePods) Describe(item ResourceItem) string {
 	return "Name:             " + item.Name + "\n" +
-		"Namespace:        " + ActiveNamespace + "\n" +
+		"Namespace:        " + n.Namespace() + "\n" +
 		"Node:             " + n.node + "\n" +
 		"Status:           " + item.Status + "\n" +
 		"Controlled By:    ReplicaSet/" + item.Name
@@ -671,7 +690,7 @@ func (n *NodePods) YAML(item ResourceItem) string {
 kind: Pod
 metadata:
   name: ` + item.Name + `
-  namespace: ` + ActiveNamespace + `
+  namespace: ` + n.Namespace() + `
 spec:
   nodeName: ` + n.node + `
   containers:
@@ -699,6 +718,7 @@ func NewPodStorage(pod string) ResourceType {
 		}
 	}
 	return &relatedResource{
+		namespaceScope: newNamespaceScope(),
 		name:  "storage (" + pod + ")",
 		items: []ResourceItem{{Name: workload + "-data", Status: "Bound", Ready: "PVC", Restarts: "-", Age: "90d"}},
 		empty: "No PVCs mounted by this pod.",

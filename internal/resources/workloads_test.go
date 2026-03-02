@@ -84,15 +84,14 @@ func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 }
 
 func TestWorkloadPodsShowsNamespaceColumnInAllNamespacesMode(t *testing.T) {
-	prev := ActiveNamespace
-	ActiveNamespace = AllNamespaces
-	t.Cleanup(func() { ActiveNamespace = prev })
-
+	reg := DefaultRegistry()
+	reg.SetNamespace(AllNamespaces)
 	pods := NewWorkloadPods(ResourceItem{
 		Name:     "api",
 		Kind:     "DEP",
 		Selector: map[string]string{"app": "api"},
-	}, DefaultRegistry())
+	}, reg)
+	pods.SetNamespace(AllNamespaces)
 
 	cols := pods.TableColumns()
 	if len(cols) == 0 || cols[0].ID != "namespace" {
