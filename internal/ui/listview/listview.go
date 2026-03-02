@@ -72,6 +72,7 @@ type item struct {
 	status      string
 	widths      []int
 	matchColumn int
+	dimPodName  bool
 }
 
 func (i item) Title() string {
@@ -134,7 +135,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	rows := assembleRows(resource, false, columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
 	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
-	listItems := makeListItems(items, rows, widths, columns)
+	listItems := makeListItems(resource, items, rows, widths, columns)
 
 	v := &View{
 		resource:  resource,
@@ -974,12 +975,13 @@ func assembleRows(resource resources.ResourceType, wideMode bool, columns []reso
 }
 
 // makeListItems creates bubbletea list items from resource items and pre-computed rows/widths.
-func makeListItems(items []resources.ResourceItem, rows [][]string, widths []int, columns []resources.TableColumn) []list.Item {
+func makeListItems(resource resources.ResourceType, items []resources.ResourceItem, rows [][]string, widths []int, columns []resources.TableColumn) []list.Item {
 	listItems := make([]list.Item, 0, len(items))
 	matchColumn := firstColumnWithID(columns, "name")
 	if matchColumn < 0 {
 		matchColumn = 0
 	}
+	dimPodName := shouldDimPodNameSuffixes(resource)
 	for idx, res := range items {
 		var row []string
 		if idx < len(rows) {
@@ -991,9 +993,17 @@ func makeListItems(items []resources.ResourceItem, rows [][]string, widths []int
 			status:      res.Status,
 			widths:      widths,
 			matchColumn: matchColumn,
+			dimPodName:  dimPodName,
 		})
 	}
 	return listItems
+}
+
+func shouldDimPodNameSuffixes(resource resources.ResourceType) bool {
+	if resource == nil {
+		return false
+	}
+	return strings.EqualFold(breadcrumbLabel(resource.Name()), "pods")
 }
 
 func columnWidths(columns []resources.TableColumn) []int {
@@ -1259,7 +1269,7 @@ func (v *View) refreshItems() {
 	rows := assembleRows(v.resource, v.wideMode, v.columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
 	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
-	listItems := makeListItems(items, rows, v.colWidths, v.columns)
+	listItems := makeListItems(v.resource, items, rows, v.colWidths, v.columns)
 	selected := v.list.Index()
 	v.list.SetItems(listItems)
 	if selected >= 0 && selected < len(listItems) {

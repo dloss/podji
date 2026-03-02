@@ -3,12 +3,18 @@ package listview
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+var podGeneratedSegmentRE = regexp.MustCompile(`^[a-z0-9]{4,6}$`)
+
+const podSuffixMutedANSI = "\x1b[38;5;247m"
 
 func newTableDelegate(findMode *bool, findTargets *map[int]bool) tableDelegate {
 	delegate := list.NewDefaultDelegate()
@@ -83,6 +89,9 @@ func renderRowWithNameMatch(
 	for idx, value := range it.row {
 		width := it.widths[idx]
 		cellValue := padCell(value, width)
+		if idx == matchColumn {
+			cellValue = dimPodGeneratedSuffix(cellValue, it.data.Name, it.dimPodName, isSelected, len(matches) > 0)
+		}
 
 		if idx == matchColumn && len(matches) > 0 {
 			nameMatches := make([]int, 0, len(matches))
@@ -162,4 +171,106 @@ func statusANSI(value string) string {
 	default:
 		return "\x1b[92m" // bright green
 	}
+}
+
+func dimPodGeneratedSuffix(cellValue, podName string, enabled, isSelected, hasMatches bool) string {
+	if !enabled || isSelected || hasMatches {
+		return cellValue
+	}
+	start, end, ok := podGeneratedSuffixRange(podName)
+	if !ok {
+		return cellValue
+	}
+	runes := []rune(cellValue)
+	if start < 0 || start >= len(runes) || end <= start {
+		return cellValue
+	}
+	if end > len(runes) {
+		end = len(runes)
+	}
+	return string(runes[:start]) + podSuffixMutedANSI + string(runes[start:end]) + "\x1b[39m" + string(runes[end:])
+}
+
+// podGeneratedSuffixRange returns the [start,end) rune range for generated pod
+// suffixes like "-7c6c8d5f7d-x8p2k" (optionally followed by ordinal suffixes
+// like "-01", which stay undimmed).
+func podGeneratedSuffixRange(name string) (start, end int, ok bool) {
+	runes := []rune(name)
+	if len(runes) == 0 {
+		return 0, 0, false
+	}
+	segments, starts, ends := splitDashSegments(name)
+	if len(segments) < 3 {
+		return 0, 0, false
+	}
+
+	for i := 1; i+1 < len(segments); i++ {
+		if !isHexHashSegment(segments[i]) {
+			continue
+		}
+		if !isGeneratedPodSegment(segments[i+1]) {
+			continue
+		}
+		// Keep ordinal tails visible: foo-<hash>-<gen>-01.
+		if i+2 < len(segments) && !isOrdinalSegment(segments[i+2]) {
+			continue
+		}
+		return starts[i] - 1, ends[i+1], true
+	}
+	return 0, 0, false
+}
+
+func splitDashSegments(s string) (segments []string, starts, ends []int) {
+	inSegment := false
+	segStart := 0
+	runes := []rune(s)
+	for i, r := range runes {
+		if r == '-' {
+			if inSegment {
+				segments = append(segments, string(runes[segStart:i]))
+				starts = append(starts, segStart)
+				ends = append(ends, i)
+				inSegment = false
+			}
+			continue
+		}
+		if !inSegment {
+			inSegment = true
+			segStart = i
+		}
+	}
+	if inSegment {
+		segments = append(segments, string(runes[segStart:]))
+		starts = append(starts, segStart)
+		ends = append(ends, len(runes))
+	}
+	return segments, starts, ends
+}
+
+func isHexHashSegment(segment string) bool {
+	if len(segment) < 8 || len(segment) > 12 {
+		return false
+	}
+	for _, r := range segment {
+		if !unicode.IsDigit(r) && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func isGeneratedPodSegment(segment string) bool {
+	return podGeneratedSegmentRE.MatchString(segment)
+}
+
+func isOrdinalSegment(segment string) bool {
+	if len(segment) == 0 || len(segment) > 3 {
+		return false
+	}
+	for _, r := range segment {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
