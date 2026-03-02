@@ -33,10 +33,11 @@ func (r execRunner) Run(name string, args ...string) (string, error) {
 }
 
 type KubeStore struct {
-	registry *resources.Registry
-	read     ReadModel
-	scope    Scope
-	runner   commandRunner
+	registry  *resources.Registry
+	read      ReadModel
+	relations RelationIndex
+	scope     Scope
+	runner    commandRunner
 }
 
 func NewKubeStore() (*KubeStore, error) {
@@ -64,10 +65,11 @@ func newKubeStore(runner commandRunner) (*KubeStore, error) {
 	registry.SetNamespace(scope.Namespace)
 
 	store := &KubeStore{
-		registry: registry,
-		read:     NewMockReadModel(registry),
-		scope:    scope,
-		runner:   runner,
+		registry:  registry,
+		read:      NewMockReadModel(registry),
+		relations: newMockRelationIndex(registry),
+		scope:     scope,
+		runner:    runner,
 	}
 	store.configurePodFetchers()
 	return store, nil
@@ -83,6 +85,10 @@ func (s *KubeStore) Scope() Scope {
 
 func (s *KubeStore) ReadModel() ReadModel {
 	return s.read
+}
+
+func (s *KubeStore) RelationIndex() RelationIndex {
+	return s.relations
 }
 
 func (s *KubeStore) SetScope(scope Scope) {

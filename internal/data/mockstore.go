@@ -3,9 +3,10 @@ package data
 import "github.com/dloss/podji/internal/resources"
 
 type MockStore struct {
-	registry *resources.Registry
-	read     ReadModel
-	scope    Scope
+	registry  *resources.Registry
+	read      ReadModel
+	relations RelationIndex
+	scope     Scope
 }
 
 func NewMockStore() *MockStore {
@@ -16,9 +17,10 @@ func NewMockStore() *MockStore {
 	}
 	registry.SetNamespace(scope.Namespace)
 	return &MockStore{
-		registry: registry,
-		read:     NewMockReadModel(registry),
-		scope:    scope,
+		registry:  registry,
+		read:      NewMockReadModel(registry),
+		relations: newMockRelationIndex(registry),
+		scope:     scope,
 	}
 }
 
@@ -32,6 +34,10 @@ func (s *MockStore) Scope() Scope {
 
 func (s *MockStore) ReadModel() ReadModel {
 	return s.read
+}
+
+func (s *MockStore) RelationIndex() RelationIndex {
+	return s.relations
 }
 
 func (s *MockStore) SetScope(scope Scope) {
