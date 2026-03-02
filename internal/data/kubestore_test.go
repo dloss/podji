@@ -8,40 +8,72 @@ import (
 	"github.com/dloss/podji/internal/resources"
 )
 
-type fakeRunner struct {
-	out map[string]string
-	err map[string]error
+type fakeKubeAPI struct {
+	contexts        []string
+	contextErr      error
+	namespacesByCtx map[string][]string
+	namespaceErr    map[string]error
+	logsByKey       map[string][]string
+	logErrByKey     map[string]error
+	eventsByKey     map[string][]string
+	eventErrByKey   map[string]error
 }
 
-func (r fakeRunner) Run(name string, args ...string) (string, error) {
-	key := strings.Join(append([]string{name}, args...), " ")
-	if err := r.err[key]; err != nil {
-		return "", err
+func (f fakeKubeAPI) Contexts() ([]string, error) {
+	if f.contextErr != nil {
+		return nil, f.contextErr
 	}
-	return r.out[key], nil
+	out := make([]string, len(f.contexts))
+	copy(out, f.contexts)
+	return out, nil
+}
+
+func (f fakeKubeAPI) Namespaces(context string) ([]string, error) {
+	if err := f.namespaceErr[context]; err != nil {
+		return nil, err
+	}
+	out := make([]string, len(f.namespacesByCtx[context]))
+	copy(out, f.namespacesByCtx[context])
+	return out, nil
+}
+
+func (f fakeKubeAPI) PodLogs(context, namespace, pod string, tail int) ([]string, error) {
+	key := context + "/" + namespace + "/" + pod
+	if err := f.logErrByKey[key]; err != nil {
+		return nil, err
+	}
+	out := make([]string, len(f.logsByKey[key]))
+	copy(out, f.logsByKey[key])
+	return out, nil
+}
+
+func (f fakeKubeAPI) PodEvents(context, namespace, pod string) ([]string, error) {
+	key := context + "/" + namespace + "/" + pod
+	if err := f.eventErrByKey[key]; err != nil {
+		return nil, err
+	}
+	out := make([]string, len(f.eventsByKey[key]))
+	copy(out, f.eventsByKey[key])
+	return out, nil
 }
 
 func TestNewKubeStoreUsesFirstSortedContext(t *testing.T) {
-	store, err := newKubeStore(fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "prod\nstaging\ndev\n",
-		},
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"prod", "staging", "dev"},
 	})
 	if err != nil {
 		t.Fatalf("expected kube store creation to succeed, got %v", err)
 	}
-	if got := store.Scope().Context; got != "dev" {
-		t.Fatalf("expected first sorted context dev, got %q", got)
+	if got := store.Scope().Context; got != "prod" {
+		t.Fatalf("expected first context prod, got %q", got)
 	}
 }
 
 func TestKubeStoreNamespaceNamesFallbackOnError(t *testing.T) {
-	store, err := newKubeStore(fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "dev\n",
-		},
-		err: map[string]error{
-			"kubectl --context dev get namespaces -o jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}": errors.New("boom"),
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		namespaceErr: map[string]error{
+			"dev": errors.New("boom"),
 		},
 	})
 	if err != nil {
@@ -60,17 +92,17 @@ func TestKubeStoreNamespaceNamesFallbackOnError(t *testing.T) {
 }
 
 func TestKubeStoreNamespaceNamesUsesContext(t *testing.T) {
-	store, err := newKubeStore(fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "dev\nprod\n",
-			"kubectl --context dev get namespaces -o jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}": "kube-system\ndefault\n",
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev", "prod"},
+		namespacesByCtx: map[string][]string{
+			"dev": {"kube-system", "default"},
 		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error creating kube store: %v", err)
 	}
 	got := store.NamespaceNames()
-	want := []string{resources.AllNamespaces, "default", "kube-system"}
+	want := []string{resources.AllNamespaces, "kube-system", "default"}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
@@ -82,10 +114,8 @@ func TestKubeStoreNamespaceNamesUsesContext(t *testing.T) {
 }
 
 func TestKubeStoreSetScopeUpdatesRegistryNamespace(t *testing.T) {
-	store, err := newKubeStore(fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "dev\n",
-		},
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error creating kube store: %v", err)
@@ -97,12 +127,10 @@ func TestKubeStoreSetScopeUpdatesRegistryNamespace(t *testing.T) {
 }
 
 func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
-	store, err := newKubeStore(fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "dev\n",
-		},
-		err: map[string]error{
-			"kubectl --context dev get namespaces -o jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}": errors.New("discovery failed"),
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		namespaceErr: map[string]error{
+			"dev": errors.New("discovery failed"),
 		},
 	})
 	if err != nil {
@@ -119,13 +147,12 @@ func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
 }
 
 func TestKubeStorePodLogsFetcherWired(t *testing.T) {
-	runner := fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name":                  "dev\n",
-			"kubectl --context dev -n default logs api --tail=200": "line-a\nline-b\n",
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		logsByKey: map[string][]string{
+			"dev/default/api": {"line-a", "line-b"},
 		},
-	}
-	store, err := newKubeStore(runner)
+	})
 	if err != nil {
 		t.Fatalf("unexpected error creating kube store: %v", err)
 	}
@@ -140,13 +167,12 @@ func TestKubeStorePodLogsFetcherWired(t *testing.T) {
 }
 
 func TestKubeStorePodEventsFetcherWired(t *testing.T) {
-	runner := fakeRunner{
-		out: map[string]string{
-			"kubectl config get-contexts -o name": "dev\n",
-			`kubectl --context dev -n default get events --field-selector involvedObject.name=api -o jsonpath={range .items[*]}{.lastTimestamp}{"   "}{.type}{"   "}{.reason}{"   "}{.message}{"\n"}{end}`: "2026-03-01T12:00:00Z   Warning   BackOff   Back-off restarting failed container\n",
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		eventsByKey: map[string][]string{
+			"dev/default/api": {"2026-03-01T12:00:00Z   Warning   BackOff   Back-off restarting failed container"},
 		},
-	}
-	store, err := newKubeStore(runner)
+	})
 	if err != nil {
 		t.Fatalf("unexpected error creating kube store: %v", err)
 	}

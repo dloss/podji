@@ -1,55 +1,30 @@
 package data
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
-	"sort"
 	"strings"
 
 	"github.com/dloss/podji/internal/resources"
 )
-
-type commandRunner interface {
-	Run(name string, args ...string) (string, error)
-}
-
-type execRunner struct{}
-
-func (r execRunner) Run(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errOut
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(errOut.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("%s: %w", msg, err)
-	}
-	return out.String(), nil
-}
 
 type KubeStore struct {
 	registry  *resources.Registry
 	read      ReadModel
 	relations RelationIndex
 	scope     Scope
-	runner    commandRunner
+	api       KubeAPI
 	lastErr   string
 }
 
 func NewKubeStore() (*KubeStore, error) {
-	return newKubeStore(execRunner{})
+	return newKubeStore(newKubectlAPI(execRunner{}))
 }
 
-func newKubeStore(runner commandRunner) (*KubeStore, error) {
-	if runner == nil {
-		runner = execRunner{}
+func newKubeStore(api KubeAPI) (*KubeStore, error) {
+	if api == nil {
+		return nil, fmt.Errorf("kube api is nil")
 	}
-	contexts, err := kubeContexts(runner)
+	contexts, err := api.Contexts()
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +45,7 @@ func newKubeStore(runner commandRunner) (*KubeStore, error) {
 		read:      NewMockReadModel(registry),
 		relations: newMockRelationIndex(registry),
 		scope:     scope,
-		runner:    runner,
+		api:       api,
 	}
 	store.configurePodFetchers()
 	return store, nil
@@ -119,7 +94,7 @@ func (s *KubeStore) SetScope(scope Scope) {
 }
 
 func (s *KubeStore) NamespaceNames() []string {
-	namespaces, err := kubeNamespaces(s.runner, s.scope.Context)
+	namespaces, err := s.api.Namespaces(s.scope.Context)
 	if err != nil || len(namespaces) == 0 {
 		if err != nil {
 			s.lastErr = err.Error()
@@ -136,7 +111,7 @@ func (s *KubeStore) NamespaceNames() []string {
 }
 
 func (s *KubeStore) ContextNames() []string {
-	contexts, err := kubeContexts(s.runner)
+	contexts, err := s.api.Contexts()
 	if err != nil || len(contexts) == 0 {
 		if err != nil {
 			s.lastErr = err.Error()
@@ -168,75 +143,9 @@ func (s *KubeStore) configurePodFetchers() {
 }
 
 func (s *KubeStore) podLogs(namespace, pod string) ([]string, error) {
-	args := []string{
-		"--context", s.scope.Context,
-		"-n", namespace,
-		"logs", pod,
-		"--tail=200",
-	}
-	out, err := s.runner.Run("kubectl", args...)
-	if err != nil {
-		return nil, err
-	}
-	lines := splitNonEmptyLines(out)
-	if len(lines) == 0 {
-		return []string{"No log lines returned."}, nil
-	}
-	return lines, nil
+	return s.api.PodLogs(s.scope.Context, namespace, pod, 200)
 }
 
 func (s *KubeStore) podEvents(namespace, pod string) ([]string, error) {
-	args := []string{
-		"--context", s.scope.Context,
-		"-n", namespace,
-		"get", "events",
-		"--field-selector", "involvedObject.name=" + pod,
-		"-o", `jsonpath={range .items[*]}{.lastTimestamp}{"   "}{.type}{"   "}{.reason}{"   "}{.message}{"\n"}{end}`,
-	}
-	out, err := s.runner.Run("kubectl", args...)
-	if err != nil {
-		return nil, err
-	}
-	lines := splitNonEmptyLines(out)
-	if len(lines) == 0 {
-		return []string{"—   No recent events"}, nil
-	}
-	return lines, nil
-}
-
-func kubeContexts(runner commandRunner) ([]string, error) {
-	out, err := runner.Run("kubectl", "config", "get-contexts", "-o", "name")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list kube contexts: %w", err)
-	}
-	lines := splitNonEmptyLines(out)
-	sort.Strings(lines)
-	return lines, nil
-}
-
-func kubeNamespaces(runner commandRunner, context string) ([]string, error) {
-	args := []string{"get", "namespaces", "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}"}
-	if context != "" {
-		args = append([]string{"--context", context}, args...)
-	}
-	out, err := runner.Run("kubectl", args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list namespaces for context %q: %w", context, err)
-	}
-	lines := splitNonEmptyLines(out)
-	sort.Strings(lines)
-	return lines, nil
-}
-
-func splitNonEmptyLines(raw string) []string {
-	lines := strings.Split(raw, "\n")
-	out := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		out = append(out, line)
-	}
-	return out
+	return s.api.PodEvents(s.scope.Context, namespace, pod)
 }
