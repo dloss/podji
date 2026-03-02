@@ -299,6 +299,11 @@ func (w *WorkloadPods) Detail(item ResourceItem) DetailData {
 	}
 }
 func (w *WorkloadPods) Logs(item ResourceItem) []string {
+	if w.registry != nil {
+		if podRes, ok := w.registry.ByName("pods").(*Pods); ok {
+			return podRes.Logs(item)
+		}
+	}
 	switch item.Status {
 	case "CrashLoop", "Error":
 		return expandMockLogs([]string{
@@ -324,6 +329,11 @@ func (w *WorkloadPods) Logs(item ResourceItem) []string {
 	}
 }
 func (w *WorkloadPods) Events(item ResourceItem) []string {
+	if w.registry != nil {
+		if podRes, ok := w.registry.ByName("pods").(*Pods); ok {
+			return podRes.Events(item)
+		}
+	}
 	base := "5m ago   Normal    Scheduled    Assigned to node worker-01"
 	switch item.Status {
 	case "CrashLoop":
@@ -451,28 +461,28 @@ func NewBackends(svc ResourceItem, registry *Registry) ResourceType {
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "backends (" + svc.Name + ")",
-		items: pods,
-		empty: "No backends observed from EndpointSlices.",
-		exact: true,
+		name:           "backends (" + svc.Name + ")",
+		items:          pods,
+		empty:          "No backends observed from EndpointSlices.",
+		exact:          true,
 	}
 }
 
 func NewConsumers(object string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "consumers (" + object + ")",
-		items: []ResourceItem{{Name: "api", Kind: "DEP", Status: "Healthy", Ready: "2/2", Restarts: "0", Age: "5d"}, {Name: "worker", Kind: "JOB", Status: "Progressing", Ready: "0/1", Restarts: "0", Age: "8m"}},
-		empty: "No consumers reference this object.",
+		name:           "consumers (" + object + ")",
+		items:          []ResourceItem{{Name: "api", Kind: "DEP", Status: "Healthy", Ready: "2/2", Restarts: "0", Age: "5d"}, {Name: "worker", Kind: "JOB", Status: "Progressing", Ready: "0/1", Restarts: "0", Age: "8m"}},
+		empty:          "No consumers reference this object.",
 	}
 }
 
 func NewMountedBy(pvc string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "mounted-by (" + pvc + ")",
-		items: []ResourceItem{{Name: "db-0", Status: "Healthy", Ready: "1/1", Restarts: "0", Age: "12d"}},
-		empty: "No pods mount this PVC.",
+		name:           "mounted-by (" + pvc + ")",
+		items:          []ResourceItem{{Name: "db-0", Status: "Healthy", Ready: "1/1", Restarts: "0", Age: "12d"}},
+		empty:          "No pods mount this PVC.",
 	}
 }
 
@@ -492,37 +502,37 @@ func NewRelatedServices(workload ResourceItem, registry *Registry) ResourceType 
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "services (" + workload.Name + ")",
-		items: svcs,
-		empty: "No related services.",
-		exact: true,
+		name:           "services (" + workload.Name + ")",
+		items:          svcs,
+		empty:          "No related services.",
+		exact:          true,
 	}
 }
 
 func NewRelatedConfig(workload string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "config (" + workload + ")",
-		items: []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
-		empty: "No related ConfigMaps or Secrets.",
+		name:           "config (" + workload + ")",
+		items:          []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
+		empty:          "No related ConfigMaps or Secrets.",
 	}
 }
 
 func NewRelatedStorage(workload string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "storage (" + workload + ")",
-		items: []ResourceItem{{Name: workload + "-data", Status: "Healthy", Ready: "PVC", Restarts: "-", Age: "90d"}},
-		empty: "No related storage objects.",
+		name:           "storage (" + workload + ")",
+		items:          []ResourceItem{{Name: workload + "-data", Status: "Healthy", Ready: "PVC", Restarts: "-", Age: "90d"}},
+		empty:          "No related storage objects.",
 	}
 }
 
 func NewJobsForCronJob(name string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "jobs (" + name + ")",
-		items: []ResourceItem{{Name: name + "-289173", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "6h"}, {Name: name + "-289172", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "30h"}},
-		empty: "No jobs found for this CronJob.",
+		name:           "jobs (" + name + ")",
+		items:          []ResourceItem{{Name: name + "-289173", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "6h"}, {Name: name + "-289172", Status: "Healthy", Ready: "1/1", Restarts: "-", Age: "30h"}},
+		empty:          "No jobs found for this CronJob.",
 	}
 }
 
@@ -539,10 +549,10 @@ func NewPodOwner(pod string) ResourceType {
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:        "owner (" + pod + ")",
-		items:       []ResourceItem{{Name: workload, Kind: "DEP", Status: "Available", Ready: "2/2", Restarts: "-", Age: "14d"}},
-		description: "Owning workload for this pod",
-		empty:       "No owner workload found (standalone pod).",
+		name:           "owner (" + pod + ")",
+		items:          []ResourceItem{{Name: workload, Kind: "DEP", Status: "Available", Ready: "2/2", Restarts: "-", Age: "14d"}},
+		description:    "Owning workload for this pod",
+		empty:          "No owner workload found (standalone pod).",
 	}
 }
 
@@ -560,11 +570,11 @@ func NewPodServices(pod ResourceItem, registry *Registry) ResourceType {
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:        "services (" + pod.Name + ")",
-		items:       svcs,
-		description: "Services selecting this pod via label match",
-		empty:       "No services select this pod.",
-		exact:       true,
+		name:           "services (" + pod.Name + ")",
+		items:          svcs,
+		description:    "Services selecting this pod via label match",
+		empty:          "No services select this pod.",
+		exact:          true,
 	}
 }
 
@@ -580,29 +590,29 @@ func NewPodConfig(pod string) ResourceType {
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "config (" + pod + ")",
-		items: []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
-		empty: "No ConfigMaps or Secrets mounted by this pod.",
+		name:           "config (" + pod + ")",
+		items:          []ResourceItem{{Name: workload + "-config", Status: "Healthy", Ready: "configmap", Restarts: "-", Age: "30d"}, {Name: workload + "-secret", Status: "Healthy", Ready: "secret", Restarts: "-", Age: "30d"}},
+		empty:          "No ConfigMaps or Secrets mounted by this pod.",
 	}
 }
 
 func NewIngressServices(ingress string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:        "services (" + ingress + ")",
-		items:       []ResourceItem{{Name: ingress, Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
-		description: "Backend services this Ingress routes to",
-		empty:       "No backend services found.",
+		name:           "services (" + ingress + ")",
+		items:          []ResourceItem{{Name: ingress, Status: "Healthy", Ready: "ClusterIP", Restarts: "-", Age: "14d"}},
+		description:    "Backend services this Ingress routes to",
+		empty:          "No backend services found.",
 	}
 }
 
 func NewRelatedIngresses(service string) ResourceType {
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:        "ingresses (" + service + ")",
-		items:       []ResourceItem{{Name: service, Status: "Healthy", Ready: service + ".example.com", Restarts: "-", Age: "14d"}},
-		description: "Ingresses exposing this service",
-		empty:       "No Ingresses route to this service.",
+		name:           "ingresses (" + service + ")",
+		items:          []ResourceItem{{Name: service, Status: "Healthy", Ready: service + ".example.com", Restarts: "-", Age: "14d"}},
+		description:    "Ingresses exposing this service",
+		empty:          "No Ingresses route to this service.",
 	}
 }
 
@@ -719,8 +729,8 @@ func NewPodStorage(pod string) ResourceType {
 	}
 	return &relatedResource{
 		namespaceScope: newNamespaceScope(),
-		name:  "storage (" + pod + ")",
-		items: []ResourceItem{{Name: workload + "-data", Status: "Bound", Ready: "PVC", Restarts: "-", Age: "90d"}},
-		empty: "No PVCs mounted by this pod.",
+		name:           "storage (" + pod + ")",
+		items:          []ResourceItem{{Name: workload + "-data", Status: "Bound", Ready: "PVC", Restarts: "-", Age: "90d"}},
+		empty:          "No PVCs mounted by this pod.",
 	}
 }

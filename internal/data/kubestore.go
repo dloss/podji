@@ -62,11 +62,13 @@ func newKubeStore(runner commandRunner) (*KubeStore, error) {
 	registry := resources.DefaultRegistry()
 	registry.SetNamespace(scope.Namespace)
 
-	return &KubeStore{
+	store := &KubeStore{
 		registry: registry,
 		scope:    scope,
 		runner:   runner,
-	}, nil
+	}
+	store.configurePodFetchers()
+	return store, nil
 }
 
 func (s *KubeStore) Registry() *resources.Registry {
@@ -113,6 +115,51 @@ func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
 func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
 	// Query aggregation still uses the shared resource query path for now.
 	return resources.PodsByRestarts(s.scope.Namespace)
+}
+
+func (s *KubeStore) configurePodFetchers() {
+	pods, ok := s.registry.ByName("pods").(*resources.Pods)
+	if !ok {
+		return
+	}
+	pods.SetLiveFetchers(s.podLogs, s.podEvents)
+}
+
+func (s *KubeStore) podLogs(namespace, pod string) ([]string, error) {
+	args := []string{
+		"--context", s.scope.Context,
+		"-n", namespace,
+		"logs", pod,
+		"--tail=200",
+	}
+	out, err := s.runner.Run("kubectl", args...)
+	if err != nil {
+		return nil, err
+	}
+	lines := splitNonEmptyLines(out)
+	if len(lines) == 0 {
+		return []string{"No log lines returned."}, nil
+	}
+	return lines, nil
+}
+
+func (s *KubeStore) podEvents(namespace, pod string) ([]string, error) {
+	args := []string{
+		"--context", s.scope.Context,
+		"-n", namespace,
+		"get", "events",
+		"--field-selector", "involvedObject.name=" + pod,
+		"-o", `jsonpath={range .items[*]}{.lastTimestamp}{"   "}{.type}{"   "}{.reason}{"   "}{.message}{"\n"}{end}`,
+	}
+	out, err := s.runner.Run("kubectl", args...)
+	if err != nil {
+		return nil, err
+	}
+	lines := splitNonEmptyLines(out)
+	if len(lines) == 0 {
+		return []string{"—   No recent events"}, nil
+	}
+	return lines, nil
 }
 
 func kubeContexts(runner commandRunner) ([]string, error) {

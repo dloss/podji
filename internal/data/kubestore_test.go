@@ -95,3 +95,45 @@ func TestKubeStoreSetScopeUpdatesRegistryNamespace(t *testing.T) {
 		t.Fatalf("expected registry namespace staging, got %q", got)
 	}
 }
+
+func TestKubeStorePodLogsFetcherWired(t *testing.T) {
+	runner := fakeRunner{
+		out: map[string]string{
+			"kubectl config get-contexts -o name":                  "dev\n",
+			"kubectl --context dev -n default logs api --tail=200": "line-a\nline-b\n",
+		},
+	}
+	store, err := newKubeStore(runner)
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	pods, ok := store.Registry().ByName("pods").(*resources.Pods)
+	if !ok {
+		t.Fatalf("expected pods resource type, got %T", store.Registry().ByName("pods"))
+	}
+	lines := pods.Logs(resources.ResourceItem{Name: "api"})
+	if len(lines) < 2 || lines[0] != "line-a" || lines[1] != "line-b" {
+		t.Fatalf("expected live log lines, got %#v", lines)
+	}
+}
+
+func TestKubeStorePodEventsFetcherWired(t *testing.T) {
+	runner := fakeRunner{
+		out: map[string]string{
+			"kubectl config get-contexts -o name": "dev\n",
+			`kubectl --context dev -n default get events --field-selector involvedObject.name=api -o jsonpath={range .items[*]}{.lastTimestamp}{"   "}{.type}{"   "}{.reason}{"   "}{.message}{"\n"}{end}`: "2026-03-01T12:00:00Z   Warning   BackOff   Back-off restarting failed container\n",
+		},
+	}
+	store, err := newKubeStore(runner)
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	pods, ok := store.Registry().ByName("pods").(*resources.Pods)
+	if !ok {
+		t.Fatalf("expected pods resource type, got %T", store.Registry().ByName("pods"))
+	}
+	lines := pods.Events(resources.ResourceItem{Name: "api"})
+	if len(lines) == 0 || !strings.Contains(lines[0], "BackOff") {
+		t.Fatalf("expected live event line, got %#v", lines)
+	}
+}

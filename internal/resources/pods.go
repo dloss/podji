@@ -4,8 +4,10 @@ import "strings"
 
 type Pods struct {
 	namespaceScope
-	sortMode string
-	sortDesc bool
+	sortMode         string
+	sortDesc         bool
+	liveLogsFetcher  func(namespace, pod string) ([]string, error)
+	liveEventFetcher func(namespace, pod string) ([]string, error)
 }
 
 func NewPods() *Pods {
@@ -143,6 +145,14 @@ func (p *Pods) SortKeys() []SortKey {
 	return sortKeysFor([]string{"name", "status", "ready", "restarts", "age"})
 }
 
+func (p *Pods) SetLiveFetchers(
+	logs func(namespace, pod string) ([]string, error),
+	events func(namespace, pod string) ([]string, error),
+) {
+	p.liveLogsFetcher = logs
+	p.liveEventFetcher = events
+}
+
 func (p *Pods) Detail(item ResourceItem) DetailData {
 	status := item.Status
 	if status == "" {
@@ -178,6 +188,15 @@ func (p *Pods) Detail(item ResourceItem) DetailData {
 }
 
 func (p *Pods) Logs(item ResourceItem) []string {
+	ns := item.Namespace
+	if ns == "" {
+		ns = p.Namespace()
+	}
+	if p.liveLogsFetcher != nil {
+		if lines, err := p.liveLogsFetcher(ns, item.Name); err == nil && len(lines) > 0 {
+			return lines
+		}
+	}
 	return expandMockLogs([]string{
 		"2025-06-15T12:03:01Z  Starting envoy proxy...",
 		"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
@@ -189,6 +208,15 @@ func (p *Pods) Logs(item ResourceItem) []string {
 }
 
 func (p *Pods) Events(item ResourceItem) []string {
+	ns := item.Namespace
+	if ns == "" {
+		ns = p.Namespace()
+	}
+	if p.liveEventFetcher != nil {
+		if lines, err := p.liveEventFetcher(ns, item.Name); err == nil && len(lines) > 0 {
+			return lines
+		}
+	}
 	return []string{
 		"10m ago   Warning  BackOff      Back-off restarting failed container sidecar",
 		"12m ago   Normal   Pulled       Successfully pulled image \"envoy:1.28\"",
