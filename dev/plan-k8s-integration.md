@@ -1,189 +1,114 @@
-# Podji Kubernetes Integration Plan
+# Podji Kubernetes Integration Remaining Plan
 
-This plan defines how to move from a polished stub-driven UX to a real Kubernetes-connected TUI without losing interaction quality.
+This plan contains only the remaining architectural work before full Kubernetes wiring.
 
-## Goal
+## Non-Negotiable Constraint
 
-Connect Podji to real clusters via `client-go` while preserving:
+Keep **mock mode as a first-class parallel path** even after real-cluster support lands.
 
-- fast navigation
-- deterministic key behavior
-- reversible stack-based flows
-- readable, low-noise visuals
+Reason:
 
-## Recommended Approach
+- local/offline development and demos need deterministic, rich datasets
+- large realistic clusters are not always available for day-to-day iteration
+- UI regression testing is faster and more stable in mock mode
 
-Use a staged migration with a strict UI/data boundary first, then replace data sources incrementally behind that boundary.
+## Remaining Work
 
-Do **not** wire `client-go` directly into current resource mock structs.
-
-## Step Count
-
-Recommended: **8 steps**.
-
-This keeps risk low, allows frequent testable checkpoints, and avoids a large rewrite.
-
-## Step 1: Freeze UX Contract and Remove Demo Noise
+## 1. Split Read Models from Stub Resource Implementations (In Progress)
 
 Scope:
 
-- preserve current keybindings and navigation semantics as a compatibility contract
-- remove synthetic `zz-*` expansion from primary list and scope picker paths
-- keep synthetic expansion only in explicit stress-test/dev mode
-
-Why first:
-
-- prevents fake data patterns from shaping production architecture
-- gives a trustworthy baseline before backend changes
+- introduce explicit read-model interfaces for:
+  - list
+  - detail
+  - logs
+  - events
+  - describe
+  - yaml
+- route app-side query/navigation logic through these interfaces, not direct stub structs
+- keep `resources/*` as mock dataset providers behind adapters, not as app-facing query APIs
 
 Exit criteria:
 
-- normal mode has no `zz-*` rows in workloads/pods/namespaces/contexts pickers
-- `dev/ui.sh start` capture remains stable and readable
+- app command/query paths can resolve data through read-model abstractions
+- mock adapter and kube adapter satisfy the same interface contract
 
-## Step 2: Introduce an App-Level Scope Model (No Globals)
+## 2. Replace Kubectl Shelling with Client-Go Store
 
 Scope:
 
-- replace `resources.ActiveNamespace` global reads with explicit scope state
-- define a scope object (context + namespace + all-namespaces flag)
-- thread scope from app model into list/resource queries
-
-Why:
-
-- real multi-context/multi-namespace behavior cannot rely on package globals
+- move kube discovery/query paths from `kubectl` command execution to `client-go`
+- introduce shared informer caches and typed getters
+- ensure view rendering reads from cache, not direct blocking API calls
 
 Exit criteria:
 
-- no resource behavior depends on mutable global namespace state
-- copy actions and commands resolve namespace from selected item/scope, not globals
+- no runtime dependency on external `kubectl` binary for core data flows
+- cache sync/readiness surfaced as explicit app state
 
-## Step 3: Create Data Provider Interfaces
+## 3. Add Explicit Loading/Error/Permission States in App Flow
 
 Scope:
 
-- add interfaces for list/detail/events/logs relations (read-only v1)
-- keep UI views consuming stable domain DTOs (not kube API structs)
-- support cancellation/timeouts in API shapes where needed (especially logs)
-
-Suggested interface layers:
-
-- `Store` / query layer for cached list/detail data
-- `LogSource` for stream/snapshot log retrieval
-- optional `ActionService` placeholder for future mutating actions
+- represent and render:
+  - loading
+  - forbidden
+  - unreachable
+  - partial data
+- ensure scope switches (`N`/`X`) and command queries handle these states predictably
 
 Exit criteria:
 
-- `internal/ui/*` no longer depends on concrete mock resource constructors for data retrieval
-- command queries (`unhealthy`, `restarts`, label selectors) run through shared provider interfaces
+- no silent fallback behavior on cluster errors
+- user always gets clear state feedback
 
-## Step 4: Build a Mock-Backed Store Adapter
+## 4. Normalize Object Identity for Navigation and Relations
 
 Scope:
 
-- adapt existing stub data into the new interfaces
-- keep all current tests passing against this adapter
-- maintain deterministic behavior for UI tests
-
-Why:
-
-- enables architecture refactor without requiring live cluster plumbing yet
+- ensure domain items carry stable identity fields (`kind`, `apiVersion`, `namespace`, `name`, optional `uid`)
+- use normalized identity keys for related lookups and stack restoration
 
 Exit criteria:
 
-- app runs unchanged visually against mock adapter
-- integration tests can swap providers without UI changes
+- relation lookups are deterministic and not dependent on fragile display strings
 
-## Step 5: Add Kubernetes Store (Informer-Backed)
+## 5. Tighten Logs/Events Contracts for Streaming and Cancellation
 
 Scope:
 
-- implement a real store using `client-go` shared informers and indexed caches
-- include minimum required indexes:
-  - owner -> children
-  - service selector -> endpoints/pods
-- expose readiness/sync state so UI can render loading/degraded states
-
-Constraints:
-
-- no direct API calls from view rendering path
-- reads served from cache; background watches refresh cache
+- add context-aware fetch APIs and bounded buffers
+- support follow/tail semantics through interfaces (not view-local hacks)
+- define clear fallback behavior for empty/forbidden/unavailable sources
 
 Exit criteria:
 
-- list and detail screens work from informer cache with acceptable latency
-- startup handles sync delay explicitly (loading banner/state)
+- logs/events remain responsive under high volume
+- cancellation and scope changes do not leak background work
 
-## Step 6: Implement Context/Namespace Discovery and Switching
+## 6. Integration Test Matrix for Mode and Scope
 
 Scope:
 
-- replace stub `ContextNames`/`NamespaceNames` with real kubeconfig + API discovery
-- make `N`/`X` picker selections rebind data provider/store scope
-- preserve current “stay on same resource type when switching scope” UX
+- add tests for:
+  - `mock` vs `kube` mode startup
+  - invalid mode fallback
+  - context/namespace switching across modes
+  - command query consistency (`unhealthy`, `restarts`) across adapters
 
 Exit criteria:
 
-- context picker reflects real kubeconfig contexts
-- namespace picker reflects selected context permissions and availability
-- switching context/namespace does not corrupt navigation stack
+- mode switching and scope behavior are contract-tested end-to-end
 
-## Step 7: Logs and Events Realization
+## 7. Keep Mock Dataset as a Productized Dev Tool
 
 Scope:
 
-- replace mock logs/events with real API-backed retrieval
-- support tail/follow behavior with bounded buffers
-- degrade gracefully for unavailable logs/events (RBAC, crashloop edge cases)
+- preserve deterministic mock scenarios for demos, UX work, and CI
+- allow running mock and kube modes in parallel without code divergence
+- document scenario toggles and intended usage
 
 Exit criteria:
 
-- logs view handles large streams without UI stalls
-- event view handles empty/forbidden states clearly
-
-## Step 8: Hardening, Testing, and Rollout Flags
-
-Scope:
-
-- expand tests:
-  - contract tests for provider interfaces
-  - app-level tests for scope switching and command-bar queries
-  - smoke tests against a disposable cluster (kind)
-- add feature flag or mode switch:
-  - `--mode=mock|kube` (or env equivalent)
-- add observability hooks for cache sync and API errors
-
-Exit criteria:
-
-- `go test ./...` passes
-- mock mode remains stable for offline UI iteration
-- kube mode is reliable enough for daily read-only debugging workflows
-
-## Risks and Mitigations
-
-1. Risk: scope bugs from mixed global and explicit state.
-Mitigation: complete Step 2 before any informer work.
-
-2. Risk: UI freezes from synchronous API calls.
-Mitigation: cache-backed store and async updates only.
-
-3. Risk: relation panel regressions due to mock fallbacks.
-Mitigation: relation queries must use indexed cache and explicit “no relation found” states.
-
-4. Risk: logs memory/CPU pressure.
-Mitigation: bounded ring buffers, truncation policy, and incremental rendering.
-
-## Suggested Delivery Slices
-
-- Slice A (Steps 1-3): architecture prep, no live cluster dependency
-- Slice B (Steps 4-5): mock adapter + informer-backed store
-- Slice C (Steps 6-7): scope switching + logs/events
-- Slice D (Step 8): hardening and release gating
-
-## Definition of Done (v1 Kubernetes Connection)
-
-- real context + namespace discovery
-- read-only lists/details/relations/events/logs from cluster cache/APIs
-- no global namespace mutable state
-- command bar queries operate on shared store data
-- mock mode still available for fast UX iteration
+- mock mode remains feature-complete for navigation and debugging workflows
+- kube mode can evolve without breaking mock reliability

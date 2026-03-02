@@ -34,6 +34,7 @@ func (r execRunner) Run(name string, args ...string) (string, error) {
 
 type KubeStore struct {
 	registry *resources.Registry
+	read     ReadModel
 	scope    Scope
 	runner   commandRunner
 }
@@ -64,6 +65,7 @@ func newKubeStore(runner commandRunner) (*KubeStore, error) {
 
 	store := &KubeStore{
 		registry: registry,
+		read:     NewMockReadModel(registry),
 		scope:    scope,
 		runner:   runner,
 	}
@@ -77,6 +79,10 @@ func (s *KubeStore) Registry() *resources.Registry {
 
 func (s *KubeStore) Scope() Scope {
 	return s.scope
+}
+
+func (s *KubeStore) ReadModel() ReadModel {
+	return s.read
 }
 
 func (s *KubeStore) SetScope(scope Scope) {

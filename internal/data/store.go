@@ -9,6 +9,7 @@ type Scope struct {
 
 type Store interface {
 	Registry() *resources.Registry
+	ReadModel() ReadModel
 	Scope() Scope
 	SetScope(scope Scope)
 	NamespaceNames() []string

@@ -4,6 +4,7 @@ import "github.com/dloss/podji/internal/resources"
 
 type MockStore struct {
 	registry *resources.Registry
+	read     ReadModel
 	scope    Scope
 }
 
@@ -16,6 +17,7 @@ func NewMockStore() *MockStore {
 	registry.SetNamespace(scope.Namespace)
 	return &MockStore{
 		registry: registry,
+		read:     NewMockReadModel(registry),
 		scope:    scope,
 	}
 }
@@ -26,6 +28,10 @@ func (s *MockStore) Registry() *resources.Registry {
 
 func (s *MockStore) Scope() Scope {
 	return s.scope
+}
+
+func (s *MockStore) ReadModel() ReadModel {
+	return s.read
 }
 
 func (s *MockStore) SetScope(scope Scope) {

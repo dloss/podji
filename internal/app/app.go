@@ -768,7 +768,7 @@ func (m *Model) runCommand(raw string) string {
 			return "unknown command"
 		}
 		var filtered []resources.ResourceItem
-		for _, it := range res.Items() {
+		for _, it := range m.listResourceItems(res) {
 			if resources.MatchesLabelSelector(it, cmd.selector) {
 				filtered = append(filtered, it)
 			}
@@ -790,7 +790,7 @@ func (m *Model) runCommand(raw string) string {
 		m.activeResourceKey = res.Key()
 		return ""
 	}
-	items := res.Items()
+	items := m.listResourceItems(res)
 	matches := nameMatches(items, cmd.name)
 	if len(matches) == 0 {
 		return "no match"
@@ -931,7 +931,7 @@ func (m Model) commandSuggestion() string {
 		if len(tokens) >= 2 {
 			prefix = tokens[1]
 		}
-		names := uniqueSortedNames(res.Items())
+		names := uniqueSortedNames(m.listResourceItems(res))
 		for _, n := range names {
 			if strings.HasPrefix(strings.ToLower(n), prefix) && strings.ToLower(n) != prefix {
 				return strings.TrimPrefix(strings.ToLower(n), prefix)
@@ -953,6 +953,18 @@ func (m Model) commandSuggestion() string {
 		}
 	}
 	return ""
+}
+
+func (m Model) listResourceItems(res resources.ResourceType) []resources.ResourceItem {
+	if m.store != nil {
+		if read := m.store.ReadModel(); read != nil {
+			items, err := read.List(res.Name(), data.Scope{Context: m.context, Namespace: m.namespace})
+			if err == nil {
+				return items
+			}
+		}
+	}
+	return res.Items()
 }
 
 func uniqueSortedNames(items []resources.ResourceItem) []string {
