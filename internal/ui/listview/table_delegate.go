@@ -24,8 +24,8 @@ func newTableDelegate(findMode *bool, findTargets *map[int]bool) tableDelegate {
 	return tableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets}
 }
 
-// tableDelegate keeps Bubble's default list behavior but scopes filter-match
-// highlighting to the first (name) column in table rows.
+// tableDelegate keeps Bubble's default list behavior while scoping filter and
+// find markers to the row's configured match column (usually NAME).
 type tableDelegate struct {
 	list.DefaultDelegate
 	findMode    *bool
@@ -74,15 +74,20 @@ func renderRowWithNameMatch(
 	findTarget bool,
 ) string {
 	cells := make([]string, 0, len(it.row))
+	matchColumn := it.matchColumn
+	if matchColumn < 0 || matchColumn >= len(it.row) {
+		matchColumn = 0
+	}
+	nameRunes := []rune(it.data.Name)
 
 	for idx, value := range it.row {
 		width := it.widths[idx]
 		cellValue := padCell(value, width)
 
-		if idx == 0 && len(matches) > 0 {
+		if idx == matchColumn && len(matches) > 0 {
 			nameMatches := make([]int, 0, len(matches))
 			for _, pos := range matches {
-				if pos >= 0 && pos < len([]rune(it.data.Name)) {
+				if pos >= 0 && pos < len(nameRunes) {
 					nameMatches = append(nameMatches, pos)
 				}
 			}
@@ -91,7 +96,7 @@ func renderRowWithNameMatch(
 			}
 		}
 
-		if idx == 0 && findTarget {
+		if idx == matchColumn && findTarget {
 			cellValue = underlineFirstChar(cellValue)
 		}
 

@@ -423,6 +423,24 @@ func TestViewHeaderShowsSortArrowAndMovesWithSortMode(t *testing.T) {
 	}
 }
 
+func TestAllNamespacesDefaultNameSortArrowOnNameColumn(t *testing.T) {
+	origNS := resources.ActiveNamespace
+	resources.ActiveNamespace = resources.AllNamespaces
+	t.Cleanup(func() { resources.ActiveNamespace = origNS })
+
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	rendered := ansi.Strip(view.View())
+	if strings.Contains(rendered, "↑NAMESPACE") {
+		t.Fatalf("expected default name sort arrow not to be on namespace column, got: %s", rendered)
+	}
+	if !strings.Contains(rendered, "↑NAME") {
+		t.Fatalf("expected default name sort arrow on name column, got: %s", rendered)
+	}
+}
+
 func TestSortByColumnNumber(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)

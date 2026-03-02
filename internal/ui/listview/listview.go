@@ -67,10 +67,11 @@ const (
 )
 
 type item struct {
-	data   resources.ResourceItem
-	row    []string
-	status string
-	widths []int
+	data        resources.ResourceItem
+	row         []string
+	status      string
+	widths      []int
+	matchColumn int
 }
 
 func (i item) Title() string {
@@ -133,7 +134,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	rows := assembleRows(resource, false, columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(resource.Name())))
 	widths := columnWidthsForRows(columns, rows, 0, firstHeader)
-	listItems := makeListItems(items, rows, widths)
+	listItems := makeListItems(items, rows, widths, columns)
 
 	v := &View{
 		resource:  resource,
@@ -542,7 +543,7 @@ func (v *View) Footer() string {
 		}
 		return line1 + "\n" + line2
 	}
-	
+
 	// Line 1: status indicators + pagination right-aligned.
 	var indicators []style.Binding
 	if v.wideMode {
@@ -973,18 +974,23 @@ func assembleRows(resource resources.ResourceType, wideMode bool, columns []reso
 }
 
 // makeListItems creates bubbletea list items from resource items and pre-computed rows/widths.
-func makeListItems(items []resources.ResourceItem, rows [][]string, widths []int) []list.Item {
+func makeListItems(items []resources.ResourceItem, rows [][]string, widths []int, columns []resources.TableColumn) []list.Item {
 	listItems := make([]list.Item, 0, len(items))
+	matchColumn := firstColumnWithID(columns, "name")
+	if matchColumn < 0 {
+		matchColumn = 0
+	}
 	for idx, res := range items {
 		var row []string
 		if idx < len(rows) {
 			row = rows[idx]
 		}
 		listItems = append(listItems, item{
-			data:   res,
-			row:    row,
-			status: res.Status,
-			widths: widths,
+			data:        res,
+			row:         row,
+			status:      res.Status,
+			widths:      widths,
+			matchColumn: matchColumn,
 		})
 	}
 	return listItems
@@ -1187,6 +1193,9 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 
 	switch mode {
 	case "name":
+		if idx := firstColumnWithID(columns, "name"); idx >= 0 {
+			return idx
+		}
 		return 0
 	case "age":
 		return firstColumnWithID(columns, "age")
@@ -1210,7 +1219,6 @@ func activeSortColumn(resource resources.ResourceType, columns []resources.Table
 	}
 	return -1
 }
-
 
 func firstColumnWithID(columns []resources.TableColumn, id string) int {
 	for idx, col := range columns {
@@ -1251,7 +1259,7 @@ func (v *View) refreshItems() {
 	rows := assembleRows(v.resource, v.wideMode, v.columns, items)
 	firstHeader := strings.ToUpper(resources.SingularName(breadcrumbLabel(v.resource.Name())))
 	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2, firstHeader)
-	listItems := makeListItems(items, rows, v.colWidths)
+	listItems := makeListItems(items, rows, v.colWidths, v.columns)
 	selected := v.list.Index()
 	v.list.SetItems(listItems)
 	if selected >= 0 && selected < len(listItems) {
