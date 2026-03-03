@@ -1,0 +1,129 @@
+name: Release Podji
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag format and main ancestry
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "This workflow only releases from tags."
+            exit 1
+          fi
+
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must match vX.Y.Z, got: ${TAG}"
+            exit 1
+          fi
+
+          git fetch origin main --depth=1
+          TAG_SHA="$(git rev-list -n1 "${TAG}")"
+          if ! git merge-base --is-ancestor "${TAG_SHA}" origin/main; then
+            echo "Tag ${TAG} does not point to a commit on origin/main."
+            exit 1
+          fi
+
+          echo "version=${TAG}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            archive: zip
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          BIN_NAME="podji"
+          if [[ "${GOOS}" == "windows" ]]; then
+            BIN_NAME="podji.exe"
+          fi
+          GOOS="${GOOS}" GOARCH="${GOARCH}" CGO_ENABLED="${CGO_ENABLED}" \
+            go build -trimpath -ldflags="-s -w" -o "dist/${BIN_NAME}" ./cmd/podji
+
+          ARTIFACT_BASE="podji-${{ needs.verify-tag.outputs.version }}-${GOOS}-${GOARCH}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            (cd dist && zip -q "${ARTIFACT_BASE}.zip" "${BIN_NAME}")
+          else
+            (cd dist && tar -czf "${ARTIFACT_BASE}.tar.gz" "${BIN_NAME}")
+          fi
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: podji-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  release:
+    needs: [verify-tag, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify-tag.outputs.version }}
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
