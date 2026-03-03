@@ -31,6 +31,26 @@ func (f fakeKubeAPIWithMeta) ListResourcesMeta(context, namespace, resourceName 
 	return items, f.cacheBacked, err
 }
 
+type fakeKubeAPIWithMetaSequence struct {
+	fakeKubeAPI
+	sequence []bool
+	calls    int
+}
+
+func (f *fakeKubeAPIWithMetaSequence) ListResourcesMeta(context, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
+	items, err := f.fakeKubeAPI.ListResources(context, namespace, resourceName)
+	cacheBacked := false
+	if len(f.sequence) == 0 {
+		cacheBacked = false
+	} else if f.calls < len(f.sequence) {
+		cacheBacked = f.sequence[f.calls]
+	} else {
+		cacheBacked = f.sequence[len(f.sequence)-1]
+	}
+	f.calls++
+	return items, cacheBacked, err
+}
+
 func (f fakeKubeAPI) Contexts() ([]string, error) {
 	if f.contextErr != nil {
 		return nil, f.contextErr
@@ -379,5 +399,35 @@ func TestKubeStoreStatusShowsCacheWarmingOnDirectListPath(t *testing.T) {
 	}
 	if !strings.Contains(status.Message, "warming cache for pods") {
 		t.Fatalf("expected cache warming message, got %#v", status)
+	}
+}
+
+func TestKubeStoreStatusTransitionsFromWarmingToReadyOnCacheBackedRead(t *testing.T) {
+	api := &fakeKubeAPIWithMetaSequence{
+		fakeKubeAPI: fakeKubeAPI{
+			contexts: []string{"dev"},
+			listsByKey: map[string][]resources.ResourceItem{
+				"dev/default/pods": {{Name: "pod-a", Status: "Running"}},
+			},
+		},
+		sequence: []bool{false, true},
+	}
+	store, err := newKubeStore(api)
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_, err = store.ReadModel().List("pods", store.Scope())
+	if err != nil {
+		t.Fatalf("expected first list success, got %v", err)
+	}
+	if status := store.Status(); status.State != StoreStateLoading {
+		t.Fatalf("expected loading status after direct list path, got %#v", status)
+	}
+	_, err = store.ReadModel().List("pods", store.Scope())
+	if err != nil {
+		t.Fatalf("expected second list success, got %v", err)
+	}
+	if status := store.Status(); status.State != StoreStateReady {
+		t.Fatalf("expected ready status after cache-backed list path, got %#v", status)
 	}
 }
