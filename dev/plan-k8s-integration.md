@@ -72,6 +72,7 @@ Done now:
 - app renders state-qualified store message (`store (<state>): ...`)
 - kube read-model marks `partial` when list data falls back to mock due unsupported live list paths
 - kube store now starts in `loading` and transitions to `ready` on successful live reads
+- scope/context switches now move kube store back to `loading` until fresh live reads complete
 
 Scope:
 
