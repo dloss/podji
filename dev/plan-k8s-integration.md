@@ -30,12 +30,21 @@ This file now reflects completion status after the pre-wiring architecture pass.
 - `KubeReadModel` now also prefers typed kube API object reads for detail when available (with safe fallback)
 - typed detail mapping now includes richer workload and ingress summaries beyond deployment-only coverage
 
-## Constraint (Still Active)
+5. Related-resource index hardening
+- relation lookups now use a scope-scoped snapshot cache over read-model list data, reducing repeated list fanout during related-panel navigation
+- owner resolution now prefers controller UID when available (stable identity), with kind-aware fallback matching
+- explicit tests now cover per-scope caching and TTL-based snapshot invalidation
+
+6. Native Kubernetes API path cleanup
+- removed legacy shell-based `kubectl` implementation from the data-layer API contract file
+- kube mode data access path is now fully `client-go` based for store/read operations
+
+## Constraints (Still Active)
 
 Mock mode remains a first-class parallel path for development, demos, and deterministic testing.
 
-## Optional Follow-Ups (Not blockers for Kubernetes wiring)
+## Remaining Before Full Kubernetes Wiring
 
-- add explicit telemetry hooks for cache source decisions (informer vs direct API) if needed for debugging
-- add stress/integration tests that simulate repeated rapid scope switching while log/event loads are active
-- refine live describe/yaml formatting from metadata snapshots to richer typed object output as needed
+1. Expand informer-backed listing coverage for currently direct-list resources (`ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`) to further reduce API list pressure.
+2. Add light telemetry/debug surface for cache-source decisions (`informer` vs direct API) and relation snapshot refreshes.
+3. Add stress tests for rapid scope/context switching while log/event requests are active.

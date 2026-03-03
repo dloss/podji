@@ -67,8 +67,6 @@ Tradeoffs:
 
 ## Next Implementation Steps
 
-1. Keep expanding app/query flows to use `ReadModel` contracts.
-2. Implement `client-go` informer-backed source and cache store.
-3. Replace current kube `kubectl` shelling with native clients.
-4. Migrate relation lookups to identity-based indexing with incremental invalidation.
-
+1. Expand informer-backed source coverage to additional resources that still use direct list calls.
+2. Add low-noise cache/refresh telemetry hooks for debugging data-source decisions.
+3. Add stress tests for rapid scope/context switching with concurrent log/event loads.
