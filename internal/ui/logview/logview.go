@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -94,6 +95,9 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		switch msg.String() {
 		case "f":
 			v.follow = !v.follow
+			v.reloadLogs()
+			v.refreshWindow()
+			v.refreshContent()
 		case "w":
 			v.wrap = !v.wrap
 			v.refreshContent()
@@ -243,7 +247,9 @@ func (v *View) reloadLogs() {
 		Follow: v.follow,
 	}
 	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
-		lines, err := reader.LogsWithOptions(context.Background(), v.item, opts)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		lines, err := reader.LogsWithOptions(ctx, v.item, opts)
 		if err == nil && len(lines) > 0 {
 			v.allLines = lines
 			return

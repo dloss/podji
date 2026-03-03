@@ -3,6 +3,7 @@ package eventview
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -26,7 +27,9 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 
 func readEvents(resource resources.ResourceType, item resources.ResourceItem) []string {
 	if reader, ok := resource.(resources.EventOptionsReader); ok {
-		lines, err := reader.EventsWithOptions(context.Background(), item, resources.EventOptions{Limit: 200})
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		lines, err := reader.EventsWithOptions(ctx, item, resources.EventOptions{Limit: 200})
 		if err == nil && len(lines) > 0 {
 			return lines
 		}

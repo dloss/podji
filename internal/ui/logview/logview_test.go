@@ -14,6 +14,7 @@ import (
 type optionsLogsResource struct {
 	base      resources.ResourceType
 	tailCalls []int
+	follow    []bool
 }
 
 func (o *optionsLogsResource) Name() string                        { return o.base.Name() }
@@ -34,6 +35,7 @@ func (o *optionsLogsResource) Describe(item resources.ResourceItem) string {
 
 func (o *optionsLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
 	o.tailCalls = append(o.tailCalls, opts.Tail)
+	o.follow = append(o.follow, opts.Follow)
 	return []string{"line-a", "line-b"}, nil
 }
 
@@ -121,6 +123,18 @@ func TestSinceWindowRefetchesWithTailOptions(t *testing.T) {
 	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
 	if len(res.tailCalls) != 2 || res.tailCalls[1] != 500 {
 		t.Fatalf("expected second tail=500 fetch after ] window switch, got %#v", res.tailCalls)
+	}
+}
+
+func TestFollowToggleRefetchesWithUpdatedFollowOption(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	if len(res.follow) != 1 || !res.follow[0] {
+		t.Fatalf("expected initial follow=true fetch, got %#v", res.follow)
+	}
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'f'}})
+	if len(res.follow) != 2 || res.follow[1] {
+		t.Fatalf("expected follow=false refetch after toggle, got %#v", res.follow)
 	}
 }
 
