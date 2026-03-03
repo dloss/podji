@@ -47,6 +47,7 @@ Done now:
 - contexts, namespaces, pod logs, and pod events are served via client-go calls
 - namespace lookups have a short TTL cache to reduce repeated API calls during fast UI actions
 - read-model list calls for `pods`, `services`, `deployments`, and `workloads` now use client-go data with short TTL caching
+- live list coverage expanded to include `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`, plus `contexts`/`namespaces`
 
 Scope:
 
@@ -67,6 +68,7 @@ Done now:
 - kube error classification maps discovery/log/event failures to explicit states
 - app renders state-qualified store message (`store (<state>): ...`)
 - kube read-model marks `partial` when list data falls back to mock due unsupported live list paths
+- kube store now starts in `loading` and transitions to `ready` on successful live reads
 
 Scope:
 
@@ -119,6 +121,7 @@ Done now:
 - mode startup/fallback tests exist
 - scope switch tests exist across mock/kube adapters
 - contract tests validate `unhealthy` and `restarts` query consistency across adapters
+- read-relation-index and live list/cache behavior are covered with dedicated data-layer tests
 
 Scope:
 
