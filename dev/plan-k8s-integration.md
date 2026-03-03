@@ -48,6 +48,7 @@ Done now:
 - namespace lookups have a short TTL cache to reduce repeated API calls during fast UI actions
 - read-model list calls for `pods`, `services`, `deployments`, and `workloads` now use client-go data with short TTL caching
 - live list coverage expanded to include `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`, plus `contexts`/`namespaces`
+- live `workloads` now aggregates Deployment/StatefulSet/DaemonSet/Job/CronJob kinds
 
 Scope:
 
@@ -122,6 +123,7 @@ Done now:
 - scope switch tests exist across mock/kube adapters
 - contract tests validate `unhealthy` and `restarts` query consistency across adapters
 - read-relation-index and live list/cache behavior are covered with dedicated data-layer tests
+- startup `loading -> ready` transition is explicitly tested for kube mode live lists
 
 Scope:
 
