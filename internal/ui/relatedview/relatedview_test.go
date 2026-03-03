@@ -226,6 +226,37 @@ func TestPickerNavigationMovescursor(t *testing.T) {
 	}
 }
 
+func TestPickerNavigationSkipsZeroCountRows(t *testing.T) {
+	picker := &Picker{
+		entries: []entry{
+			{name: "events", count: 3, open: func() viewstate.View { return nil }},
+			{name: "services", count: 0, open: func() viewstate.View { return nil }},
+			{name: "pods", count: 2, open: func() viewstate.View { return nil }},
+		},
+	}
+
+	picker.Update(keyRunes('j'))
+	if picker.cursor != 2 {
+		t.Fatalf("expected cursor to skip zero-count row and land on 2, got %d", picker.cursor)
+	}
+}
+
+func TestPickerEnterOnZeroCountDoesNothing(t *testing.T) {
+	picker := &Picker{
+		entries: []entry{
+			{name: "services", count: 0, open: func() viewstate.View { return nil }},
+		},
+	}
+
+	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	if update.Action != viewstate.None {
+		t.Fatalf("expected no action on Enter for zero-count row, got %v", update.Action)
+	}
+	if update.Cmd != nil {
+		t.Fatal("expected no Cmd on Enter for zero-count row")
+	}
+}
+
 func TestPickerViewRendersEntries(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
@@ -238,6 +269,27 @@ func TestPickerViewRendersEntries(t *testing.T) {
 	}
 	if !strings.Contains(view, "pods") {
 		t.Fatalf("expected picker view to contain 'pods', got: %s", view)
+	}
+}
+
+func TestPickerViewRendersZeroCountAsZero(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{
+		item:     workloads.Items()[0],
+		resource: workloads,
+	}
+	rel := fakeRelationIndex{
+		related: map[string][]resources.ResourceItem{
+			"pods":     {{Name: "a"}},
+			"services": {},
+		},
+	}
+	picker := NewPickerForSelection(parent, nil, rel, data.Scope{Context: "default", Namespace: "default"})
+	picker.SetSize(120, 40)
+
+	view := picker.View()
+	if !strings.Contains(view, "(0)") {
+		t.Fatalf("expected picker view to contain explicit zero count '(0)', got: %s", view)
 	}
 }
 

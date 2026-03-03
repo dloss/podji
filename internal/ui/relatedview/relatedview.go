@@ -94,7 +94,7 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 	case "esc", "r":
 		return viewstate.Update{Action: viewstate.Pop}
 	case "enter":
-		if len(p.entries) > 0 && p.entries[p.cursor].open != nil {
+		if len(p.entries) > 0 && p.entryActionable(p.cursor) {
 			openFn := p.entries[p.cursor].open
 			return viewstate.Update{
 				Action: viewstate.Pop,
@@ -103,15 +103,11 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 				},
 			}
 		}
-		return viewstate.Update{Action: viewstate.Pop}
+		return viewstate.Update{Action: viewstate.None}
 	case "up", "k":
-		if p.cursor > 0 {
-			p.cursor--
-		}
+		p.moveCursor(-1)
 	case "down", "j":
-		if p.cursor < len(p.entries)-1 {
-			p.cursor++
-		}
+		p.moveCursor(1)
 	}
 	return viewstate.Update{Action: viewstate.None}
 }
@@ -154,10 +150,11 @@ func (p *Picker) View() string {
 	lines = append(lines, strings.Repeat("─", innerWidth))
 
 	for i, e := range p.entries {
-		countStr := ""
-		if e.count > 0 {
-			countStr = fmt.Sprintf("(%d)", e.count)
+		count := e.count
+		if count < 0 {
+			count = 0
 		}
+		countStr := fmt.Sprintf("(%d)", count)
 		nameField := relationPadCell(e.name, nameW)
 		countField := relationPadCell(countStr, countW)
 		desc := e.description
@@ -178,7 +175,11 @@ func (p *Picker) View() string {
 			if len([]rune(row)) > innerWidth {
 				row = string([]rune(row)[:innerWidth-1]) + "…"
 			}
-			lines = append(lines, row)
+			if p.entryActionable(i) {
+				lines = append(lines, row)
+			} else {
+				lines = append(lines, mutedStyle.Render(row))
+			}
 		}
 	}
 
@@ -193,6 +194,34 @@ func (p *Picker) View() string {
 		Render(strings.Join(lines, "\n"))
 
 	return box
+}
+
+func (p *Picker) entryActionable(index int) bool {
+	if index < 0 || index >= len(p.entries) {
+		return false
+	}
+	e := p.entries[index]
+	if e.open == nil {
+		return false
+	}
+	if strings.EqualFold(e.name, "events") {
+		return true
+	}
+	return e.count > 0
+}
+
+func (p *Picker) moveCursor(delta int) {
+	if len(p.entries) == 0 || delta == 0 {
+		return
+	}
+	next := p.cursor + delta
+	for next >= 0 && next < len(p.entries) {
+		if p.entryActionable(next) {
+			p.cursor = next
+			return
+		}
+		next += delta
+	}
 }
 
 // ── relationList ──────────────────────────────────────────────────────────────
