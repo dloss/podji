@@ -392,6 +392,21 @@ func TestColumnWidthsForRowsCanExceedPreferredWidthWhenRoomy(t *testing.T) {
 	}
 }
 
+func TestColumnWidthsForRowsUsesNamespaceHeaderWhenNamespaceIsFirstColumn(t *testing.T) {
+	columns := []resources.TableColumn{
+		{Name: "NAMESPACE", Width: 16},
+		{Name: "NAME", Width: 48},
+	}
+	rows := [][]string{
+		{"dev", "web"},
+	}
+
+	widths := columnWidthsForRows(columns, rows, 120, "WORKLOAD")
+	if widths[0] != len("NAMESPACE") {
+		t.Fatalf("expected namespace width %d, got %v", len("NAMESPACE"), widths)
+	}
+}
+
 func TestColumnWidthsForRowsPrioritizesFirstColumnWhenTight(t *testing.T) {
 	columns := []resources.TableColumn{
 		{Name: "NAME", Width: 32},

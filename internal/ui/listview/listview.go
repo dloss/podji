@@ -1056,7 +1056,7 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 		}
 
 		headerName := strings.TrimSpace(col.Name)
-		if idx == 0 && firstHeader != "" {
+		if idx == 0 && firstHeader != "" && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
 			headerName = firstHeader
 		}
 		headerWidth := len([]rune(headerName))
