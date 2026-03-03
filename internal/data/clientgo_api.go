@@ -13,11 +13,17 @@ import (
 
 	"github.com/dloss/podji/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
+	batchlisters "k8s.io/client-go/listers/batch/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -28,6 +34,9 @@ type clientGoAPI struct {
 	ns      map[string]namespaceCacheEntry
 	listTTL time.Duration
 	list    map[string]listCacheEntry
+
+	infMu sync.Mutex
+	inf   map[string]*contextInformers
 }
 
 type namespaceCacheEntry struct {
@@ -38,6 +47,21 @@ type namespaceCacheEntry struct {
 type listCacheEntry struct {
 	items     []resources.ResourceItem
 	expiresAt time.Time
+}
+
+type contextInformers struct {
+	factory      informers.SharedInformerFactory
+	stopCh       chan struct{}
+	started      bool
+	synced       bool
+	lastSyncTry  time.Time
+	pods         corelisters.PodLister
+	services     corelisters.ServiceLister
+	deployments  appslisters.DeploymentLister
+	statefulSets appslisters.StatefulSetLister
+	daemonSets   appslisters.DaemonSetLister
+	jobs         batchlisters.JobLister
+	cronJobs     batchlisters.CronJobLister
 }
 
 func newClientGoAPI() (KubeAPI, error) {
@@ -55,6 +79,7 @@ func newClientGoAPI() (KubeAPI, error) {
 		ns:      map[string]namespaceCacheEntry{},
 		listTTL: 3 * time.Second,
 		list:    map[string]listCacheEntry{},
+		inf:     map[string]*contextInformers{},
 	}, nil
 }
 
@@ -123,12 +148,28 @@ func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string)
 
 		switch key {
 		case "pods":
+			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				out, err = k.listPodsFromInformer(inf, namespace)
+				break
+			}
 			out, err = k.listPods(ctx, client, namespace)
 		case "services":
+			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				out, err = k.listServicesFromInformer(inf, namespace)
+				break
+			}
 			out, err = k.listServices(ctx, client, namespace)
 		case "deployments":
+			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				out, err = k.listDeploymentsFromInformer(inf, namespace)
+				break
+			}
 			out, err = k.listDeployments(ctx, client, namespace)
 		case "workloads":
+			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				out, err = k.listWorkloadsFromInformer(inf, namespace)
+				break
+			}
 			out, err = k.listWorkloads(ctx, client, namespace)
 		case "ingresses":
 			out, err = k.listIngresses(ctx, client, namespace)
@@ -714,6 +755,330 @@ func (k *clientGoAPI) listContexts() ([]resources.ResourceItem, error) {
 	for _, n := range names {
 		out = append(out, resources.ResourceItem{Name: n, Status: "Available", Age: "?"})
 	}
+	return out, nil
+}
+
+func (k *clientGoAPI) ensureInformers(contextName string, client kubernetes.Interface) *contextInformers {
+	k.infMu.Lock()
+	inf := k.inf[contextName]
+	if inf == nil {
+		factory := informers.NewSharedInformerFactory(client, 2*time.Minute)
+		inf = &contextInformers{
+			factory:      factory,
+			stopCh:       make(chan struct{}),
+			pods:         factory.Core().V1().Pods().Lister(),
+			services:     factory.Core().V1().Services().Lister(),
+			deployments:  factory.Apps().V1().Deployments().Lister(),
+			statefulSets: factory.Apps().V1().StatefulSets().Lister(),
+			daemonSets:   factory.Apps().V1().DaemonSets().Lister(),
+			jobs:         factory.Batch().V1().Jobs().Lister(),
+			cronJobs:     factory.Batch().V1().CronJobs().Lister(),
+		}
+		k.inf[contextName] = inf
+	}
+	if !inf.started {
+		inf.factory.Start(inf.stopCh)
+		inf.started = true
+	}
+	shouldTrySync := !inf.synced && time.Since(inf.lastSyncTry) > 500*time.Millisecond
+	inf.lastSyncTry = time.Now()
+	k.infMu.Unlock()
+
+	if shouldTrySync {
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			if inf.factory.Core().V1().Pods().Informer().HasSynced() &&
+				inf.factory.Core().V1().Services().Informer().HasSynced() &&
+				inf.factory.Apps().V1().Deployments().Informer().HasSynced() &&
+				inf.factory.Apps().V1().StatefulSets().Informer().HasSynced() &&
+				inf.factory.Apps().V1().DaemonSets().Informer().HasSynced() &&
+				inf.factory.Batch().V1().Jobs().Informer().HasSynced() &&
+				inf.factory.Batch().V1().CronJobs().Informer().HasSynced() {
+				k.infMu.Lock()
+				inf.synced = true
+				k.infMu.Unlock()
+				break
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	return inf
+}
+
+func (k *clientGoAPI) listPodsFromInformer(inf *contextInformers, namespace string) ([]resources.ResourceItem, error) {
+	var (
+		pods []*corev1.Pod
+		err  error
+	)
+	if namespace == resources.AllNamespaces {
+		pods, err = inf.pods.List(labels.Everything())
+	} else {
+		pods, err = inf.pods.Pods(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, p := range pods {
+		out = append(out, resources.ResourceItem{
+			UID:       string(p.UID),
+			Name:      p.Name,
+			Namespace: p.Namespace,
+			Status:    podStatus(*p),
+			Ready:     podReady(*p),
+			Restarts:  strconv.Itoa(totalRestarts(*p)),
+			Age:       ageString(p.CreationTimestamp.Time),
+			Labels:    copyMap(p.Labels),
+			Extra: map[string]string{
+				"node":           p.Spec.NodeName,
+				"ip":             p.Status.PodIP,
+				"qos":            string(p.Status.QOSClass),
+				"controlled-by":  podController(*p),
+				"nominated-node": p.Status.NominatedNodeName,
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listServicesFromInformer(inf *contextInformers, namespace string) ([]resources.ResourceItem, error) {
+	var (
+		services []*corev1.Service
+		err      error
+	)
+	if namespace == resources.AllNamespaces {
+		services, err = inf.services.List(labels.Everything())
+	} else {
+		services, err = inf.services.Services(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, 0, len(services))
+	for _, s := range services {
+		selector := copyMap(s.Spec.Selector)
+		endpoints := "0 endpoints"
+		if len(selector) > 0 {
+			endpoints = "1 endpoint"
+		}
+		externalIP := "<none>"
+		if len(s.Spec.ExternalIPs) > 0 {
+			externalIP = strings.Join(s.Spec.ExternalIPs, ",")
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(s.UID),
+			Name:      s.Name,
+			Namespace: s.Namespace,
+			Kind:      string(s.Spec.Type),
+			Status:    "Healthy",
+			Ready:     endpoints,
+			Age:       ageString(s.CreationTimestamp.Time),
+			Selector:  selector,
+			Extra: map[string]string{
+				"external-ip": externalIP,
+				"selector":    labelSelectorString(selector),
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listDeploymentsFromInformer(inf *contextInformers, namespace string) ([]resources.ResourceItem, error) {
+	var (
+		deployments []*appsv1.Deployment
+		err         error
+	)
+	if namespace == resources.AllNamespaces {
+		deployments, err = inf.deployments.List(labels.Everything())
+	} else {
+		deployments, err = inf.deployments.Deployments(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, 0, len(deployments))
+	for _, d := range deployments {
+		desired := int32(1)
+		if d.Spec.Replicas != nil {
+			desired = *d.Spec.Replicas
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(d.UID),
+			Name:      d.Name,
+			Namespace: d.Namespace,
+			Status:    deploymentStatus(*d),
+			Ready:     strconv.Itoa(int(d.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired)),
+			Age:       ageString(d.CreationTimestamp.Time),
+			Selector:  copyMap(d.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(d.Spec.Selector.MatchLabels),
+				"strategy":   string(d.Spec.Strategy.Type),
+				"containers": containerNames(d.Spec.Template.Spec.Containers),
+				"images":     containerImages(d.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listWorkloadsFromInformer(inf *contextInformers, namespace string) ([]resources.ResourceItem, error) {
+	out := make([]resources.ResourceItem, 0)
+	deployments, err := k.listDeploymentsFromInformer(inf, namespace)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range deployments {
+		d.Kind = "DEP"
+		d.Restarts = "0"
+		out = append(out, d)
+	}
+
+	var statefulSets []*appsv1.StatefulSet
+	if namespace == resources.AllNamespaces {
+		statefulSets, err = inf.statefulSets.List(labels.Everything())
+	} else {
+		statefulSets, err = inf.statefulSets.StatefulSets(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range statefulSets {
+		desired := int32(1)
+		if s.Spec.Replicas != nil {
+			desired = *s.Spec.Replicas
+		}
+		status := "Healthy"
+		if s.Status.ReadyReplicas < desired {
+			if s.Status.ReadyReplicas == 0 {
+				status = "Degraded"
+			} else {
+				status = "Progressing"
+			}
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(s.UID),
+			Name:      s.Name,
+			Namespace: s.Namespace,
+			Kind:      "STS",
+			Status:    status,
+			Ready:     strconv.Itoa(int(s.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired)),
+			Restarts:  "0",
+			Age:       ageString(s.CreationTimestamp.Time),
+			Selector:  copyMap(s.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(s.Spec.Selector.MatchLabels),
+				"strategy":   string(s.Spec.UpdateStrategy.Type),
+				"containers": containerNames(s.Spec.Template.Spec.Containers),
+				"images":     containerImages(s.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+
+	var daemonSets []*appsv1.DaemonSet
+	if namespace == resources.AllNamespaces {
+		daemonSets, err = inf.daemonSets.List(labels.Everything())
+	} else {
+		daemonSets, err = inf.daemonSets.DaemonSets(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range daemonSets {
+		desired := d.Status.DesiredNumberScheduled
+		ready := d.Status.NumberReady
+		status := "Healthy"
+		if ready < desired {
+			if ready == 0 {
+				status = "Degraded"
+			} else {
+				status = "Progressing"
+			}
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(d.UID),
+			Name:      d.Name,
+			Namespace: d.Namespace,
+			Kind:      "DS",
+			Status:    status,
+			Ready:     strconv.Itoa(int(ready)) + "/" + strconv.Itoa(int(desired)),
+			Restarts:  "0",
+			Age:       ageString(d.CreationTimestamp.Time),
+			Selector:  copyMap(d.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(d.Spec.Selector.MatchLabels),
+				"strategy":   string(d.Spec.UpdateStrategy.Type),
+				"containers": containerNames(d.Spec.Template.Spec.Containers),
+				"images":     containerImages(d.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+
+	var jobs []*batchv1.Job
+	if namespace == resources.AllNamespaces {
+		jobs, err = inf.jobs.List(labels.Everything())
+	} else {
+		jobs, err = inf.jobs.Jobs(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, j := range jobs {
+		completions := int32(1)
+		if j.Spec.Completions != nil {
+			completions = *j.Spec.Completions
+		}
+		status := "Healthy"
+		if j.Status.Failed > 0 {
+			status = "Failed"
+		} else if j.Status.Succeeded < completions {
+			status = "Progressing"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(j.UID),
+			Name:      j.Name,
+			Namespace: j.Namespace,
+			Kind:      "JOB",
+			Status:    status,
+			Ready:     strconv.Itoa(int(j.Status.Succeeded)) + "/" + strconv.Itoa(int(completions)),
+			Restarts:  strconv.Itoa(int(j.Status.Failed)),
+			Age:       ageString(j.CreationTimestamp.Time),
+		})
+	}
+
+	var cronJobs []*batchv1.CronJob
+	if namespace == resources.AllNamespaces {
+		cronJobs, err = inf.cronJobs.List(labels.Everything())
+	} else {
+		cronJobs, err = inf.cronJobs.CronJobs(namespace).List(labels.Everything())
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, cj := range cronJobs {
+		ready := "Last: —"
+		if cj.Status.LastScheduleTime != nil {
+			ready = "Last: " + ageString(cj.Status.LastScheduleTime.Time)
+		}
+		status := "Healthy"
+		if cj.Spec.Suspend != nil && *cj.Spec.Suspend {
+			status = "Suspended"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(cj.UID),
+			Name:      cj.Name,
+			Namespace: cj.Namespace,
+			Kind:      "CJ",
+			Status:    status,
+			Ready:     ready,
+			Restarts:  "—",
+			Age:       ageString(cj.CreationTimestamp.Time),
+		})
+	}
+
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
 
