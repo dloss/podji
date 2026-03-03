@@ -71,6 +71,7 @@ Current state:
 - app command queries (`unhealthy`, `restarts`) now have status synchronization coverage
 - app tests now cover stack-reset lifecycle behavior (scope/resource switches dispose prior views)
 - app render-flow tests now cover scope-switch status transition from loading to ready-freshness messaging
+- app tests now cover command-query navigation consistency (`unhealthy`, `restarts`) across mock and kube-like store adapters
 
 Scope:
 

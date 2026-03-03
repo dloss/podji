@@ -228,3 +228,42 @@ func TestScopeSwitchRenderTransitionsFromLoadingToReadyFreshness(t *testing.T) {
 		t.Fatalf("expected ready freshness status after transition, got %q", readyView)
 	}
 }
+
+func TestCommandQueryNavigationConsistencyAcrossStoreAdapters(t *testing.T) {
+	cases := []struct {
+		name  string
+		store data.Store
+	}{
+		{name: "mock", store: data.NewMockStore()},
+		{name: "query-status", store: &queryStatusStore{statusStore: newStatusStore()}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewWithStore(tc.store)
+			m.width = 120
+			m.height = 40
+
+			stackBefore := len(m.stack)
+			if err := m.runCommand("unhealthy"); err != "" {
+				t.Fatalf("expected no error for unhealthy query, got %q", err)
+			}
+			if len(m.stack) != stackBefore+1 {
+				t.Fatalf("expected unhealthy query to push one view, got stack len %d", len(m.stack))
+			}
+			if got := m.crumbs[len(m.crumbs)-1]; got != "unhealthy" {
+				t.Fatalf("expected unhealthy crumb, got %q", got)
+			}
+
+			stackBefore = len(m.stack)
+			if err := m.runCommand("restarts"); err != "" {
+				t.Fatalf("expected no error for restarts query, got %q", err)
+			}
+			if len(m.stack) != stackBefore+1 {
+				t.Fatalf("expected restarts query to push one view, got stack len %d", len(m.stack))
+			}
+			if got := m.crumbs[len(m.crumbs)-1]; got != "restarts" {
+				t.Fatalf("expected restarts crumb, got %q", got)
+			}
+		})
+	}
+}
