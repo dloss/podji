@@ -62,6 +62,26 @@ func (s *statusStore) ContextNames() []string {
 func (s *statusStore) UnhealthyItems() []resources.ResourceItem { return nil }
 func (s *statusStore) PodsByRestarts() []resources.ResourceItem { return nil }
 
+type queryStatusStore struct {
+	*statusStore
+}
+
+func (s *queryStatusStore) UnhealthyItems() []resources.ResourceItem {
+	s.status = data.StoreStatus{
+		State:   data.StoreStatePartial,
+		Message: "live unhealthy query unavailable; using mock fallback",
+	}
+	return []resources.ResourceItem{{Name: "api", Kind: "DEP", Status: "Degraded", Ready: "0/1"}}
+}
+
+func (s *queryStatusStore) PodsByRestarts() []resources.ResourceItem {
+	s.status = data.StoreStatus{
+		State:   data.StoreStateUnreachable,
+		Message: "connection refused",
+	}
+	return []resources.ResourceItem{{Name: "pod-a", Restarts: "4"}}
+}
+
 func TestNamespacePickerSyncsDegradedStoreStatus(t *testing.T) {
 	store := newStatusStore()
 	m := NewWithStore(store)
@@ -108,5 +128,31 @@ func TestScopeSelectionSyncsLoadingStoreStatus(t *testing.T) {
 	got := updated.(Model)
 	if !strings.Contains(got.errorMsg, "store (loading): refreshing cluster data") {
 		t.Fatalf("expected loading store status after scope selection, got %q", got.errorMsg)
+	}
+}
+
+func TestUnhealthyCommandSyncsStoreStatus(t *testing.T) {
+	store := &queryStatusStore{statusStore: newStatusStore()}
+	m := NewWithStore(store)
+	m.width = 120
+	m.height = 40
+	if err := m.runCommand("unhealthy"); err != "" {
+		t.Fatalf("expected no command error, got %q", err)
+	}
+	if !strings.Contains(m.errorMsg, "store (partial): live unhealthy query unavailable; using mock fallback") {
+		t.Fatalf("expected partial store status after unhealthy query, got %q", m.errorMsg)
+	}
+}
+
+func TestRestartsCommandSyncsStoreStatus(t *testing.T) {
+	store := &queryStatusStore{statusStore: newStatusStore()}
+	m := NewWithStore(store)
+	m.width = 120
+	m.height = 40
+	if err := m.runCommand("restarts"); err != "" {
+		t.Fatalf("expected no command error, got %q", err)
+	}
+	if !strings.Contains(m.errorMsg, "store (unreachable): connection refused") {
+		t.Fatalf("expected unreachable store status after restarts query, got %q", m.errorMsg)
 	}
 }

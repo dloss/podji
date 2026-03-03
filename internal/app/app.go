@@ -744,6 +744,7 @@ func (m *Model) runCommand(raw string) string {
 		items := resources.UnhealthyItems(m.namespace)
 		if m.store != nil {
 			items = m.store.UnhealthyItems()
+			m.syncStoreStatus()
 		}
 		view := listview.New(resources.NewQueryResource("workloads", items, base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
@@ -756,6 +757,7 @@ func (m *Model) runCommand(raw string) string {
 		items := resources.PodsByRestarts(m.namespace)
 		if m.store != nil {
 			items = m.store.PodsByRestarts()
+			m.syncStoreStatus()
 		}
 		view := listview.New(resources.NewQueryResource("pods", items, base), m.registry)
 		view.SetSize(m.width, m.availableHeight())
