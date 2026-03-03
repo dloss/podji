@@ -156,3 +156,21 @@ func TestRestartsCommandSyncsStoreStatus(t *testing.T) {
 		t.Fatalf("expected unreachable store status after restarts query, got %q", m.errorMsg)
 	}
 }
+
+func TestSyncStoreStatusClearsStoreMessageWhenReady(t *testing.T) {
+	store := newStatusStore()
+	store.status = data.StoreStatus{
+		State:   data.StoreStateLoading,
+		Message: "warming cache for pods",
+	}
+	m := NewWithStore(store)
+	m.syncStoreStatus()
+	if !strings.Contains(m.errorMsg, "store (loading): warming cache for pods") {
+		t.Fatalf("expected loading store message, got %q", m.errorMsg)
+	}
+	store.status = data.StoreStatus{State: data.StoreStateReady}
+	m.syncStoreStatus()
+	if strings.HasPrefix(m.errorMsg, "store (") {
+		t.Fatalf("expected store-prefixed message to clear on ready state, got %q", m.errorMsg)
+	}
+}

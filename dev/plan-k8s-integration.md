@@ -22,6 +22,7 @@ Current state:
 - informer-backed list reads have direct-list fallback
 - kube list reads now signal cache-backed vs direct-list paths; direct-list paths surface `loading` with a cache-warming message
 - status transition from cache-warming (`loading`) to `ready` on cache-backed list reads is explicitly covered in tests
+- app-level tests cover clearing temporary store loading banners once status returns to `ready`
 
 Scope:
 
