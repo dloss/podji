@@ -1481,10 +1481,17 @@ func describeKubeObject(obj any, resourceName string, item resources.ResourceIte
 			"Containers:  "+containerNames(o.Spec.Containers),
 		)
 	case *corev1.Service:
+		ports := servicePortsString(o.Spec.Ports)
+		externalIPs := "<none>"
+		if len(o.Spec.ExternalIPs) > 0 {
+			externalIPs = strings.Join(o.Spec.ExternalIPs, ",")
+		}
 		lines = append(lines,
 			"Type:        "+valueOr(string(o.Spec.Type), "ClusterIP"),
 			"ClusterIP:   "+valueOr(o.Spec.ClusterIP, "<none>"),
 			"Selector:    "+valueOr(labelSelectorString(o.Spec.Selector), "<none>"),
+			"Ports:       "+valueOr(ports, "<none>"),
+			"External IP: "+externalIPs,
 		)
 	case *appsv1.Deployment:
 		desired := int32(1)
@@ -1551,7 +1558,20 @@ func describeKubeObject(obj any, resourceName string, item resources.ResourceIte
 			"Volume:      "+valueOr(o.Spec.VolumeName, "<none>"),
 		)
 	case *networkingv1.Ingress:
-		lines = append(lines, "Class:       "+valueOr(ptrString(o.Spec.IngressClassName), "<none>"))
+		services := ingressBackendServices(*o)
+		servicesValue := "<none>"
+		if len(services) > 0 {
+			servicesValue = strings.Join(services, ",")
+		}
+		lines = append(lines,
+			"Class:       "+valueOr(ptrString(o.Spec.IngressClassName), "<none>"),
+			"Hosts:       "+valueOr(ingressHosts(o.Spec.Rules), "*"),
+			"Services:    "+servicesValue,
+			"Backends:",
+		)
+		for _, backend := range ingressBackendRoutes(*o) {
+			lines = append(lines, "  "+backend)
+		}
 	case *corev1.Node:
 		lines = append(lines,
 			"Status:      "+valueOr(nodeReadyStatus(*o), "Unknown"),
@@ -1560,9 +1580,25 @@ func describeKubeObject(obj any, resourceName string, item resources.ResourceIte
 	case *corev1.Namespace:
 		lines = append(lines, "Status:      "+valueOr(string(o.Status.Phase), "Unknown"))
 	case *corev1.Event:
+		ts := eventTime(*o)
+		tsValue := "<none>"
+		if !ts.IsZero() {
+			tsValue = ts.UTC().Format(time.RFC3339)
+		}
+		source := "<none>"
+		if strings.TrimSpace(o.Source.Component) != "" {
+			source = o.Source.Component
+		}
+		if strings.TrimSpace(o.Source.Host) != "" {
+			source += "/" + o.Source.Host
+		}
 		lines = append(lines,
 			"Type:        "+valueOr(o.Type, "Normal"),
 			"Reason:      "+valueOr(o.Reason, "<none>"),
+			"Involved:    "+valueOr(o.InvolvedObject.Kind, "<none>")+"/"+valueOr(o.InvolvedObject.Name, "<none>"),
+			"Source:      "+source,
+			"Count:       "+strconv.Itoa(int(o.Count)),
+			"Last Seen:   "+tsValue,
 			"Message:     "+valueOr(strings.TrimSpace(o.Message), "<none>"),
 		)
 	}
@@ -1617,12 +1653,14 @@ func detailFromObject(obj any, resourceName string, item resources.ResourceItem)
 			Labels:     labelsFromMap(o.Labels),
 		}
 	case *corev1.Service:
+		ports := servicePortsString(o.Spec.Ports)
 		return resources.DetailData{
 			Summary: []resources.SummaryField{
 				{Key: "status", Label: "Status", Value: "Healthy"},
 				{Key: "type", Label: "Type", Value: valueOr(string(o.Spec.Type), "ClusterIP")},
 				{Key: "selector", Label: "Selector", Value: valueOr(labelSelectorString(o.Spec.Selector), "<none>")},
 				{Key: "cluster_ip", Label: "Cluster IP", Value: valueOr(o.Spec.ClusterIP, "<none>")},
+				{Key: "ports", Label: "Ports", Value: valueOr(ports, "<none>")},
 			},
 			Labels: labelsFromMap(o.Labels),
 		}
@@ -1777,12 +1815,27 @@ func detailFromObject(obj any, resourceName string, item resources.ResourceItem)
 			Labels: labelsFromMap(o.Labels),
 		}
 	case *corev1.Event:
+		ts := eventTime(*o)
+		tsValue := "<none>"
+		if !ts.IsZero() {
+			tsValue = ts.UTC().Format(time.RFC3339)
+		}
+		source := "<none>"
+		if strings.TrimSpace(o.Source.Component) != "" {
+			source = o.Source.Component
+		}
+		if strings.TrimSpace(o.Source.Host) != "" {
+			source += "/" + o.Source.Host
+		}
 		return resources.DetailData{
 			Summary: []resources.SummaryField{
 				{Key: "kind", Label: "Kind", Value: "Event"},
 				{Key: "status", Label: "Type", Value: valueOr(o.Type, "Normal")},
 				{Key: "reason", Label: "Reason", Value: valueOr(o.Reason, "<none>")},
 				{Key: "object", Label: "Object", Value: valueOr(o.InvolvedObject.Name, "<none>")},
+				{Key: "source", Label: "Source", Value: source},
+				{Key: "count", Label: "Count", Value: strconv.Itoa(int(o.Count))},
+				{Key: "last_seen", Label: "Last Seen", Value: tsValue},
 			},
 			Events: []string{strings.TrimSpace(o.Message)},
 		}
@@ -1796,6 +1849,53 @@ func ptrInt32(v *int32, fallback int32) int32 {
 		return fallback
 	}
 	return *v
+}
+
+func servicePortsString(ports []corev1.ServicePort) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(ports))
+	for _, p := range ports {
+		name := strings.TrimSpace(p.Name)
+		proto := string(p.Protocol)
+		if proto == "" {
+			proto = "TCP"
+		}
+		entry := strconv.Itoa(int(p.Port)) + "/" + proto
+		if name != "" {
+			entry = name + ":" + entry
+		}
+		out = append(out, entry)
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
+}
+
+func ingressBackendRoutes(ing networkingv1.Ingress) []string {
+	out := make([]string, 0)
+	for _, rule := range ing.Spec.Rules {
+		host := strings.TrimSpace(rule.Host)
+		if host == "" {
+			host = "*"
+		}
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			svc := "<none>"
+			if path.Backend.Service != nil {
+				svc = path.Backend.Service.Name
+			}
+			p := strings.TrimSpace(path.Path)
+			if p == "" {
+				p = "/"
+			}
+			out = append(out, host+" "+p+" -> "+svc)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func ptrString(v *string) string {

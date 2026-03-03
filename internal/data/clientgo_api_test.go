@@ -7,6 +7,7 @@ import (
 
 	"github.com/dloss/podji/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -154,6 +155,50 @@ func TestDescribeKubeObjectStatefulSetIncludesServiceAndReady(t *testing.T) {
 	}, "default")
 	if !strings.Contains(out, "Service:     db-headless") || !strings.Contains(out, "Ready:       1/2") {
 		t.Fatalf("expected sts describe fields, got %q", out)
+	}
+}
+
+func TestDetailFromObjectEventIncludesSourceCountAndTimestamp(t *testing.T) {
+	ts := metav1.NewTime(time.Date(2026, 3, 3, 12, 0, 0, 0, time.UTC))
+	obj := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{Name: "api.123"},
+		Type:       "Warning",
+		Reason:     "BackOff",
+		Message:    "Back-off restarting failed container",
+		Count:      7,
+		Source:     corev1.EventSource{Component: "kubelet", Host: "worker-1"},
+		InvolvedObject: corev1.ObjectReference{
+			Kind: "Pod",
+			Name: "api-1",
+		},
+		LastTimestamp: ts,
+	}
+	detail := detailFromObject(obj, "events", resources.ResourceItem{Name: "api.123"})
+	flat := strings.Join(summaryValues(detail.Summary), " ")
+	if !strings.Contains(flat, "kubelet/worker-1") || !strings.Contains(flat, "7") || !strings.Contains(flat, "2026-03-03T12:00:00Z") {
+		t.Fatalf("expected event detail summary enrichment, got %#v", detail.Summary)
+	}
+	if len(detail.Events) == 0 || !strings.Contains(detail.Events[0], "Back-off") {
+		t.Fatalf("expected event message in detail events, got %#v", detail.Events)
+	}
+}
+
+func TestDescribeKubeObjectServiceIncludesPorts(t *testing.T) {
+	obj := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "api"},
+		Spec: corev1.ServiceSpec{
+			Type:      corev1.ServiceTypeClusterIP,
+			ClusterIP: "10.96.0.12",
+			Selector:  map[string]string{"app": "api"},
+			Ports: []corev1.ServicePort{
+				{Name: "http", Port: 80, Protocol: corev1.ProtocolTCP},
+				{Name: "metrics", Port: 9090, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
+	out := describeKubeObject(obj, "services", resources.ResourceItem{Name: "api", Kind: "Service"}, "default")
+	if !strings.Contains(out, "Ports:       http:80/TCP,metrics:9090/TCP") {
+		t.Fatalf("expected service ports in describe output, got %q", out)
 	}
 }
 
