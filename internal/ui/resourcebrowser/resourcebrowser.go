@@ -84,6 +84,9 @@ type View struct {
 	list        list.Model
 	columns     []browserColumn
 	colWidths   []int
+	sortPickMode bool
+	sortCol     int
+	sortDesc    bool
 	findMode    bool
 	findTargets map[int]bool
 }
@@ -97,10 +100,11 @@ func New(registry *resources.Registry, crds []resources.CRDMeta) *View {
 	widths := columnWidthsForRows(cols, rows, 0)
 
 	v := &View{
-		registry:  registry,
-		entries:   entries,
-		columns:   cols,
-		colWidths: widths,
+		registry:   registry,
+		entries:    entries,
+		columns:    cols,
+		colWidths:  widths,
+		sortCol:    0,
 	}
 	delegate := newBrowserDelegate(&v.findMode, &v.findTargets)
 	model := list.New(buildListItems(entries, rows, widths), delegate, 0, 0)
@@ -137,6 +141,39 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
+		if v.sortPickMode {
+			v.sortPickMode = false
+			if key.String() != "esc" {
+				if r := singleRune(key); r != 0 {
+					if colIdx, ok := browserNumericSortKey(r); ok {
+						if colIdx >= 0 && colIdx < len(v.columns) {
+							if v.sortCol == colIdx {
+								v.sortDesc = !v.sortDesc
+							} else {
+								v.sortCol = colIdx
+								v.sortDesc = false
+							}
+							v.refreshItems()
+						}
+					} else {
+						target := unicode.ToLower(r)
+						desc := unicode.IsUpper(r)
+						chars := browserSortChars(v.columns)
+						for _, idx := range uniqueSortKeyIndices(chars) {
+							ch := chars[idx]
+							if ch == target {
+								v.sortCol = idx
+								v.sortDesc = desc
+								v.refreshItems()
+								break
+							}
+						}
+					}
+				}
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
 		switch key.String() {
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
@@ -151,6 +188,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "f":
 			v.findMode = true
 			v.findTargets = v.computeFindTargets()
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		case "s":
+			if len(v.columns) > 0 {
+				v.sortPickMode = true
+			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 	}
@@ -172,7 +214,15 @@ func (v *View) View() string {
 		dataStart++
 	}
 
-	header := "  " + buildHeaderRow(v.columns, v.colWidths)
+	indicator := "↑"
+	if v.sortDesc {
+		indicator = "↓"
+	}
+	headerPrefix := "  "
+	if v.sortCol == 0 {
+		headerPrefix = " " + indicator
+	}
+	header := headerPrefix + buildHeaderRow(v.columns, v.colWidths, v.sortCol, indicator)
 	out := make([]string, len(lines))
 	for i := range out {
 		out[i] = ""
@@ -227,10 +277,30 @@ func (v *View) Footer() string {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
-	line2 := style.ActionFooter([]style.Binding{
-		style.B("/", "filter"),
-		style.B("f", "find"),
-	}, v.list.Width())
+	var line2 string
+	if v.sortPickMode {
+		opts := make([]style.Binding, 0, len(v.columns)+2)
+		chars := browserSortChars(v.columns)
+		for _, idx := range uniqueSortKeyIndices(chars) {
+			col := v.columns[idx]
+			ch := chars[idx]
+			lower := string(ch)
+			upper := string(unicode.ToUpper(ch))
+			opts = append(opts, style.B(lower+"/"+upper, strings.ToLower(col.name)))
+		}
+		opts = append(opts, style.B("1-9/⇧", "col"))
+		opts = append(opts, style.B("esc", "cancel"))
+		line2 = style.FooterKey.Render("sort") + "  " + style.FormatBindings(opts)
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+	} else {
+		line2 = style.ActionFooter([]style.Binding{
+			style.B("/", "filter"),
+			style.B("f", "find"),
+			style.B("s", "sort"),
+		}, v.list.Width())
+	}
 	return line1 + "\n" + line2
 }
 
@@ -243,7 +313,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.findMode
+	return v.list.SettingFilter() || v.findMode || v.sortPickMode
 }
 
 func (v *View) paginationStatus() string {
@@ -263,6 +333,25 @@ func (v *View) paginationStatus() string {
 }
 
 func (v *View) refreshItems() {
+	if v.sortCol < 0 {
+		v.sortCol = 0
+	}
+	if v.sortCol >= len(v.columns) {
+		v.sortCol = len(v.columns) - 1
+	}
+	sort.SliceStable(v.entries, func(i, j int) bool {
+		vi := strings.ToLower(strings.TrimSpace(entryRow(v.entries[i])[v.sortCol]))
+		vj := strings.ToLower(strings.TrimSpace(entryRow(v.entries[j])[v.sortCol]))
+		if vi != vj {
+			if v.sortDesc {
+				return vi > vj
+			}
+			return vi < vj
+		}
+		ki := strings.ToLower(v.entries[i].kind)
+		kj := strings.ToLower(v.entries[j].kind)
+		return ki < kj
+	})
 	rows := entryRows(v.entries)
 	v.colWidths = columnWidthsForRows(v.columns, rows, v.list.Width()-2)
 	selected := v.list.Index()
@@ -376,7 +465,7 @@ func browserColumns() []browserColumn {
 	}
 }
 
-func buildHeaderRow(cols []browserColumn, widths []int) string {
+func buildHeaderRow(cols []browserColumn, widths []int, activeSortIdx int, indicator string) string {
 	headers := make([]string, 0, len(cols))
 	for idx, col := range cols {
 		width := col.width
@@ -385,7 +474,20 @@ func buildHeaderRow(cols []browserColumn, widths []int) string {
 		}
 		headers = append(headers, padCell(col.name, width))
 	}
-	return strings.Join(headers, columnSeparator)
+	if len(headers) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(headers[0])
+	for idx := 1; idx < len(headers); idx++ {
+		sep := columnSeparator
+		if idx == activeSortIdx {
+			sep = " " + indicator
+		}
+		b.WriteString(sep)
+		b.WriteString(headers[idx])
+	}
+	return b.String()
 }
 
 func buildListItems(entries []entry, rows [][]string, widths []int) []list.Item {
@@ -497,6 +599,50 @@ func titleCase(value string) string {
 	runes := []rune(value)
 	runes[0] = unicode.ToUpper(runes[0])
 	return string(runes)
+}
+
+func browserSortChars(cols []browserColumn) []rune {
+	chars := make([]rune, len(cols))
+	for idx, col := range cols {
+		ch := browserSortLeadChar(col.name)
+		if ch == 0 {
+			ch = 'a'
+		}
+		chars[idx] = ch
+	}
+	return chars
+}
+
+func uniqueSortKeyIndices(chars []rune) []int {
+	seen := make(map[rune]bool, len(chars))
+	indices := make([]int, 0, len(chars))
+	for i, ch := range chars {
+		if seen[ch] {
+			continue
+		}
+		seen[ch] = true
+		indices = append(indices, i)
+	}
+	return indices
+}
+
+func browserSortLeadChar(header string) rune {
+	for _, r := range strings.TrimSpace(header) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToLower(r)
+		}
+	}
+	return 0
+}
+
+func browserNumericSortKey(r rune) (int, bool) {
+	if r >= '1' && r <= '9' {
+		return int(r - '1'), true
+	}
+	if r == '0' {
+		return 9, true
+	}
+	return 0, false
 }
 
 func singleRune(key bubbletea.KeyMsg) rune {

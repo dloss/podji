@@ -118,6 +118,8 @@ type View struct {
 	wideMode     bool
 	labelPool    []resources.TableColumn
 	sortPickMode bool
+	sortMode     string
+	sortDesc     bool
 	findMode     bool
 	findTargets  map[int]bool
 	copyMode     bool
@@ -143,6 +145,7 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 		columns:   columns,
 		colWidths: widths,
 		labelPool: labelPool,
+		sortMode:  defaultSortMode(resource, columns),
 	}
 	delegate := newTableDelegate(&v.findMode, &v.findTargets)
 	model := list.New(listItems, delegate, 0, 0)
@@ -203,31 +206,30 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		if v.sortPickMode {
 			v.sortPickMode = false
 			if key.String() != "esc" {
-				if sortable, ok := v.resource.(resources.Sortable); ok {
-					if r := singleRune(key); r != 0 {
-						if colIdx, desc, ok := numericSortKey(r); ok {
-							mode := sortModeForColumn(v.resource, v.columns, colIdx)
-							if mode != "" {
-								// Layout-agnostic behavior: plain number keys toggle direction
-								// when selecting the currently active sort column again.
-								if r >= '0' && r <= '9' && sortable.SortMode() == mode {
-									desc = !sortable.SortDesc()
-								}
-								sortable.SetSort(mode, desc)
-								v.refreshItems()
+				if r := singleRune(key); r != 0 {
+					if colIdx, desc, ok := numericSortKey(r); ok {
+						mode := sortModeForColumn(v.resource, v.columns, colIdx)
+						if mode != "" {
+							// Layout-agnostic behavior: plain number keys toggle direction
+							// when selecting the currently active sort column again.
+							if r >= '0' && r <= '9' && currentSortMode(v.resource, v.sortMode) == mode {
+								desc = !currentSortDesc(v.resource, v.sortDesc)
 							}
-						} else {
-							resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
-							skeys := sortable.SortKeys()
-							chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
-							lc := unicode.ToLower(r)
-							desc := unicode.IsUpper(r)
-							for i, ch := range chars {
-								if ch == lc {
-									sortable.SetSort(skeys[i].Mode, desc)
-									v.refreshItems()
-									break
-								}
+							setSortState(v.resource, &v.sortMode, &v.sortDesc, mode, desc)
+							v.refreshItems()
+						}
+					} else {
+						resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+						skeys := sortKeysForView(v.resource, v.columns)
+						chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
+						lc := unicode.ToLower(r)
+						desc := unicode.IsUpper(r)
+						for _, i := range uniqueSortKeyIndices(chars) {
+							ch := chars[i]
+							if ch == lc {
+								setSortState(v.resource, &v.sortMode, &v.sortDesc, skeys[i].Mode, desc)
+								v.refreshItems()
+								break
 							}
 						}
 					}
@@ -419,7 +421,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				}
 			}
 		case "s":
-			if _, ok := v.resource.(resources.Sortable); ok {
+			if len(sortKeysForView(v.resource, v.columns)) > 0 {
 				v.sortPickMode = true
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
@@ -483,8 +485,8 @@ func (v *View) View() string {
 
 	label := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 	childHint := resources.SingularName(v.NextBreadcrumb())
-	mode := sortMode(v.resource)
-	indicator := sortIndicatorSymbol(v.resource)
+	mode := currentSortMode(v.resource, v.sortMode)
+	indicator := sortIndicatorSymbol(currentSortDesc(v.resource, v.sortDesc))
 	activeSortIdx := activeSortColumn(v.resource, v.columns, mode)
 	headerPrefix := "  "
 	if activeSortIdx == 0 {
@@ -661,21 +663,20 @@ func (v *View) Footer() string {
 	} else if v.sortPickMode {
 		sortLabel := style.FooterKey.Render("sort")
 		var opts []style.Binding
-		if sortable, ok := v.resource.(resources.Sortable); ok {
-			resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
-			skeys := sortable.SortKeys()
-			chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
-			for i, sk := range skeys {
-				ch := chars[i]
-				lower := string(ch)
-				upper := string(unicode.ToUpper(ch))
-				colIdx := activeSortColumn(v.resource, v.columns, sk.Mode)
-				label := strings.ToLower(displayedColHeader(v.columns, colIdx, resourceLabel))
-				if label == "" {
-					label = sk.Label
-				}
-				opts = append(opts, style.B(lower+"/"+upper, label))
+		resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
+		skeys := sortKeysForView(v.resource, v.columns)
+		chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
+		for _, i := range uniqueSortKeyIndices(chars) {
+			sk := skeys[i]
+			ch := chars[i]
+			lower := string(ch)
+			upper := string(unicode.ToUpper(ch))
+			colIdx := activeSortColumn(v.resource, v.columns, sk.Mode)
+			label := strings.ToLower(displayedColHeader(v.columns, colIdx, resourceLabel))
+			if label == "" {
+				label = sk.Label
 			}
+			opts = append(opts, style.B(lower+"/"+upper, label))
 		}
 		opts = append(opts, style.B("1-9/⇧", "col"))
 		opts = append(opts, style.B("esc", "cancel"))
@@ -689,7 +690,7 @@ func (v *View) Footer() string {
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
 		actions = append(actions, style.B("/", "filter"))
-		if _, ok := v.resource.(resources.Sortable); ok {
+		if len(sortKeysForView(v.resource, v.columns)) > 0 {
 			actions = append(actions, style.B("s", "sort"))
 		}
 		if !isContainers {
@@ -1139,29 +1140,95 @@ func displayedColHeader(columns []resources.TableColumn, idx int, resourceLabel 
 }
 
 // sortDisplayedChars computes sort key characters for all keys, derived from
-// displayed column headers. For each key it tries every character in the
-// column header in order; if all are taken it falls back to SortKey.Char.
+// displayed column headers.
+// It uses the first visible header character (case-insensitive) so "s" + key
+// maps directly to the target column's leading character. Numeric column
+// selection remains available for disambiguation.
 // Returns a parallel slice of runes.
 func sortDisplayedChars(resource resources.ResourceType, columns []resources.TableColumn, keys []resources.SortKey, resourceLabel string) []rune {
 	result := make([]rune, len(keys))
-	used := make(map[rune]bool)
 	for i, sk := range keys {
 		colIdx := activeSortColumn(resource, columns, sk.Mode)
 		hdr := displayedColHeader(columns, colIdx, resourceLabel)
-		var ch rune
-		for _, candidate := range []rune(strings.ToLower(hdr)) {
-			if !used[candidate] {
-				ch = candidate
-				break
-			}
-		}
+		ch := sortLeadChar(hdr)
 		if ch == 0 {
 			ch = sk.Char
 		}
-		used[ch] = true
 		result[i] = ch
 	}
 	return result
+}
+
+func sortLeadChar(header string) rune {
+	for _, r := range strings.TrimSpace(header) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToLower(r)
+		}
+	}
+	return 0
+}
+
+func uniqueSortKeyIndices(chars []rune) []int {
+	seen := make(map[rune]bool, len(chars))
+	indices := make([]int, 0, len(chars))
+	for i, ch := range chars {
+		if seen[ch] {
+			continue
+		}
+		seen[ch] = true
+		indices = append(indices, i)
+	}
+	return indices
+}
+
+func sortKeysForView(resource resources.ResourceType, columns []resources.TableColumn) []resources.SortKey {
+	if sortable, ok := resource.(resources.Sortable); ok {
+		return sortable.SortKeys()
+	}
+	keys := make([]resources.SortKey, 0, len(columns))
+	for _, col := range columns {
+		mode := strings.TrimSpace(col.ID)
+		if mode == "" {
+			continue
+		}
+		keys = append(keys, resources.SortKey{
+			Char:  sortLeadChar(col.Name),
+			Mode:  mode,
+			Label: strings.ToLower(strings.TrimSpace(col.Name)),
+		})
+	}
+	return keys
+}
+
+func defaultSortMode(resource resources.ResourceType, columns []resources.TableColumn) string {
+	if sortable, ok := resource.(resources.Sortable); ok {
+		return sortable.SortMode()
+	}
+	if idx := firstColumnWithID(columns, "name"); idx >= 0 {
+		return columns[idx].ID
+	}
+	for _, col := range columns {
+		if strings.TrimSpace(col.ID) != "" {
+			return col.ID
+		}
+	}
+	return ""
+}
+
+func normalizeSortMode(resource resources.ResourceType, columns []resources.TableColumn, mode string) string {
+	if mode != "" && activeSortColumn(resource, columns, mode) >= 0 {
+		return mode
+	}
+	return defaultSortMode(resource, columns)
+}
+
+func setSortState(resource resources.ResourceType, mode *string, desc *bool, nextMode string, nextDesc bool) {
+	if sortable, ok := resource.(resources.Sortable); ok {
+		sortable.SetSort(nextMode, nextDesc)
+		return
+	}
+	*mode = nextMode
+	*desc = nextDesc
 }
 
 // sortModeForColumn returns the sort mode for the given 0-based column index,
@@ -1169,7 +1236,10 @@ func sortDisplayedChars(resource resources.ResourceType, columns []resources.Tab
 func sortModeForColumn(resource resources.ResourceType, columns []resources.TableColumn, colIdx int) string {
 	sortable, ok := resource.(resources.Sortable)
 	if !ok {
-		return ""
+		if colIdx < 0 || colIdx >= len(columns) {
+			return ""
+		}
+		return columns[colIdx].ID
 	}
 	for _, sk := range sortable.SortKeys() {
 		if activeSortColumn(resource, columns, sk.Mode) == colIdx {
@@ -1193,15 +1263,22 @@ func numericSortKey(r rune) (int, bool, bool) {
 	return 0, false, false
 }
 
-func sortMode(resource resources.ResourceType) string {
+func currentSortMode(resource resources.ResourceType, fallback string) string {
 	if sortable, ok := resource.(resources.Sortable); ok {
 		return sortable.SortMode()
 	}
-	return ""
+	return fallback
 }
 
-func sortIndicatorSymbol(resource resources.ResourceType) string {
-	if sortable, ok := resource.(resources.Sortable); ok && sortable.SortDesc() {
+func currentSortDesc(resource resources.ResourceType, fallback bool) bool {
+	if sortable, ok := resource.(resources.Sortable); ok {
+		return sortable.SortDesc()
+	}
+	return fallback
+}
+
+func sortIndicatorSymbol(desc bool) string {
+	if desc {
 		return "↓"
 	}
 	return "↑"
@@ -1275,6 +1352,23 @@ func (v *View) refreshItems() {
 	if !v.wideMode {
 		pool := buildColumnPool(v.resource, v.labelPool)
 		v.columns = columnconfig.Default().Get(v.resource.Name(), pool)
+	}
+	v.sortMode = normalizeSortMode(v.resource, v.columns, v.sortMode)
+
+	if _, ok := v.resource.(resources.Sortable); !ok {
+		sort.SliceStable(items, func(i, j int) bool {
+			vi := strings.ToLower(strings.TrimSpace(tableRowMap(v.resource, items[i])[v.sortMode]))
+			vj := strings.ToLower(strings.TrimSpace(tableRowMap(v.resource, items[j])[v.sortMode]))
+			if vi != vj {
+				if v.sortDesc {
+					return vi > vj
+				}
+				return vi < vj
+			}
+			ni := strings.ToLower(strings.TrimSpace(items[i].Name))
+			nj := strings.ToLower(strings.TrimSpace(items[j].Name))
+			return ni < nj
+		})
 	}
 
 	rows := assembleRows(v.resource, v.wideMode, v.columns, items)

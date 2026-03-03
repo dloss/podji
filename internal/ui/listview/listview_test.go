@@ -23,7 +23,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	}
 }
 
-func TestContainersFooterHidesSortHint(t *testing.T) {
+func TestContainersFooterShowsSortHint(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	pods := resources.NewPods()
 	podItems := pods.Items()
@@ -33,8 +33,52 @@ func TestContainersFooterHidesSortHint(t *testing.T) {
 	view := New(resources.NewContainerResource(podItems[0], pods), registry)
 
 	footer := ansi.Strip(view.Footer())
-	if strings.Contains(footer, "s sort") {
-		t.Fatalf("expected containers footer not to show sort hint, got: %s", footer)
+	if !strings.Contains(footer, "s sort") {
+		t.Fatalf("expected containers footer to show sort hint, got: %s", footer)
+	}
+}
+
+func TestContainersSortPickSupportsCharAndCount(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	pods := resources.NewPods()
+	podItems := pods.Items()
+	if len(podItems) == 0 {
+		t.Fatal("expected stub pods")
+	}
+	view := New(resources.NewContainerResource(podItems[0], pods), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('s'))
+	if view.sortMode != "status" {
+		t.Fatalf("expected status mode from char key, got %q", view.sortMode)
+	}
+
+	view.Update(keyRunes('s'))
+	view.Update(keyRunes('3'))
+	if view.sortMode != "ready" {
+		t.Fatalf("expected 3rd column mode from count key, got %q", view.sortMode)
+	}
+}
+
+func TestSortPickerHidesDuplicateLeadKeys(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	registry.SetNamespace(resources.AllNamespaces)
+
+	pods := resources.NewPods()
+	pods.SetNamespace(resources.AllNamespaces)
+	items := pods.Items()
+	if len(items) == 0 {
+		t.Fatal("expected stub pods")
+	}
+	query := resources.NewQueryResource("pods(query)", items, pods)
+	view := New(query, registry)
+	view.SetSize(140, 40)
+
+	view.Update(keyRunes('s'))
+	footer := ansi.Strip(view.Footer())
+	if got := strings.Count(footer, "n/N"); got != 1 {
+		t.Fatalf("expected one n/N binding in sort picker for duplicated key, got %d: %s", got, footer)
 	}
 }
 
