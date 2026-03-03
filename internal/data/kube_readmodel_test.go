@@ -7,6 +7,16 @@ import (
 	"github.com/dloss/podji/internal/resources"
 )
 
+type fallbackDetailReadModel struct {
+	*MockReadModel
+}
+
+func (f fallbackDetailReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
+	return resources.DetailData{
+		Summary: []resources.SummaryField{{Key: "status", Value: "from-fallback"}},
+	}, nil
+}
+
 func TestKubeReadModelUsesAPIForPodLogs(t *testing.T) {
 	api := fakeKubeAPI{
 		logsByKey: map[string][]string{
@@ -136,5 +146,39 @@ func TestKubeReadModelFallsBackWhenListUnsupported(t *testing.T) {
 	}
 	if len(got) == 0 {
 		t.Fatalf("expected fallback items, got %#v", got)
+	}
+}
+
+func TestKubeReadModelUsesLiveDetailForPods(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
+	detail, err := read.Detail("pods", resources.ResourceItem{
+		Name:   "api-1",
+		Status: "Running",
+		Ready:  "1/1",
+		Labels: map[string]string{"app": "api"},
+		Extra: map[string]string{
+			"node":       "worker-1",
+			"ip":         "10.0.0.1",
+			"qos":        "Burstable",
+			"containers": "api,sidecar",
+			"images":     "myco/api:v1,envoy:v1",
+		},
+	}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(detail.Summary) == 0 || detail.Summary[0].Value != "Running" {
+		t.Fatalf("expected live detail summary from item status, got %#v", detail.Summary)
+	}
+	if len(detail.Containers) != 2 {
+		t.Fatalf("expected container rows from live item metadata, got %#v", detail.Containers)
 	}
 }

@@ -20,6 +20,7 @@ Current state:
 
 - list/logs/events have kube-backed read paths
 - detail/yaml/describe still rely on mock-backed resource methods through fallback adapters
+- kube read model now renders live detail for list-backed core resources (`pods`, `services`, `deployments`, `workloads`) from live item metadata
 
 Scope:
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/dloss/podji/internal/resources"
@@ -64,6 +65,10 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 }
 
 func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
+	if detail, ok := liveDetail(resourceName, item); ok {
+		k.markReady()
+		return detail, nil
+	}
 	if k.fallback == nil {
 		return resources.DetailData{}, fmt.Errorf("kube read model fallback is nil")
 	}
@@ -185,4 +190,107 @@ func (k *KubeReadModel) markReady() {
 	if k.onReady != nil {
 		k.onReady()
 	}
+}
+
+func liveDetail(resourceName string, item resources.ResourceItem) (resources.DetailData, bool) {
+	name := strings.ToLower(strings.TrimSpace(resourceName))
+	switch {
+	case strings.HasPrefix(name, "pods"):
+		return podLiveDetail(item), true
+	case strings.HasPrefix(name, "services"):
+		return serviceLiveDetail(item), true
+	case strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
+		return workloadLiveDetail(item), true
+	default:
+		return resources.DetailData{}, false
+	}
+}
+
+func podLiveDetail(item resources.ResourceItem) resources.DetailData {
+	status := valueOr(item.Status, "Unknown")
+	ready := valueOr(item.Ready, "unknown")
+	node := valueOr(item.Extra["node"], "<none>")
+	ip := valueOr(item.Extra["ip"], "<none>")
+	qos := valueOr(item.Extra["qos"], "Unknown")
+	containers := strings.Split(strings.TrimSpace(item.Extra["containers"]), ",")
+	images := strings.Split(strings.TrimSpace(item.Extra["images"]), ",")
+	rows := make([]resources.ContainerRow, 0, len(containers))
+	for i := range containers {
+		name := strings.TrimSpace(containers[i])
+		if name == "" {
+			continue
+		}
+		image := "<unknown>"
+		if i < len(images) && strings.TrimSpace(images[i]) != "" {
+			image = strings.TrimSpace(images[i])
+		}
+		rows = append(rows, resources.ContainerRow{
+			Name:     name,
+			Image:    image,
+			State:    "Unknown",
+			Restarts: valueOr(item.Restarts, "0"),
+		})
+	}
+	return resources.DetailData{
+		Summary: []resources.SummaryField{
+			{Key: "status", Label: "Status", Value: status},
+			{Key: "ready", Label: "Ready", Value: ready},
+			{Key: "node", Label: "Node", Value: node},
+			{Key: "ip", Label: "IP", Value: ip},
+			{Key: "qos", Label: "QoS", Value: qos},
+		},
+		Containers: rows,
+		Labels:     labelsFromMap(item.Labels),
+	}
+}
+
+func serviceLiveDetail(item resources.ResourceItem) resources.DetailData {
+	return resources.DetailData{
+		Summary: []resources.SummaryField{
+			{Key: "status", Label: "Status", Value: valueOr(item.Status, "Healthy")},
+			{Key: "type", Label: "Type", Value: valueOr(item.Kind, "ClusterIP")},
+			{Key: "endpoints", Label: "Endpoints", Value: valueOr(item.Ready, "0 endpoints")},
+			{Key: "selector", Label: "Selector", Value: valueOr(item.Extra["selector"], "<none>")},
+			{Key: "external_ip", Label: "External IP", Value: valueOr(item.Extra["external-ip"], "<none>")},
+		},
+		Labels: labelsFromMap(item.Labels),
+	}
+}
+
+func workloadLiveDetail(item resources.ResourceItem) resources.DetailData {
+	return resources.DetailData{
+		Summary: []resources.SummaryField{
+			{Key: "kind", Label: "Kind", Value: valueOr(item.Kind, "Workload")},
+			{Key: "status", Label: "Status", Value: valueOr(item.Status, "Unknown")},
+			{Key: "ready", Label: "Ready", Value: valueOr(item.Ready, "unknown")},
+			{Key: "strategy", Label: "Strategy", Value: valueOr(item.Extra["strategy"], "<none>")},
+			{Key: "selector", Label: "Selector", Value: valueOr(item.Extra["selector"], "<none>")},
+			{Key: "images", Label: "Images", Value: valueOr(item.Extra["images"], "<unknown>")},
+		},
+		Labels: labelsFromMap(item.Labels),
+	}
+}
+
+func labelsFromMap(labels map[string]string) []string {
+	if len(labels) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, key+"="+labels[key])
+	}
+	return out
+}
+
+func valueOr(value, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
