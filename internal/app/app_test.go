@@ -306,6 +306,35 @@ func TestScopeSwitchDisposesPreviousStackViews(t *testing.T) {
 	}
 }
 
+func TestRapidScopeSwitchesDisposeStackViews(t *testing.T) {
+	m := New()
+	disposables := make([]*disposableSpyView, 0, 20)
+
+	for i := 0; i < 20; i++ {
+		disposable := &disposableSpyView{}
+		disposables = append(disposables, disposable)
+		m.stack = append(m.stack, disposable)
+		m.crumbs = append(m.crumbs, "logs")
+
+		msg := overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"}
+		if i%2 == 1 {
+			msg = overlaypicker.SelectedMsg{Kind: "context", Value: "prod"}
+		}
+
+		updated, _ := m.Update(msg)
+		m = updated.(Model)
+		if len(m.stack) != 1 {
+			t.Fatalf("expected single root view after switch %d, got %d", i, len(m.stack))
+		}
+	}
+
+	for i, disposable := range disposables {
+		if !disposable.disposed {
+			t.Fatalf("expected disposable %d to be disposed", i)
+		}
+	}
+}
+
 func TestResourceHotkeyDisposesPreviousStackViews(t *testing.T) {
 	disposable := &disposableSpyView{}
 	m := New()
