@@ -10,7 +10,7 @@ import (
 )
 
 var helpText = strings.TrimSpace(`
-GLOBAL
+GLOBAL (app navigation)
   enter / right / l    Selected item
   backspace / left / h Back
   esc                  Clear filter, then back
@@ -30,7 +30,7 @@ GLOBAL
   O                    Nodes
   E                    Events (global)
 
-TABLE
+TABLE (filterable lists, including A)
   / (slash)            Filter
   esc                  Clear filter
   s                    Sort (name/problem)
@@ -46,12 +46,7 @@ TABLE
   c                    Copy mode (n name, k kind/name, p -n ns name)
   x                    Execute mode (d delete, r restart, s scale, f port-fwd, x shell)
 
-RESOURCE BROWSER (A)
-  / (slash)            Filter by kind or group
-  f <char>             Jump to first resource by char
-  enter / right        Open resource list
-
-LOGS
+LOGS (logs view)
   f                    Follow on/off
   w                    Wrap on/off
   t                    Current/previous
@@ -62,7 +57,8 @@ LOGS
   up / down / j / k    Scroll
   space / pgup / pgdn  Page up / down
 
-APP
+APP (any view)
+  :                    Command bar (from lists)
   ?                    This help
   q / ctrl+c           Quit
 `)
