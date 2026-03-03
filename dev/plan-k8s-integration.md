@@ -69,6 +69,7 @@ Current state:
 - app-level scope selection now has explicit loading-status synchronization coverage
 - app command queries (`unhealthy`, `restarts`) now have status synchronization coverage
 - app tests now cover stack-reset lifecycle behavior (scope/resource switches dispose prior views)
+- app render-flow tests now cover scope-switch status transition from loading to ready-freshness messaging
 
 Scope:
 

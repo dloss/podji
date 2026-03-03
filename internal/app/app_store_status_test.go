@@ -205,3 +205,26 @@ func TestViewAppliesStoreStatusSyncForRendering(t *testing.T) {
 		t.Fatalf("expected rendered view to include synced store status, got %q", rendered)
 	}
 }
+
+func TestScopeSwitchRenderTransitionsFromLoadingToReadyFreshness(t *testing.T) {
+	store := newStatusStore()
+	m := NewWithStore(store)
+	m.width = 120
+	m.height = 40
+
+	updated, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	got := updated.(Model)
+	loadingView := got.View()
+	if !strings.Contains(loadingView, "store (loading): refreshing cluster data") {
+		t.Fatalf("expected loading status after scope switch, got %q", loadingView)
+	}
+
+	store.status = data.StoreStatus{
+		State:   data.StoreStateReady,
+		Message: "cache ready for workloads",
+	}
+	readyView := got.View()
+	if !strings.Contains(readyView, "store: cache ready for workloads") {
+		t.Fatalf("expected ready freshness status after transition, got %q", readyView)
+	}
+}
