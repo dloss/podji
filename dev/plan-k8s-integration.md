@@ -78,6 +78,7 @@ Current state:
 
 - mode startup/fallback tests exist
 - env-mode and scope/query contract tests exist in data layer
+- app-level scope selection now has explicit loading-status synchronization coverage
 
 Scope:
 

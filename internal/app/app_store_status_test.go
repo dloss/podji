@@ -7,6 +7,7 @@ import (
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
+	"github.com/dloss/podji/internal/ui/overlaypicker"
 )
 
 type statusStore struct {
@@ -39,6 +40,10 @@ func (s *statusStore) Scope() data.Scope        { return s.scope }
 func (s *statusStore) SetScope(scope data.Scope) {
 	s.scope = scope
 	s.registry.SetNamespace(scope.Namespace)
+	s.status = data.StoreStatus{
+		State:   data.StoreStateLoading,
+		Message: "refreshing cluster data",
+	}
 }
 func (s *statusStore) NamespaceNames() []string {
 	s.status = data.StoreStatus{
@@ -93,5 +98,15 @@ func TestModelInitRendersLoadingStoreStatus(t *testing.T) {
 	m.syncStoreStatus()
 	if !strings.Contains(m.errorMsg, "store (loading): connecting to cluster") {
 		t.Fatalf("expected loading store status message, got %q", m.errorMsg)
+	}
+}
+
+func TestScopeSelectionSyncsLoadingStoreStatus(t *testing.T) {
+	store := newStatusStore()
+	m := NewWithStore(store)
+	updated, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	got := updated.(Model)
+	if !strings.Contains(got.errorMsg, "store (loading): refreshing cluster data") {
+		t.Fatalf("expected loading store status after scope selection, got %q", got.errorMsg)
 	}
 }
