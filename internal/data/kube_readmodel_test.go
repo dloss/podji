@@ -24,6 +24,18 @@ type fakeKubeAPIObjectReader struct {
 	describeByKey map[string]string
 }
 
+type fakeKubeAPILogStreamer struct {
+	fakeKubeAPI
+	streamCalls int
+	streamTail  int
+	streamLines []string
+}
+
+type fakeKubeAPILogOptionsReader struct {
+	fakeKubeAPI
+	lastOpts LogOptions
+}
+
 func (f fakeKubeAPIMeta) ListResourcesMeta(contextName, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
 	items, err := f.fakeKubeAPI.ListResources(contextName, namespace, resourceName)
 	return items, f.cacheBacked, err
@@ -51,6 +63,25 @@ func (f fakeKubeAPIObjectReader) ResourceDescribe(contextName, namespace, resour
 		return out, nil
 	}
 	return "", ErrObjectReadNotSupported
+}
+
+func (f *fakeKubeAPILogStreamer) PodLogsStream(ctx context.Context, contextName, namespace, pod string, tail int, onLine func(string)) error {
+	f.streamCalls++
+	f.streamTail = tail
+	for _, line := range f.streamLines {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		onLine(line)
+	}
+	return nil
+}
+
+func (f *fakeKubeAPILogOptionsReader) PodLogsWithOptions(ctx context.Context, contextName, namespace, pod string, opts LogOptions) ([]string, error) {
+	f.lastOpts = opts
+	return []string{"from-options-reader"}, nil
 }
 
 func (f fallbackDetailReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
@@ -134,6 +165,65 @@ func TestKubeReadModelFallsBackForNonPodLogs(t *testing.T) {
 	}
 	if len(got) == 0 {
 		t.Fatalf("expected fallback logs for workload, got %#v", got)
+	}
+}
+
+func TestKubeReadModelLogsWithContextUsesOptionsReader(t *testing.T) {
+	api := &fakeKubeAPILogOptionsReader{}
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		api,
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	lines, err := read.LogsWithContext(context.Background(), "pods", resources.ResourceItem{Name: "api-1"}, Scope{}, LogOptions{
+		Tail:     123,
+		Follow:   false,
+		Previous: true,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(lines) != 1 || lines[0] != "from-options-reader" {
+		t.Fatalf("expected options reader result, got %#v", lines)
+	}
+	if api.lastOpts.Tail != 123 || api.lastOpts.Follow || !api.lastOpts.Previous {
+		t.Fatalf("expected options to propagate, got %#v", api.lastOpts)
+	}
+}
+
+func TestKubeReadModelStreamLogsUsesAPIStreamerForPodFollow(t *testing.T) {
+	api := &fakeKubeAPILogStreamer{
+		streamLines: []string{"live-a", "live-b"},
+	}
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		api,
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	var got []string
+	err := read.StreamLogsWithContext(context.Background(), "pods", resources.ResourceItem{Name: "api-1"}, Scope{}, LogOptions{
+		Tail:   25,
+		Follow: true,
+	}, func(line string) {
+		got = append(got, line)
+	})
+	if err != nil {
+		t.Fatalf("expected no stream error, got %v", err)
+	}
+	if api.streamCalls != 1 || api.streamTail != 25 {
+		t.Fatalf("expected one streamer call with tail=25, got calls=%d tail=%d", api.streamCalls, api.streamTail)
+	}
+	if len(got) != 2 || got[0] != "live-a" || got[1] != "live-b" {
+		t.Fatalf("expected streamed lines, got %#v", got)
 	}
 }
 

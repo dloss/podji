@@ -78,8 +78,9 @@ type ResourceType interface {
 }
 
 type LogOptions struct {
-	Tail   int
-	Follow bool
+	Tail     int
+	Follow   bool
+	Previous bool
 }
 
 type EventOptions struct {
@@ -90,6 +91,12 @@ type EventOptions struct {
 // explicit log read options such as tail and follow.
 type LogOptionsReader interface {
 	LogsWithOptions(ctx context.Context, item ResourceItem, opts LogOptions) ([]string, error)
+}
+
+// LogStreamReader is an optional extension for resources that can stream log
+// lines incrementally, typically for follow mode.
+type LogStreamReader interface {
+	LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error
 }
 
 // EventOptionsReader is an optional extension for resources that can honor

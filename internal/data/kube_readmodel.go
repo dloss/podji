@@ -171,6 +171,20 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 			return nil, fmt.Errorf("kube api is nil")
 		}
 		ns, contextName := k.resolveScope(scope, item)
+		if reader, ok := k.api.(KubeAPILogOptionsReader); ok {
+			lines, err := reader.PodLogsWithOptions(ctx, contextName, ns, item.Name, opts)
+			if err != nil {
+				k.report(err)
+				return nil, err
+			}
+			k.markReady(resourceName)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			return lines, nil
+		}
 		tail := opts.Tail
 		if tail <= 0 {
 			tail = 200
@@ -192,6 +206,51 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 		return nil, fmt.Errorf("kube read model fallback is nil")
 	}
 	return k.fallback.Logs(resourceName, item, scope)
+}
+
+func (k *KubeReadModel) StreamLogsWithContext(ctx context.Context, resourceName string, item resources.ResourceItem, scope Scope, opts LogOptions, onLine func(string)) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	if k.isPodResourceName(resourceName) {
+		if k.api == nil {
+			return fmt.Errorf("kube api is nil")
+		}
+		if streamer, ok := k.api.(KubeAPILogOptionsStreamer); ok && opts.Follow {
+			ns, contextName := k.resolveScope(scope, item)
+			err := streamer.PodLogsStreamWithOptions(ctx, contextName, ns, item.Name, opts, onLine)
+			if err != nil {
+				k.report(err)
+				return err
+			}
+			k.markReady(resourceName)
+			return nil
+		}
+		if streamer, ok := k.api.(KubeAPILogStreamer); ok && opts.Follow {
+			ns, contextName := k.resolveScope(scope, item)
+			tail := opts.Tail
+			if tail <= 0 {
+				tail = 200
+			}
+			err := streamer.PodLogsStream(ctx, contextName, ns, item.Name, tail, onLine)
+			if err != nil {
+				k.report(err)
+				return err
+			}
+			k.markReady(resourceName)
+			return nil
+		}
+	}
+	lines, err := k.LogsWithContext(ctx, resourceName, item, scope, opts)
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		onLine(line)
+	}
+	return nil
 }
 
 func (k *KubeReadModel) Events(resourceName string, item resources.ResourceItem, scope Scope) ([]string, error) {

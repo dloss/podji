@@ -17,6 +17,7 @@ type optionsLogsResource struct {
 	base      resources.ResourceType
 	tailCalls []int
 	follow    []bool
+	previous  []bool
 }
 
 func (o *optionsLogsResource) Name() string                        { return o.base.Name() }
@@ -38,6 +39,7 @@ func (o *optionsLogsResource) Describe(item resources.ResourceItem) string {
 func (o *optionsLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
 	o.tailCalls = append(o.tailCalls, opts.Tail)
 	o.follow = append(o.follow, opts.Follow)
+	o.previous = append(o.previous, opts.Previous)
 	return []string{"line-a", "line-b"}, nil
 }
 
@@ -148,6 +150,22 @@ func TestFollowToggleRefetchesWithUpdatedFollowOption(t *testing.T) {
 	}
 }
 
+func TestPreviousToggleRefetchesWithUpdatedPreviousOption(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	if len(res.previous) != 1 || res.previous[0] {
+		t.Fatalf("expected initial previous=false fetch, got %#v", res.previous)
+	}
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after previous toggle")
+	}
+	_ = upd.Cmd()
+	if len(res.previous) != 2 || !res.previous[1] {
+		t.Fatalf("expected previous=true refetch after toggle, got %#v", res.previous)
+	}
+}
+
 type blockingLogsResource struct {
 	base      resources.ResourceType
 	ctxSeen   chan context.Context
@@ -181,6 +199,86 @@ func (b *blockingLogsResource) LogsWithOptions(ctx context.Context, item resourc
 	default:
 	}
 	return nil, ctx.Err()
+}
+
+type streamingLogsResource struct {
+	base      resources.ResourceType
+	streamed  []string
+	streamCtx chan context.Context
+	streamErr error
+}
+
+func (s *streamingLogsResource) Name() string                        { return s.base.Name() }
+func (s *streamingLogsResource) Key() rune                           { return s.base.Key() }
+func (s *streamingLogsResource) Items() []resources.ResourceItem     { return s.base.Items() }
+func (s *streamingLogsResource) Sort(items []resources.ResourceItem) { s.base.Sort(items) }
+func (s *streamingLogsResource) Detail(item resources.ResourceItem) resources.DetailData {
+	return s.base.Detail(item)
+}
+func (s *streamingLogsResource) Logs(item resources.ResourceItem) []string { return []string{"seed"} }
+func (s *streamingLogsResource) Events(item resources.ResourceItem) []string {
+	return s.base.Events(item)
+}
+func (s *streamingLogsResource) YAML(item resources.ResourceItem) string { return s.base.YAML(item) }
+func (s *streamingLogsResource) Describe(item resources.ResourceItem) string {
+	return s.base.Describe(item)
+}
+func (s *streamingLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
+	return []string{"seed"}, nil
+}
+func (s *streamingLogsResource) LogsStream(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions, onLine func(string)) error {
+	select {
+	case s.streamCtx <- ctx:
+	default:
+	}
+	for _, line := range s.streamed {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		onLine(line)
+	}
+	if s.streamErr != nil {
+		return s.streamErr
+	}
+	return nil
+}
+
+type blockingStreamingLogsResource struct {
+	base      resources.ResourceType
+	streamCtx chan context.Context
+}
+
+func (s *blockingStreamingLogsResource) Name() string                        { return s.base.Name() }
+func (s *blockingStreamingLogsResource) Key() rune                           { return s.base.Key() }
+func (s *blockingStreamingLogsResource) Items() []resources.ResourceItem     { return s.base.Items() }
+func (s *blockingStreamingLogsResource) Sort(items []resources.ResourceItem) { s.base.Sort(items) }
+func (s *blockingStreamingLogsResource) Detail(item resources.ResourceItem) resources.DetailData {
+	return s.base.Detail(item)
+}
+func (s *blockingStreamingLogsResource) Logs(item resources.ResourceItem) []string {
+	return []string{"seed"}
+}
+func (s *blockingStreamingLogsResource) Events(item resources.ResourceItem) []string {
+	return s.base.Events(item)
+}
+func (s *blockingStreamingLogsResource) YAML(item resources.ResourceItem) string {
+	return s.base.YAML(item)
+}
+func (s *blockingStreamingLogsResource) Describe(item resources.ResourceItem) string {
+	return s.base.Describe(item)
+}
+func (s *blockingStreamingLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
+	return []string{"seed"}, nil
+}
+func (s *blockingStreamingLogsResource) LogsStream(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions, onLine func(string)) error {
+	select {
+	case s.streamCtx <- ctx:
+	default:
+	}
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func TestDisposeCancelsInFlightReload(t *testing.T) {
@@ -218,6 +316,78 @@ func TestDisposeCancelsInFlightReload(t *testing.T) {
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("expected reload command to return after cancellation")
+	}
+}
+
+func TestInitStartsFollowStreamAndAppendsLines(t *testing.T) {
+	res := &streamingLogsResource{
+		base:      resources.NewPods(),
+		streamed:  []string{"stream-a", "stream-b"},
+		streamCtx: make(chan context.Context, 1),
+	}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	cmd := v.Init()
+	if cmd == nil {
+		t.Fatal("expected init stream command")
+	}
+	msg1 := cmd()
+	upd := v.Update(msg1)
+	if upd.Cmd == nil {
+		t.Fatal("expected follow-up stream cmd after first append")
+	}
+	msg2 := upd.Cmd()
+	upd = v.Update(msg2)
+	if upd.Cmd == nil {
+		t.Fatal("expected follow-up stream cmd after second append")
+	}
+	_ = upd.Cmd() // done message
+	if got := strings.Join(v.lines, "\n"); !strings.Contains(got, "stream-a") || !strings.Contains(got, "stream-b") {
+		t.Fatalf("expected streamed lines in viewport content, got %q", got)
+	}
+}
+
+func TestDisposeCancelsInFlightStream(t *testing.T) {
+	res := &blockingStreamingLogsResource{
+		base:      resources.NewPods(),
+		streamCtx: make(chan context.Context, 1),
+	}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	cmd := v.Init()
+	if cmd == nil {
+		t.Fatal("expected init stream command")
+	}
+	done := make(chan bubbletea.Msg, 1)
+	go func() { done <- cmd() }()
+	select {
+	case <-res.streamCtx:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected stream context")
+	}
+	v.Dispose()
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected stream command to return after dispose")
+	}
+}
+
+func TestFooterShowsStreamErrorIndicator(t *testing.T) {
+	res := &streamingLogsResource{
+		base:      resources.NewPods(),
+		streamCtx: make(chan context.Context, 1),
+		streamErr: errors.New("backend stream failed"),
+	}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	v.SetSize(80, 20)
+	cmd := v.Init()
+	if cmd == nil {
+		t.Fatal("expected init stream command")
+	}
+	msg := cmd()
+	v.Update(msg)
+	footer := ansi.Strip(v.Footer())
+	if !strings.Contains(footer, "stream") || !strings.Contains(footer, "backend stream failed") {
+		t.Fatalf("expected stream error indicator in footer, got %q", footer)
 	}
 }
 

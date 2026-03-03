@@ -255,19 +255,27 @@ func (k *clientGoAPI) ListResourcesMeta(contextName, namespace, resourceName str
 }
 
 func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]string, error) {
+	return k.PodLogsWithOptions(context.Background(), contextName, namespace, pod, LogOptions{Tail: tail})
+}
+
+func (k *clientGoAPI) PodLogsWithOptions(ctx context.Context, contextName, namespace, pod string, opts LogOptions) ([]string, error) {
 	client, err := k.clientForContext(contextName)
 	if err != nil {
 		return nil, err
 	}
+	tail := opts.Tail
 	if tail <= 0 {
 		tail = 200
 	}
 	tail64 := int64(tail)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{TailLines: &tail64})
-	stream, err := req.Stream(ctx)
+	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{
+		TailLines: &tail64,
+		Previous:  opts.Previous,
+	})
+	stream, err := req.Stream(reqCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream logs for %s/%s: %w", namespace, pod, err)
 	}
@@ -281,6 +289,54 @@ func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]s
 		return []string{"No log lines returned."}, nil
 	}
 	return lines, nil
+}
+
+func (k *clientGoAPI) PodLogsStream(ctx context.Context, contextName, namespace, pod string, tail int, onLine func(string)) error {
+	return k.PodLogsStreamWithOptions(ctx, contextName, namespace, pod, LogOptions{Tail: tail, Follow: true}, onLine)
+}
+
+func (k *clientGoAPI) PodLogsStreamWithOptions(ctx context.Context, contextName, namespace, pod string, opts LogOptions, onLine func(string)) error {
+	client, err := k.clientForContext(contextName)
+	if err != nil {
+		return err
+	}
+	tail := opts.Tail
+	if tail <= 0 {
+		tail = 200
+	}
+	tail64 := int64(tail)
+	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{
+		TailLines: &tail64,
+		Follow:    opts.Follow,
+		Previous:  opts.Previous,
+	})
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to stream follow logs for %s/%s: %w", namespace, pod, err)
+	}
+	defer stream.Close()
+
+	scanner := bufio.NewScanner(stream)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		if onLine != nil {
+			onLine(line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("failed reading follow logs for %s/%s: %w", namespace, pod, err)
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return nil
 }
 
 func (k *clientGoAPI) PodEvents(contextName, namespace, pod string) ([]string, error) {

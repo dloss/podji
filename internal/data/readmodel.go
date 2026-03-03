@@ -18,8 +18,9 @@ type ReadModel interface {
 }
 
 type LogOptions struct {
-	Tail   int
-	Follow bool
+	Tail     int
+	Follow   bool
+	Previous bool
 }
 
 type EventOptions struct {
@@ -33,11 +34,31 @@ type StreamingReadModel interface {
 	EventsWithContext(ctx context.Context, resourceName string, item resources.ResourceItem, scope Scope, opts EventOptions) ([]string, error)
 }
 
+// LogStreamReadModel optionally extends ReadModel with incremental log
+// streaming support.
+type LogStreamReadModel interface {
+	StreamLogsWithContext(ctx context.Context, resourceName string, item resources.ResourceItem, scope Scope, opts LogOptions, onLine func(string)) error
+}
+
 func ReadLogs(ctx context.Context, read ReadModel, resourceName string, item resources.ResourceItem, scope Scope, opts LogOptions) ([]string, error) {
 	if streaming, ok := read.(StreamingReadModel); ok {
 		return streaming.LogsWithContext(ctx, resourceName, item, scope, opts)
 	}
 	return read.Logs(resourceName, item, scope)
+}
+
+func StreamLogs(ctx context.Context, read ReadModel, resourceName string, item resources.ResourceItem, scope Scope, opts LogOptions, onLine func(string)) error {
+	if streaming, ok := read.(LogStreamReadModel); ok {
+		return streaming.StreamLogsWithContext(ctx, resourceName, item, scope, opts, onLine)
+	}
+	lines, err := ReadLogs(ctx, read, resourceName, item, scope, opts)
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		onLine(line)
+	}
+	return nil
 }
 
 func ReadEvents(ctx context.Context, read ReadModel, resourceName string, item resources.ResourceItem, scope Scope, opts EventOptions) ([]string, error) {

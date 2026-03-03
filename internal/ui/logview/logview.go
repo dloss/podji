@@ -2,6 +2,7 @@ package logview
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,16 @@ type logReloadResultMsg struct {
 	err       error
 }
 
+type logStreamAppendMsg struct {
+	requestID int
+	line      string
+}
+
+type logStreamDoneMsg struct {
+	requestID int
+	err       error
+}
+
 type View struct {
 	item      resources.ResourceItem
 	resource  resources.ResourceType
@@ -41,6 +52,8 @@ type View struct {
 	matchIndex   int
 	requestID    int
 	cancel       context.CancelFunc
+	streamCh     <-chan bubbletea.Msg
+	streamErr    string
 
 	// ContainerViewFactory, when set, is called to produce a container-picker
 	// view for the pod. Pressing c opens that picker so the user can switch
@@ -68,7 +81,12 @@ func NewWithContainer(item resources.ResourceItem, resource resources.ResourceTy
 	return v
 }
 
-func (v *View) Init() bubbletea.Cmd { return nil }
+func (v *View) Init() bubbletea.Cmd {
+	if v.follow {
+		return v.reloadLogsCmd()
+	}
+	return nil
+}
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	switch msg := msg.(type) {
@@ -77,9 +95,27 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 		if msg.err == nil && len(msg.lines) > 0 {
+			v.streamErr = ""
 			v.allLines = msg.lines
 			v.refreshWindow()
 			v.refreshContent()
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	case logStreamAppendMsg:
+		if msg.requestID != v.requestID {
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+		v.allLines = append(v.allLines, msg.line)
+		v.refreshWindow()
+		v.refreshContent()
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.nextStreamMsgCmd()}
+	case logStreamDoneMsg:
+		if msg.requestID != v.requestID {
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+		if !isCanceledErr(msg.err) && msg.err != nil {
+			v.streamErr = shortErr(msg.err, 32)
+			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	case bubbletea.KeyMsg:
@@ -119,6 +155,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			v.refreshContent()
 		case "t":
 			v.previous = !v.previous
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "/":
 			v.searchActive = true
 			v.searchQuery = ""
@@ -193,6 +230,9 @@ func (v *View) Footer() string {
 	if len(v.matchLines) > 0 && !v.searchActive {
 		indicators = append(indicators, style.B("match", matchSummary(v.matchIndex, len(v.matchLines))))
 	}
+	if v.streamErr != "" {
+		indicators = append(indicators, style.B("stream", v.streamErr))
+	}
 	line1 := style.FormatBindings(indicators)
 
 	// Line 2: search mode prompt or normal actions.
@@ -256,8 +296,9 @@ func (v *View) refreshWindow() {
 func (v *View) reloadLogs() {
 	// Keep constructor path synchronous to render immediate content.
 	opts := resources.LogOptions{
-		Tail:   tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow: v.follow,
+		Tail:     tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:   v.follow,
+		Previous: v.previous,
 	}
 	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -272,13 +313,34 @@ func (v *View) reloadLogs() {
 }
 
 func (v *View) reloadLogsCmd() bubbletea.Cmd {
-	if v.cancel != nil {
-		v.cancel()
-		v.cancel = nil
-	}
+	v.cancelReload()
+	v.streamErr = ""
 	opts := resources.LogOptions{
-		Tail:   tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow: v.follow,
+		Tail:     tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:   v.follow,
+		Previous: v.previous,
+	}
+	if streamer, ok := v.resource.(resources.LogStreamReader); ok && opts.Follow {
+		v.requestID++
+		requestID := v.requestID
+		ctx, cancel := context.WithCancel(context.Background())
+		v.cancel = cancel
+		streamCh := make(chan bubbletea.Msg, 256)
+		v.streamCh = streamCh
+		go func() {
+			err := streamer.LogsStream(ctx, v.item, opts, func(line string) {
+				select {
+				case streamCh <- logStreamAppendMsg{requestID: requestID, line: line}:
+				case <-ctx.Done():
+				}
+			})
+			select {
+			case streamCh <- logStreamDoneMsg{requestID: requestID, err: err}:
+			default:
+			}
+			close(streamCh)
+		}()
+		return v.nextStreamMsgCmd()
 	}
 	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
 		v.requestID++
@@ -297,10 +359,45 @@ func (v *View) reloadLogsCmd() bubbletea.Cmd {
 }
 
 func (v *View) Dispose() {
+	v.cancelReload()
+}
+
+func (v *View) cancelReload() {
 	if v.cancel != nil {
 		v.cancel()
 		v.cancel = nil
 	}
+	v.streamCh = nil
+}
+
+func (v *View) nextStreamMsgCmd() bubbletea.Cmd {
+	if v.streamCh == nil {
+		return nil
+	}
+	ch := v.streamCh
+	return func() bubbletea.Msg {
+		msg, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return msg
+	}
+}
+
+func isCanceledErr(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func shortErr(err error, max int) string {
+	if err == nil {
+		return ""
+	}
+	s := strings.TrimSpace(err.Error())
+	if max <= 0 || len([]rune(s)) <= max {
+		return s
+	}
+	r := []rune(s)
+	return string(r[:max-1]) + "…"
 }
 
 func tailForWindow(window string) int {

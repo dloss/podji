@@ -66,9 +66,18 @@ func (r *ReadBackedResource) LogsWithOptions(ctx context.Context, item resources
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return ReadLogs(reqCtx, r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{
-		Tail:   opts.Tail,
-		Follow: opts.Follow,
+		Tail:     opts.Tail,
+		Follow:   opts.Follow,
+		Previous: opts.Previous,
 	})
+}
+
+func (r *ReadBackedResource) LogsStream(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions, onLine func(string)) error {
+	return StreamLogs(ctx, r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{
+		Tail:     opts.Tail,
+		Follow:   opts.Follow,
+		Previous: opts.Previous,
+	}, onLine)
 }
 
 func (r *ReadBackedResource) EventsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.EventOptions) ([]string, error) {
