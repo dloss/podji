@@ -210,3 +210,8 @@ func (r *ReadBackedResource) Banner() string {
 	}
 	return ""
 }
+
+// ListResource exposes read-model backed listing for related drill-down flows.
+func (r *ReadBackedResource) ListResource(resourceName string) ([]resources.ResourceItem, error) {
+	return r.read.List(resourceName, r.scopeFunc())
+}

@@ -1541,6 +1541,18 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	resourceName := strings.ToLower(v.resource.Name())
 
 	if resourceName == "workloads" {
+		if livePods, ok := v.liveWorkloadPods(selected); ok {
+			base := resources.NewWorkloadPods(selected, v.registry)
+			pods := resources.NewQueryResource(base.Name(), livePods, base)
+			if key == "o" && len(livePods) > 0 {
+				lv := logview.New(preferredLogPod(livePods), pods)
+				lv.ContainerViewFactory = func(item resources.ResourceItem, res resources.ResourceType) viewstate.View {
+					return New(resources.NewContainerResource(item, res), v.registry)
+				}
+				return viewstate.Push, lv
+			}
+			return viewstate.Push, New(pods, v.registry)
+		}
 		pods := resources.NewWorkloadPods(selected, v.registry)
 		items := pods.Items()
 		if len(items) == 0 {
@@ -1572,6 +1584,10 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	if resourceName == "deployments" {
+		if livePods, ok := v.liveWorkloadPods(selected); ok {
+			base := resources.NewWorkloadPods(selected, v.registry)
+			return viewstate.Push, New(resources.NewQueryResource(base.Name(), livePods, base), v.registry)
+		}
 		pods := resources.NewWorkloadPods(selected, v.registry)
 		if len(pods.Items()) == 0 {
 			return viewstate.OpenRelated, nil
@@ -1580,18 +1596,34 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	if strings.HasPrefix(resourceName, "services") {
+		if backends, ok := v.liveBackendsForService(selected); ok {
+			base := resources.NewBackends(selected, v.registry)
+			return viewstate.Push, New(resources.NewQueryResource(base.Name(), backends, base), v.registry)
+		}
 		return viewstate.Push, New(resources.NewBackends(selected, v.registry), v.registry)
 	}
 
 	if strings.HasPrefix(resourceName, "ingresses") {
+		if svcs, ok := v.liveServicesForIngress(selected); ok {
+			base := resources.NewIngressServices(selected.Name)
+			return viewstate.Push, New(resources.NewQueryResource(base.Name(), svcs, base), v.registry)
+		}
 		return viewstate.Push, New(resources.NewIngressServices(selected.Name), v.registry)
 	}
 
 	if resourceName == "nodes" {
+		if pods, ok := v.livePodsForNode(selected); ok {
+			base := resources.NewNodePods(selected.Name)
+			return viewstate.Push, New(resources.NewQueryResource(base.Name(), pods, base), v.registry)
+		}
 		return viewstate.Push, New(resources.NewNodePods(selected.Name), v.registry)
 	}
 
 	if resourceName == "persistentvolumeclaims" {
+		if pods, ok := v.livePodsForPVC(selected); ok {
+			base := resources.NewMountedBy(selected.Name)
+			return viewstate.Push, New(resources.NewQueryResource(base.Name(), pods, base), v.registry)
+		}
 		return viewstate.Push, New(resources.NewMountedBy(selected.Name), v.registry)
 	}
 
@@ -1613,6 +1645,99 @@ func (v *View) forwardView(selected resources.ResourceItem, key string) (viewsta
 	}
 
 	return viewstate.None, nil
+}
+
+func (v *View) liveWorkloadPods(workload resources.ResourceItem) ([]resources.ResourceItem, bool) {
+	if strings.TrimSpace(workload.UID) == "" {
+		return nil, false
+	}
+	pods, err := v.listResource("pods")
+	if err != nil {
+		return nil, false
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, pod := range pods {
+		if resources.MatchesSelector(workload.Selector, pod.Labels) {
+			out = append(out, pod)
+		}
+	}
+	return out, true
+}
+
+func (v *View) liveBackendsForService(service resources.ResourceItem) ([]resources.ResourceItem, bool) {
+	pods, err := v.listResource("pods")
+	if err != nil {
+		return nil, false
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, pod := range pods {
+		if resources.MatchesSelector(service.Selector, pod.Labels) {
+			out = append(out, pod)
+		}
+	}
+	return out, true
+}
+
+func (v *View) liveServicesForIngress(ingress resources.ResourceItem) ([]resources.ResourceItem, bool) {
+	services, err := v.listResource("services")
+	if err != nil {
+		return nil, false
+	}
+	want := map[string]bool{}
+	for _, name := range strings.Split(ingress.Extra["services"], ",") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			want[name] = true
+		}
+	}
+	out := make([]resources.ResourceItem, 0, len(services))
+	for _, svc := range services {
+		if want[svc.Name] {
+			out = append(out, svc)
+		}
+	}
+	return out, true
+}
+
+func (v *View) livePodsForNode(node resources.ResourceItem) ([]resources.ResourceItem, bool) {
+	pods, err := v.listResource("pods")
+	if err != nil {
+		return nil, false
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, pod := range pods {
+		if strings.TrimSpace(pod.Extra["node"]) == node.Name {
+			out = append(out, pod)
+		}
+	}
+	return out, true
+}
+
+func (v *View) livePodsForPVC(pvc resources.ResourceItem) ([]resources.ResourceItem, bool) {
+	pods, err := v.listResource("pods")
+	if err != nil {
+		return nil, false
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, pod := range pods {
+		for _, ref := range strings.Split(pod.Extra["pvc-refs"], ",") {
+			if strings.TrimSpace(ref) == pvc.Name {
+				out = append(out, pod)
+				break
+			}
+		}
+	}
+	return out, true
+}
+
+func (v *View) listResource(resourceName string) ([]resources.ResourceItem, error) {
+	lister, ok := v.resource.(interface {
+		ListResource(resourceName string) ([]resources.ResourceItem, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("list resource unavailable")
+	}
+	return lister.ListResource(resourceName)
 }
 
 func preferredLogPod(items []resources.ResourceItem) resources.ResourceItem {

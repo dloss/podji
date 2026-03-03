@@ -1,6 +1,7 @@
 package listview
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -550,6 +551,236 @@ func TestEventsStatusSortArrowUsesTypeColumn(t *testing.T) {
 	rendered := ansi.Strip(view.View())
 	if !strings.Contains(rendered, "↑TYPE") {
 		t.Fatalf("expected status sort arrow on TYPE for events, got: %s", rendered)
+	}
+}
+
+type fakeWorkloadsLiveResource struct {
+	items   []resources.ResourceItem
+	pods    []resources.ResourceItem
+	podsErr error
+}
+
+func (f fakeWorkloadsLiveResource) Name() string { return "workloads" }
+func (f fakeWorkloadsLiveResource) Key() rune    { return 'W' }
+func (f fakeWorkloadsLiveResource) Items() []resources.ResourceItem {
+	return f.items
+}
+func (f fakeWorkloadsLiveResource) Sort([]resources.ResourceItem) {}
+func (f fakeWorkloadsLiveResource) Detail(resources.ResourceItem) resources.DetailData {
+	return resources.DetailData{}
+}
+func (f fakeWorkloadsLiveResource) Logs(resources.ResourceItem) []string     { return nil }
+func (f fakeWorkloadsLiveResource) Events(resources.ResourceItem) []string   { return nil }
+func (f fakeWorkloadsLiveResource) YAML(resources.ResourceItem) string       { return "" }
+func (f fakeWorkloadsLiveResource) Describe(resources.ResourceItem) string   { return "" }
+func (f fakeWorkloadsLiveResource) ListResource(name string) ([]resources.ResourceItem, error) {
+	if name != "pods" {
+		return nil, errors.New("unsupported")
+	}
+	if f.podsErr != nil {
+		return nil, f.podsErr
+	}
+	return f.pods, nil
+}
+
+type fakeLiveListResource struct {
+	name    string
+	items   []resources.ResourceItem
+	lists   map[string][]resources.ResourceItem
+	listErr map[string]error
+}
+
+func (f fakeLiveListResource) Name() string { return f.name }
+func (f fakeLiveListResource) Key() rune    { return 0 }
+func (f fakeLiveListResource) Items() []resources.ResourceItem {
+	return f.items
+}
+func (f fakeLiveListResource) Sort([]resources.ResourceItem) {}
+func (f fakeLiveListResource) Detail(resources.ResourceItem) resources.DetailData {
+	return resources.DetailData{}
+}
+func (f fakeLiveListResource) Logs(resources.ResourceItem) []string   { return nil }
+func (f fakeLiveListResource) Events(resources.ResourceItem) []string { return nil }
+func (f fakeLiveListResource) YAML(resources.ResourceItem) string     { return "" }
+func (f fakeLiveListResource) Describe(resources.ResourceItem) string { return "" }
+func (f fakeLiveListResource) ListResource(name string) ([]resources.ResourceItem, error) {
+	if err := f.listErr[name]; err != nil {
+		return nil, err
+	}
+	return f.lists[name], nil
+}
+
+func TestWorkloadForwardUsesLivePodsForDirectNavigation(t *testing.T) {
+	workload := resources.ResourceItem{
+		UID:       "uid-1",
+		Name:      "coredns",
+		Namespace: "kube-system",
+		Kind:      "DEP",
+		Selector:  map[string]string{"k8s-app": "kube-dns"},
+	}
+	resource := fakeWorkloadsLiveResource{
+		items: []resources.ResourceItem{workload},
+		pods: []resources.ResourceItem{
+			{
+				Name:      "coredns-7d9c7c9d4f-qwz8p",
+				Namespace: "kube-system",
+				Status:    "Running",
+				Ready:     "2/2",
+				Labels:    map[string]string{"k8s-app": "kube-dns"},
+			},
+		},
+	}
+	view := New(resource, resources.DefaultRegistry())
+
+	action, next := view.ForwardViewForCommand(workload, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into pods view, got %v", action)
+	}
+	nextList, ok := next.(*View)
+	if !ok {
+		t.Fatalf("expected list view, got %T", next)
+	}
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "pods") {
+		t.Fatalf("expected pods resource, got %q", nextList.resource.Name())
+	}
+	items := nextList.resource.Items()
+	if len(items) != 1 || items[0].Namespace != "kube-system" {
+		t.Fatalf("expected live pod with namespace, got %#v", items)
+	}
+}
+
+func TestDeploymentForwardUsesLivePodsForDirectNavigation(t *testing.T) {
+	deployment := resources.ResourceItem{
+		UID:      "dep-uid-1",
+		Name:     "api",
+		Kind:     "DEP",
+		Selector: map[string]string{"app": "api"},
+	}
+	view := New(fakeLiveListResource{
+		name:  "deployments",
+		items: []resources.ResourceItem{deployment},
+		lists: map[string][]resources.ResourceItem{
+			"pods": {
+				{Name: "api-1", Namespace: "default", Labels: map[string]string{"app": "api"}},
+			},
+		},
+	}, resources.DefaultRegistry())
+
+	action, next := view.ForwardViewForCommand(deployment, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into pods view, got %v", action)
+	}
+	nextList := next.(*View)
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "pods") {
+		t.Fatalf("expected pods resource, got %q", nextList.resource.Name())
+	}
+	if got := nextList.resource.Items(); len(got) != 1 || got[0].Name != "api-1" {
+		t.Fatalf("expected live deployment pod, got %#v", got)
+	}
+}
+
+func TestServiceForwardUsesLiveBackends(t *testing.T) {
+	service := resources.ResourceItem{
+		Name:     "kube-dns",
+		Selector: map[string]string{"k8s-app": "kube-dns"},
+	}
+	view := New(fakeLiveListResource{
+		name:  "services",
+		items: []resources.ResourceItem{service},
+		lists: map[string][]resources.ResourceItem{
+			"pods": {
+				{Name: "coredns-a", Namespace: "kube-system", Labels: map[string]string{"k8s-app": "kube-dns"}},
+			},
+		},
+	}, resources.DefaultRegistry())
+	action, next := view.ForwardViewForCommand(service, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into backends view, got %v", action)
+	}
+	nextList := next.(*View)
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "backends") {
+		t.Fatalf("expected backends resource, got %q", nextList.resource.Name())
+	}
+	if got := nextList.resource.Items(); len(got) != 1 || got[0].Name != "coredns-a" {
+		t.Fatalf("expected live backend pod, got %#v", got)
+	}
+}
+
+func TestIngressForwardUsesLiveServices(t *testing.T) {
+	ing := resources.ResourceItem{
+		Name:  "web",
+		Extra: map[string]string{"services": "api-svc,web-svc"},
+	}
+	view := New(fakeLiveListResource{
+		name:  "ingresses",
+		items: []resources.ResourceItem{ing},
+		lists: map[string][]resources.ResourceItem{
+			"services": {
+				{Name: "api-svc", Namespace: "default"},
+				{Name: "other-svc", Namespace: "default"},
+			},
+		},
+	}, resources.DefaultRegistry())
+	action, next := view.ForwardViewForCommand(ing, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into services view, got %v", action)
+	}
+	nextList := next.(*View)
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "services") {
+		t.Fatalf("expected services resource, got %q", nextList.resource.Name())
+	}
+	if got := nextList.resource.Items(); len(got) != 1 || got[0].Name != "api-svc" {
+		t.Fatalf("expected filtered live services, got %#v", got)
+	}
+}
+
+func TestNodeForwardUsesLivePods(t *testing.T) {
+	node := resources.ResourceItem{Name: "worker-01"}
+	view := New(fakeLiveListResource{
+		name:  "nodes",
+		items: []resources.ResourceItem{node},
+		lists: map[string][]resources.ResourceItem{
+			"pods": {
+				{Name: "api-1", Namespace: "default", Extra: map[string]string{"node": "worker-01"}},
+				{Name: "api-2", Namespace: "default", Extra: map[string]string{"node": "worker-02"}},
+			},
+		},
+	}, resources.DefaultRegistry())
+	action, next := view.ForwardViewForCommand(node, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into node pods view, got %v", action)
+	}
+	nextList := next.(*View)
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "pods") {
+		t.Fatalf("expected pods resource, got %q", nextList.resource.Name())
+	}
+	if got := nextList.resource.Items(); len(got) != 1 || got[0].Name != "api-1" {
+		t.Fatalf("expected node-matched pod, got %#v", got)
+	}
+}
+
+func TestPVCForwardUsesLiveMountedByPods(t *testing.T) {
+	pvc := resources.ResourceItem{Name: "data-pvc"}
+	view := New(fakeLiveListResource{
+		name:  "persistentvolumeclaims",
+		items: []resources.ResourceItem{pvc},
+		lists: map[string][]resources.ResourceItem{
+			"pods": {
+				{Name: "db-0", Namespace: "default", Extra: map[string]string{"pvc-refs": "data-pvc,cache-pvc"}},
+				{Name: "api-1", Namespace: "default", Extra: map[string]string{"pvc-refs": "other-pvc"}},
+			},
+		},
+	}, resources.DefaultRegistry())
+	action, next := view.ForwardViewForCommand(pvc, "")
+	if action != viewstate.Push {
+		t.Fatalf("expected push into mounted-by view, got %v", action)
+	}
+	nextList := next.(*View)
+	if !strings.HasPrefix(strings.ToLower(nextList.resource.Name()), "mounted-by") {
+		t.Fatalf("expected mounted-by resource, got %q", nextList.resource.Name())
+	}
+	if got := nextList.resource.Items(); len(got) != 1 || got[0].Name != "db-0" {
+		t.Fatalf("expected pvc-mounted pod, got %#v", got)
 	}
 }
 
