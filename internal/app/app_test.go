@@ -22,6 +22,9 @@ type keySpyView struct {
 type disposableSpyView struct {
 	disposed bool
 }
+type pushInitMsg struct{}
+type initPushView struct{}
+type initTargetView struct{}
 
 func (overflowView) Init() bubbletea.Cmd { return nil }
 
@@ -79,6 +82,29 @@ func (v *disposableSpyView) Breadcrumb() string        { return "logs" }
 func (v *disposableSpyView) Footer() string            { return "" }
 func (v *disposableSpyView) SetSize(width, height int) {}
 func (v *disposableSpyView) Dispose()                  { v.disposed = true }
+
+func (initPushView) Init() bubbletea.Cmd { return nil }
+func (initPushView) Update(msg bubbletea.Msg) viewstate.Update {
+	if key, ok := msg.(bubbletea.KeyMsg); ok && key.String() == "enter" {
+		return viewstate.Update{Action: viewstate.Push, Next: initTargetView{}}
+	}
+	return viewstate.Update{Action: viewstate.None, Next: initPushView{}}
+}
+func (initPushView) View() string              { return "" }
+func (initPushView) Breadcrumb() string        { return "workloads" }
+func (initPushView) Footer() string            { return "" }
+func (initPushView) SetSize(width, height int) {}
+
+func (initTargetView) Init() bubbletea.Cmd {
+	return func() bubbletea.Msg { return pushInitMsg{} }
+}
+func (initTargetView) Update(msg bubbletea.Msg) viewstate.Update {
+	return viewstate.Update{Action: viewstate.None, Next: initTargetView{}}
+}
+func (initTargetView) View() string              { return "" }
+func (initTargetView) Breadcrumb() string        { return "events" }
+func (initTargetView) Footer() string            { return "" }
+func (initTargetView) SetSize(width, height int) {}
 
 func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
@@ -238,6 +264,29 @@ func TestBackNavigationDisposesPoppedView(t *testing.T) {
 	}
 	if !disposable.disposed {
 		t.Fatal("expected popped disposable view to be disposed")
+	}
+}
+
+func TestPushBatchesNextInitCommand(t *testing.T) {
+	m := Model{
+		stack:     []viewstate.View{initPushView{}},
+		crumbs:    []string{"workloads"},
+		context:   "default",
+		namespace: "default",
+		width:     120,
+		height:    40,
+	}
+	updated, cmd := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	got := updated.(Model)
+	if len(got.stack) != 2 {
+		t.Fatalf("expected pushed stack depth 2, got %d", len(got.stack))
+	}
+	if cmd == nil {
+		t.Fatal("expected command containing pushed view init cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(pushInitMsg); !ok {
+		t.Fatalf("expected pushInitMsg from batched init cmd, got %T", msg)
 	}
 }
 

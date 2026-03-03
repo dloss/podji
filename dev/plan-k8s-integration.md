@@ -45,6 +45,7 @@ Current state:
 - follow-mode toggles in log view now refetch through option-aware readers with bounded context timeouts
 - log view reloads run through cancellable commands, and app stack removal now calls view `Dispose()` hooks for cleanup
 - cancellation and disposal behavior are covered by logview/app tests (in-flight reload cancellation + pop disposal)
+- event view now uses cancellable async load in `Init`, and app push/replace flows execute pushed-view `Init` commands
 
 Scope:
 
