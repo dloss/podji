@@ -235,6 +235,24 @@ func (w *WorkloadPods) TableRow(item ResourceItem) map[string]string {
 }
 
 func (w *WorkloadPods) Items() []ResourceItem {
+	// In live kube mode, never synthesize mock pods for a workload. If we
+	// cannot resolve owned pods from available data, return empty and let UI
+	// show an empty state / related picker instead of mixed mock data.
+	if strings.TrimSpace(w.workload.UID) != "" {
+		var items []ResourceItem
+		if w.registry != nil && len(w.workload.Selector) > 0 {
+			pods := w.registry.ByName("pods")
+			if pods != nil {
+				for _, pod := range pods.Items() {
+					if MatchesSelector(w.workload.Selector, pod.Labels) {
+						items = append(items, pod)
+					}
+				}
+			}
+		}
+		return items
+	}
+
 	var items []ResourceItem
 	switch w.workload.Kind {
 	case "CJ":
@@ -275,8 +293,8 @@ func (w *WorkloadPods) Items() []ResourceItem {
 		if len(items) == 0 {
 			// Fallback: generic stub pods when no registry or no selector match.
 			items = []ResourceItem{
-				{Name: w.workload.Name + "-7d9c7c9d4f-qwz8p", Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
-				{Name: w.workload.Name + "-7d9c7c9d4f-r52lk", Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
+				{Name: w.workload.Name + "-7d9c7c9d4f-qwz8p", Namespace: w.workload.Namespace, Status: "Running", Ready: "2/2", Restarts: "0", Age: "1h"},
+				{Name: w.workload.Name + "-7d9c7c9d4f-r52lk", Namespace: w.workload.Namespace, Status: "CrashLoop", Ready: "1/2", Restarts: "7", Age: "44m"},
 			}
 		}
 	}

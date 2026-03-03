@@ -107,3 +107,43 @@ func TestWorkloadPodsShowsNamespaceColumnInAllNamespacesMode(t *testing.T) {
 		t.Fatalf("expected namespace value in row, got %#v", row)
 	}
 }
+
+func TestWorkloadPodsLiveWorkloadSkipsMockFallback(t *testing.T) {
+	reg := DefaultRegistry()
+	reg.SetNamespace(AllNamespaces)
+	pods := NewWorkloadPods(ResourceItem{
+		UID:       "live-uid-1",
+		Name:      "coredns",
+		Namespace: "kube-system",
+		Kind:      "DEP",
+		Selector:  map[string]string{"app": "coredns"},
+	}, reg)
+	pods.SetNamespace(AllNamespaces)
+
+	items := pods.Items()
+	if len(items) != 0 {
+		t.Fatalf("expected no synthetic pods for live workload, got %#v", items)
+	}
+}
+
+func TestWorkloadPodsMockFallbackUsesWorkloadNamespace(t *testing.T) {
+	reg := DefaultRegistry()
+	reg.SetNamespace(AllNamespaces)
+	pods := NewWorkloadPods(ResourceItem{
+		Name:      "coredns",
+		Namespace: "kube-system",
+		Kind:      "DEP",
+		Selector:  map[string]string{"app": "coredns"},
+	}, reg)
+	pods.SetNamespace(AllNamespaces)
+
+	items := pods.Items()
+	if len(items) == 0 {
+		t.Fatal("expected fallback mock pods")
+	}
+	for _, item := range items {
+		if item.Namespace != "kube-system" {
+			t.Fatalf("expected fallback namespace kube-system, got %#v", items)
+		}
+	}
+}

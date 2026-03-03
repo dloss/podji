@@ -83,6 +83,18 @@ func TestReadBackedResourceFallsBackToBaseOnError(t *testing.T) {
 	}
 }
 
+func TestReadBackedResourceStrictDoesNotFallbackToBaseOnError(t *testing.T) {
+	base := resources.NewPods()
+	base.SetNamespace("default")
+	adapter := NewReadBackedResourceStrict(base, fakeReadModel{err: errors.New("boom")}, func() Scope {
+		return Scope{Context: "default", Namespace: "default"}
+	})
+	items := adapter.Items()
+	if len(items) != 0 {
+		t.Fatalf("expected no items when strict adapter read fails, got %#v", items)
+	}
+}
+
 type fakeStreamingReadModel struct {
 	fakeReadModel
 	lastLogOptions   LogOptions

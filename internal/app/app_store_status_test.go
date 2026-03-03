@@ -69,7 +69,7 @@ type queryStatusStore struct {
 func (s *queryStatusStore) UnhealthyItems() []resources.ResourceItem {
 	s.status = data.StoreStatus{
 		State:   data.StoreStatePartial,
-		Message: "live unhealthy query unavailable; using mock fallback",
+		Message: "live unhealthy query unavailable",
 	}
 	return []resources.ResourceItem{{Name: "api", Kind: "DEP", Status: "Degraded", Ready: "0/1"}}
 }
@@ -139,7 +139,7 @@ func TestUnhealthyCommandSyncsStoreStatus(t *testing.T) {
 	if err := m.runCommand("unhealthy"); err != "" {
 		t.Fatalf("expected no command error, got %q", err)
 	}
-	if !strings.Contains(m.errorMsg, "store (partial): live unhealthy query unavailable; using mock fallback") {
+	if !strings.Contains(m.errorMsg, "store (partial): live unhealthy query unavailable") {
 		t.Fatalf("expected partial store status after unhealthy query, got %q", m.errorMsg)
 	}
 }

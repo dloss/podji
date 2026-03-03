@@ -80,6 +80,9 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 		if k.onPartial != nil {
 			k.onPartial(resourceName)
 		}
+		if k.fallback == nil {
+			return nil, ErrListNotSupported
+		}
 	}
 	if k.fallback == nil {
 		return nil, fmt.Errorf("kube read model fallback is nil")

@@ -215,7 +215,7 @@ func TestKubeStoreStatusForbiddenOnPermissionError(t *testing.T) {
 	}
 }
 
-func TestKubeStoreStatusPartialWhenListFallsBack(t *testing.T) {
+func TestKubeStoreStatusPartialWhenListUnsupported(t *testing.T) {
 	store, err := newKubeStore(fakeKubeAPI{
 		contexts: []string{"dev"},
 	})
@@ -223,8 +223,8 @@ func TestKubeStoreStatusPartialWhenListFallsBack(t *testing.T) {
 		t.Fatalf("unexpected error creating kube store: %v", err)
 	}
 	_, err = store.ReadModel().List("configmaps", store.Scope())
-	if err != nil {
-		t.Fatalf("expected fallback list without hard error, got %v", err)
+	if !errors.Is(err, ErrListNotSupported) {
+		t.Fatalf("expected unsupported list error, got %v", err)
 	}
 	status := store.Status()
 	if status.State != StoreStatePartial {

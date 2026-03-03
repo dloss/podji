@@ -11,6 +11,7 @@ type ReadBackedResource struct {
 	base      resources.ResourceType
 	read      ReadModel
 	scopeFunc func() Scope
+	fallback  bool
 }
 
 func NewReadBackedResource(base resources.ResourceType, read ReadModel, scopeFunc func() Scope) resources.ResourceType {
@@ -21,6 +22,19 @@ func NewReadBackedResource(base resources.ResourceType, read ReadModel, scopeFun
 		base:      base,
 		read:      read,
 		scopeFunc: scopeFunc,
+		fallback:  true,
+	}
+}
+
+func NewReadBackedResourceStrict(base resources.ResourceType, read ReadModel, scopeFunc func() Scope) resources.ResourceType {
+	if base == nil || read == nil || scopeFunc == nil {
+		return base
+	}
+	return &ReadBackedResource{
+		base:      base,
+		read:      read,
+		scopeFunc: scopeFunc,
+		fallback:  false,
 	}
 }
 
@@ -33,6 +47,9 @@ func (r *ReadBackedResource) Sort(items []resources.ResourceItem) {
 func (r *ReadBackedResource) Items() []resources.ResourceItem {
 	items, err := r.read.List(r.base.Name(), r.scopeFunc())
 	if err != nil {
+		if !r.fallback {
+			return nil
+		}
 		return r.base.Items()
 	}
 	return items
@@ -41,6 +58,9 @@ func (r *ReadBackedResource) Items() []resources.ResourceItem {
 func (r *ReadBackedResource) Detail(item resources.ResourceItem) resources.DetailData {
 	detail, err := r.read.Detail(r.base.Name(), item, r.scopeFunc())
 	if err != nil {
+		if !r.fallback {
+			return resources.DetailData{}
+		}
 		return r.base.Detail(item)
 	}
 	return detail
@@ -49,6 +69,9 @@ func (r *ReadBackedResource) Detail(item resources.ResourceItem) resources.Detai
 func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
 	lines, err := r.LogsWithOptions(context.Background(), item, resources.LogOptions{Tail: 200})
 	if err != nil {
+		if !r.fallback {
+			return nil
+		}
 		return r.base.Logs(item)
 	}
 	return lines
@@ -57,6 +80,9 @@ func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
 func (r *ReadBackedResource) Events(item resources.ResourceItem) []string {
 	lines, err := r.EventsWithOptions(context.Background(), item, resources.EventOptions{Limit: 200})
 	if err != nil {
+		if !r.fallback {
+			return nil
+		}
 		return r.base.Events(item)
 	}
 	return lines
@@ -91,6 +117,9 @@ func (r *ReadBackedResource) EventsWithOptions(ctx context.Context, item resourc
 func (r *ReadBackedResource) YAML(item resources.ResourceItem) string {
 	text, err := r.read.YAML(r.base.Name(), item, r.scopeFunc())
 	if err != nil {
+		if !r.fallback {
+			return ""
+		}
 		return r.base.YAML(item)
 	}
 	return text
@@ -99,6 +128,9 @@ func (r *ReadBackedResource) YAML(item resources.ResourceItem) string {
 func (r *ReadBackedResource) Describe(item resources.ResourceItem) string {
 	text, err := r.read.Describe(r.base.Name(), item, r.scopeFunc())
 	if err != nil {
+		if !r.fallback {
+			return ""
+		}
 		return r.base.Describe(item)
 	}
 	return text

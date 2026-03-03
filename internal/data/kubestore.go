@@ -56,7 +56,7 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 		status:    StoreStatus{State: StoreStateLoading, Message: "connecting to cluster"},
 	}
 	store.read = NewKubeReadModel(
-		NewMockReadModel(registry),
+		nil,
 		api,
 		store.Scope,
 		store.setStatusForError,
@@ -89,7 +89,7 @@ func (s *KubeStore) AdaptResource(resource resources.ResourceType) resources.Res
 	if resource == nil {
 		return nil
 	}
-	return NewReadBackedResource(resource, s.read, s.Scope)
+	return NewReadBackedResourceStrict(resource, s.read, s.Scope)
 }
 
 func (s *KubeStore) Status() StoreStatus {
@@ -152,7 +152,7 @@ func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
 	pvcs, errPVC := s.api.ListResources(s.scope.Context, s.scope.Namespace, "persistentvolumeclaims")
 	if errPods != nil || errDeps != nil || errPVC != nil {
 		s.setStatusForQueryFallback("unhealthy", errPods, errDeps, errPVC)
-		return resources.UnhealthyItems(s.scope.Namespace)
+		return nil
 	}
 	s.markStatusReadyForResource("unhealthy")
 
@@ -183,7 +183,7 @@ func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
 	pods, err := s.api.ListResources(s.scope.Context, s.scope.Namespace, "pods")
 	if err != nil {
 		s.setStatusForQueryFallback("restarts", err)
-		return resources.PodsByRestarts(s.scope.Namespace)
+		return nil
 	}
 	s.markStatusReadyForResource("restarts")
 	out := make([]resources.ResourceItem, 0, len(pods))
@@ -211,7 +211,7 @@ func (s *KubeStore) setStatusForQueryFallback(query string, errs ...error) {
 		if errors.Is(err, ErrListNotSupported) {
 			s.status = StoreStatus{
 				State:   StoreStatePartial,
-				Message: fmt.Sprintf("live %s query unavailable; using mock fallback", query),
+				Message: fmt.Sprintf("live %s query unavailable", query),
 			}
 			continue
 		}
@@ -269,7 +269,7 @@ func (s *KubeStore) setStatusForError(err error) {
 func (s *KubeStore) setStatusPartialForUnsupportedList(resourceName string) {
 	s.status = StoreStatus{
 		State:   StoreStatePartial,
-		Message: fmt.Sprintf("live %s list unavailable; using mock fallback", resourceName),
+		Message: fmt.Sprintf("live %s list unavailable", resourceName),
 	}
 }
 

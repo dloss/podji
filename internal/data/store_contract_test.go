@@ -38,41 +38,19 @@ func TestStoreContractScopeSwitchAcrossAdapters(t *testing.T) {
 	}
 }
 
-func TestStoreContractCommandQueryConsistencyAcrossAdapters(t *testing.T) {
-	mock := NewMockStore()
+func TestStoreContractKubeQueriesDoNotFallbackToMockData(t *testing.T) {
 	kube, err := newKubeStore(fakeKubeAPI{contexts: []string{"dev"}})
 	if err != nil {
 		t.Fatalf("unexpected kube store error: %v", err)
 	}
 
 	scope := Scope{Context: "dev", Namespace: resources.DefaultNamespace}
-	mock.SetScope(scope)
 	kube.SetScope(scope)
 
-	if got, want := itemNames(kube.UnhealthyItems()), itemNames(mock.UnhealthyItems()); !sameNames(got, want) {
-		t.Fatalf("unhealthy query mismatch: kube=%v mock=%v", got, want)
+	if got := kube.UnhealthyItems(); len(got) != 0 {
+		t.Fatalf("expected no unhealthy items without live list support, got %#v", got)
 	}
-	if got, want := itemNames(kube.PodsByRestarts()), itemNames(mock.PodsByRestarts()); !sameNames(got, want) {
-		t.Fatalf("restarts query mismatch: kube=%v mock=%v", got, want)
+	if got := kube.PodsByRestarts(); len(got) != 0 {
+		t.Fatalf("expected no restart items without live list support, got %#v", got)
 	}
-}
-
-func itemNames(items []resources.ResourceItem) []string {
-	out := make([]string, 0, len(items))
-	for _, it := range items {
-		out = append(out, it.Name)
-	}
-	return out
-}
-
-func sameNames(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
