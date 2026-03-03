@@ -290,6 +290,7 @@ func (k *clientGoAPI) listPods(ctx context.Context, client kubernetes.Interface,
 	}
 	out := make([]resources.ResourceItem, 0, len(list.Items))
 	for _, p := range list.Items {
+		configRefs, secretRefs, pvcRefs := podRefs(p.Spec)
 		out = append(out, resources.ResourceItem{
 			UID:       string(p.UID),
 			Name:      p.Name,
@@ -305,6 +306,9 @@ func (k *clientGoAPI) listPods(ctx context.Context, client kubernetes.Interface,
 				"qos":            string(p.Status.QOSClass),
 				"controlled-by":  podController(p),
 				"nominated-node": p.Status.NominatedNodeName,
+				"config-refs":    strings.Join(configRefs, ","),
+				"secret-refs":    strings.Join(secretRefs, ","),
+				"pvc-refs":       strings.Join(pvcRefs, ","),
 			},
 		})
 	}
@@ -820,6 +824,7 @@ func (k *clientGoAPI) listPodsFromInformer(inf *contextInformers, namespace stri
 	}
 	out := make([]resources.ResourceItem, 0, len(pods))
 	for _, p := range pods {
+		configRefs, secretRefs, pvcRefs := podRefs(p.Spec)
 		out = append(out, resources.ResourceItem{
 			UID:       string(p.UID),
 			Name:      p.Name,
@@ -835,6 +840,9 @@ func (k *clientGoAPI) listPodsFromInformer(inf *contextInformers, namespace stri
 				"qos":            string(p.Status.QOSClass),
 				"controlled-by":  podController(*p),
 				"nominated-node": p.Status.NominatedNodeName,
+				"config-refs":    strings.Join(configRefs, ","),
+				"secret-refs":    strings.Join(secretRefs, ","),
+				"pvc-refs":       strings.Join(pvcRefs, ","),
 			},
 		})
 	}
@@ -1191,6 +1199,69 @@ func nodeLabel(labels map[string]string, key string) string {
 		return ""
 	}
 	return labels[key]
+}
+
+func podRefs(spec corev1.PodSpec) (configRefs []string, secretRefs []string, pvcRefs []string) {
+	seenCfg := map[string]bool{}
+	seenSec := map[string]bool{}
+	seenPVC := map[string]bool{}
+	add := func(name string, seen map[string]bool, dest *[]string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		*dest = append(*dest, name)
+	}
+
+	for _, v := range spec.Volumes {
+		if v.ConfigMap != nil {
+			add(v.ConfigMap.Name, seenCfg, &configRefs)
+		}
+		if v.Secret != nil {
+			add(v.Secret.SecretName, seenSec, &secretRefs)
+		}
+		if v.PersistentVolumeClaim != nil {
+			add(v.PersistentVolumeClaim.ClaimName, seenPVC, &pvcRefs)
+		}
+		if v.Projected != nil {
+			for _, s := range v.Projected.Sources {
+				if s.ConfigMap != nil {
+					add(s.ConfigMap.Name, seenCfg, &configRefs)
+				}
+				if s.Secret != nil {
+					add(s.Secret.Name, seenSec, &secretRefs)
+				}
+			}
+		}
+	}
+
+	for _, c := range spec.Containers {
+		for _, env := range c.Env {
+			if env.ValueFrom == nil {
+				continue
+			}
+			if env.ValueFrom.ConfigMapKeyRef != nil {
+				add(env.ValueFrom.ConfigMapKeyRef.Name, seenCfg, &configRefs)
+			}
+			if env.ValueFrom.SecretKeyRef != nil {
+				add(env.ValueFrom.SecretKeyRef.Name, seenSec, &secretRefs)
+			}
+		}
+		for _, envFrom := range c.EnvFrom {
+			if envFrom.ConfigMapRef != nil {
+				add(envFrom.ConfigMapRef.Name, seenCfg, &configRefs)
+			}
+			if envFrom.SecretRef != nil {
+				add(envFrom.SecretRef.Name, seenSec, &secretRefs)
+			}
+		}
+	}
+
+	sort.Strings(configRefs)
+	sort.Strings(secretRefs)
+	sort.Strings(pvcRefs)
+	return configRefs, secretRefs, pvcRefs
 }
 
 func eventTime(ev corev1.Event) time.Time {

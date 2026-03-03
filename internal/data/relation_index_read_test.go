@@ -84,3 +84,45 @@ func TestReadRelationIndexIngressServiceMappingUsesBackendList(t *testing.T) {
 		t.Fatalf("expected service to resolve ingress by backend map, got %#v", gotService["ingresses"])
 	}
 }
+
+func TestReadRelationIndexPodConfigAndStorageFromRefs(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{contexts: []string{"dev"}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pod := resources.ResourceItem{
+		Name: "api-1",
+		Extra: map[string]string{
+			"config-refs": "app-config,feature-flags",
+			"secret-refs": "api-secret",
+			"pvc-refs":    "data-pvc",
+		},
+	}
+	got := store.RelationIndex().Related(store.Scope(), "pods", pod)
+	if len(got["config"]) != 3 {
+		t.Fatalf("expected 3 config/secret refs, got %#v", got["config"])
+	}
+	if len(got["storage"]) != 1 || got["storage"][0].Name != "data-pvc" {
+		t.Fatalf("expected pvc relation, got %#v", got["storage"])
+	}
+}
+
+func TestReadRelationIndexPVCMountedByFromPodRefs(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/pods": {
+				{Name: "api-1", Extra: map[string]string{"pvc-refs": "data-pvc"}},
+				{Name: "worker-1", Extra: map[string]string{"pvc-refs": "other-pvc"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pvc := resources.ResourceItem{Name: "data-pvc"}
+	got := store.RelationIndex().Related(store.Scope(), "persistentvolumeclaims", pvc)
+	if len(got["mounted-by"]) != 1 || got["mounted-by"][0].Name != "api-1" {
+		t.Fatalf("expected mounted-by relation from pod refs, got %#v", got["mounted-by"])
+	}
+}

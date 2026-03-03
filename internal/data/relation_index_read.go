@@ -27,15 +27,15 @@ func (r *readRelationIndex) Related(scope Scope, resourceName string, item resou
 		services := r.list("services", scope)
 		out["pods"] = relatedPodsForWorkload(item, pods)
 		out["services"] = relatedServicesForSelector(item.Selector, services)
-		out["config"] = []resources.ResourceItem{}
-		out["storage"] = []resources.ResourceItem{}
+		out["config"] = relatedConfigForPods(out["pods"])
+		out["storage"] = relatedPVCForPods(out["pods"])
 	case strings.HasPrefix(name, "pods"):
 		workloads := r.list("workloads", scope)
 		services := r.list("services", scope)
 		out["owner"] = relatedOwnerForPod(item, workloads)
 		out["services"] = relatedServicesForPod(item, services)
-		out["config"] = []resources.ResourceItem{}
-		out["storage"] = []resources.ResourceItem{}
+		out["config"] = relatedConfigForPods([]resources.ResourceItem{item})
+		out["storage"] = relatedPVCForPods([]resources.ResourceItem{item})
 	case strings.HasPrefix(name, "services"):
 		pods := r.list("pods", scope)
 		ingresses := r.list("ingresses", scope)
@@ -48,7 +48,8 @@ func (r *readRelationIndex) Related(scope Scope, resourceName string, item resou
 		pods := r.list("pods", scope)
 		out["pods"] = relatedPodsForNode(item, pods)
 	case name == "persistentvolumeclaims":
-		out["mounted-by"] = []resources.ResourceItem{}
+		pods := r.list("pods", scope)
+		out["mounted-by"] = relatedPodsForPVC(item, pods)
 	default:
 		return map[string][]resources.ResourceItem{}
 	}
@@ -149,6 +150,53 @@ func relatedPodsForNode(node resources.ResourceItem, pods []resources.ResourceIt
 	for _, p := range pods {
 		if p.Extra["node"] == node.Name {
 			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func relatedPodsForPVC(pvc resources.ResourceItem, pods []resources.ResourceItem) []resources.ResourceItem {
+	out := make([]resources.ResourceItem, 0)
+	for _, p := range pods {
+		if containsName(splitCSVNames(p.Extra["pvc-refs"]), pvc.Name) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func relatedConfigForPods(pods []resources.ResourceItem) []resources.ResourceItem {
+	seen := map[string]bool{}
+	out := make([]resources.ResourceItem, 0)
+	for _, p := range pods {
+		for _, n := range splitCSVNames(p.Extra["config-refs"]) {
+			if seen[n] {
+				continue
+			}
+			seen[n] = true
+			out = append(out, resources.ResourceItem{Name: n, Kind: "ConfigMap"})
+		}
+		for _, n := range splitCSVNames(p.Extra["secret-refs"]) {
+			if seen[n] {
+				continue
+			}
+			seen[n] = true
+			out = append(out, resources.ResourceItem{Name: n, Kind: "Secret"})
+		}
+	}
+	return out
+}
+
+func relatedPVCForPods(pods []resources.ResourceItem) []resources.ResourceItem {
+	seen := map[string]bool{}
+	out := make([]resources.ResourceItem, 0)
+	for _, p := range pods {
+		for _, n := range splitCSVNames(p.Extra["pvc-refs"]) {
+			if seen[n] {
+				continue
+			}
+			seen[n] = true
+			out = append(out, resources.ResourceItem{Name: n})
 		}
 	}
 	return out
