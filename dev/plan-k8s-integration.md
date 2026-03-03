@@ -24,6 +24,7 @@ Current state:
 - status transition from cache-warming (`loading`) to `ready` on cache-backed list reads is explicitly covered in tests
 - app-level tests cover clearing temporary store loading banners once status returns to `ready`
 - ready-state store freshness messages are now surfaced in the UI status line (e.g. `store: cache ready for <resource>`)
+- app `View()` now syncs store status on render, so background-driven status transitions are visible without extra key events
 
 Scope:
 

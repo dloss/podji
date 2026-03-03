@@ -495,17 +495,19 @@ func (m Model) relatedPickerRow(pickerHeight int) int {
 }
 
 func (m Model) View() string {
-	main := m.renderMain()
-	if m.overlay != nil {
-		return compositeOverlay(main, m.overlay.View(), m.overlay.AnchorX(), 1)
+	renderModel := m
+	renderModel.syncStoreStatus()
+	main := renderModel.renderMain()
+	if renderModel.overlay != nil {
+		return compositeOverlay(main, renderModel.overlay.View(), renderModel.overlay.AnchorX(), 1)
 	}
-	if m.relatedPicker != nil {
-		pickerView := m.relatedPicker.View()
+	if renderModel.relatedPicker != nil {
+		pickerView := renderModel.relatedPicker.View()
 		pickerHeight := strings.Count(pickerView, "\n") + 1
-		return compositeOverlay(main, pickerView, m.relatedPicker.AnchorX(), m.relatedPickerRow(pickerHeight))
+		return compositeOverlay(main, pickerView, renderModel.relatedPicker.AnchorX(), renderModel.relatedPickerRow(pickerHeight))
 	}
-	if m.colPicker != nil {
-		return compositeOverlay(main, m.colPicker.View(), m.colPicker.AnchorX(), 1)
+	if renderModel.colPicker != nil {
+		return compositeOverlay(main, renderModel.colPicker.View(), renderModel.colPicker.AnchorX(), 1)
 	}
 	return main
 }

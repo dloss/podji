@@ -190,3 +190,18 @@ func TestSyncStoreStatusShowsReadyStoreFreshnessMessage(t *testing.T) {
 		t.Fatalf("expected ready freshness status message, got %q", m.statusMsg)
 	}
 }
+
+func TestViewAppliesStoreStatusSyncForRendering(t *testing.T) {
+	store := newStatusStore()
+	store.status = data.StoreStatus{
+		State:   data.StoreStateLoading,
+		Message: "warming cache for pods",
+	}
+	m := NewWithStore(store)
+	m.width = 120
+	m.height = 40
+	rendered := m.View()
+	if !strings.Contains(rendered, "store (loading): warming cache for pods") {
+		t.Fatalf("expected rendered view to include synced store status, got %q", rendered)
+	}
+}
