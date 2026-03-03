@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
@@ -68,12 +69,20 @@ type bodyRowProvider interface {
 var newStoreFromEnvFn = data.NewStoreFromEnv
 
 func New() Model {
+	started := time.Now()
 	store, warning := newStoreFromEnvFn()
 	model := NewWithStore(store)
 	if warning != "" {
 		model.statusMsg = warning
 	}
 	model.syncStoreStatus()
+	debugAppf("startup_ms=%d store=%T warning=%t context=%s namespace=%s",
+		time.Since(started).Milliseconds(),
+		model.store,
+		warning != "",
+		model.context,
+		model.namespace,
+	)
 	return model
 }
 
