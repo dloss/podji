@@ -19,7 +19,7 @@ type KubeReadModel struct {
 	onError   func(error)
 	onPartial func(string)
 	onWarming func(string)
-	onReady   func()
+	onReady   func(string)
 }
 
 func NewKubeReadModel(
@@ -29,7 +29,7 @@ func NewKubeReadModel(
 	onError func(error),
 	onPartial func(string),
 	onWarming func(string),
-	onReady func(),
+	onReady func(string),
 ) *KubeReadModel {
 	return &KubeReadModel{
 		fallback:  fallback,
@@ -54,7 +54,7 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 			items, cacheBacked, err := withMeta.ListResourcesMeta(active.Context, active.Namespace, resourceName)
 			if err == nil {
 				if cacheBacked {
-					k.markReady()
+					k.markReady(resourceName)
 				} else if k.onWarming != nil {
 					k.onWarming(resourceName)
 				}
@@ -70,7 +70,7 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 		}
 		items, err := k.api.ListResources(active.Context, active.Namespace, resourceName)
 		if err == nil {
-			k.markReady()
+			k.markReady(resourceName)
 			return items, nil
 		}
 		if !errors.Is(err, ErrListNotSupported) {
@@ -89,7 +89,7 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 
 func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
 	if detail, ok := liveDetail(resourceName, item); ok {
-		k.markReady()
+		k.markReady(resourceName)
 		return detail, nil
 	}
 	if k.fallback == nil {
@@ -100,7 +100,7 @@ func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem,
 
 func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
 	if yaml, ok := liveYAML(resourceName, item, scope); ok {
-		k.markReady()
+		k.markReady(resourceName)
 		return yaml, nil
 	}
 	if k.fallback == nil {
@@ -111,7 +111,7 @@ func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, s
 
 func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
 	if desc, ok := liveDescribe(resourceName, item, scope); ok {
-		k.markReady()
+		k.markReady(resourceName)
 		return desc, nil
 	}
 	if k.fallback == nil {
@@ -144,7 +144,7 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 			k.report(err)
 			return nil, err
 		}
-		k.markReady()
+		k.markReady(resourceName)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -178,7 +178,7 @@ func (k *KubeReadModel) EventsWithContext(ctx context.Context, resourceName stri
 			k.report(err)
 			return nil, err
 		}
-		k.markReady()
+		k.markReady(resourceName)
 		if opts.Limit > 0 && len(lines) > opts.Limit {
 			lines = lines[:opts.Limit]
 		}
@@ -217,9 +217,9 @@ func (k *KubeReadModel) report(err error) {
 	}
 }
 
-func (k *KubeReadModel) markReady() {
+func (k *KubeReadModel) markReady(resourceName string) {
 	if k.onReady != nil {
-		k.onReady()
+		k.onReady(resourceName)
 	}
 }
 

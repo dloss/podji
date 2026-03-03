@@ -62,7 +62,7 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 		store.setStatusForError,
 		store.setStatusPartialForUnsupportedList,
 		store.setStatusWarmingCacheForList,
-		store.markStatusReady,
+		store.markStatusReadyForResource,
 	)
 	store.relations = newReadRelationIndex(store.read)
 	store.configurePodFetchers()
@@ -154,7 +154,7 @@ func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
 		s.setStatusForQueryFallback("unhealthy", errPods, errDeps, errPVC)
 		return resources.UnhealthyItems(s.scope.Namespace)
 	}
-	s.markStatusReady()
+	s.markStatusReadyForResource("unhealthy")
 
 	var out []resources.ResourceItem
 	for _, item := range append(append(pods, deployments...), pvcs...) {
@@ -185,7 +185,7 @@ func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
 		s.setStatusForQueryFallback("restarts", err)
 		return resources.PodsByRestarts(s.scope.Namespace)
 	}
-	s.markStatusReady()
+	s.markStatusReadyForResource("restarts")
 	out := make([]resources.ResourceItem, 0, len(pods))
 	for _, item := range pods {
 		if parseRestartCount(item.Restarts) > 0 {
@@ -280,8 +280,16 @@ func (s *KubeStore) setStatusWarmingCacheForList(resourceName string) {
 	}
 }
 
-func (s *KubeStore) markStatusReady() {
-	s.status = StoreStatus{State: StoreStateReady}
+func (s *KubeStore) markStatusReadyForResource(resourceName string) {
+	msg := strings.TrimSpace(resourceName)
+	if msg == "" {
+		s.status = StoreStatus{State: StoreStateReady}
+		return
+	}
+	s.status = StoreStatus{
+		State:   StoreStateReady,
+		Message: fmt.Sprintf("cache ready for %s", msg),
+	}
 }
 
 func parseRestartCount(raw string) int {

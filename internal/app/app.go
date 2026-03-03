@@ -1008,6 +1008,16 @@ func (m *Model) syncStoreStatus() {
 	if strings.HasPrefix(m.errorMsg, "store (") {
 		m.errorMsg = ""
 	}
+	msg := strings.TrimSpace(status.Message)
+	if msg != "" {
+		if m.statusMsg == "" || strings.HasPrefix(m.statusMsg, "store: ") {
+			m.statusMsg = "store: " + msg
+		}
+		return
+	}
+	if strings.HasPrefix(m.statusMsg, "store: ") {
+		m.statusMsg = ""
+	}
 }
 
 func (m *Model) disposeView(v viewstate.View) {

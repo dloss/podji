@@ -174,3 +174,19 @@ func TestSyncStoreStatusClearsStoreMessageWhenReady(t *testing.T) {
 		t.Fatalf("expected store-prefixed message to clear on ready state, got %q", m.errorMsg)
 	}
 }
+
+func TestSyncStoreStatusShowsReadyStoreFreshnessMessage(t *testing.T) {
+	store := newStatusStore()
+	store.status = data.StoreStatus{
+		State:   data.StoreStateReady,
+		Message: "cache ready for pods",
+	}
+	m := NewWithStore(store)
+	m.syncStoreStatus()
+	if m.errorMsg != "" {
+		t.Fatalf("expected no error message for ready store state, got %q", m.errorMsg)
+	}
+	if m.statusMsg != "store: cache ready for pods" {
+		t.Fatalf("expected ready freshness status message, got %q", m.statusMsg)
+	}
+}
