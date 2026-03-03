@@ -44,8 +44,12 @@ func (f fakeKubeAPI) ListResources(context, namespace, resourceName string) ([]r
 	if err := f.listErrByKey[key]; err != nil {
 		return nil, err
 	}
-	out := make([]resources.ResourceItem, len(f.listsByKey[key]))
-	copy(out, f.listsByKey[key])
+	items, ok := f.listsByKey[key]
+	if !ok {
+		return nil, ErrListNotSupported
+	}
+	out := make([]resources.ResourceItem, len(items))
+	copy(out, items)
 	return out, nil
 }
 
