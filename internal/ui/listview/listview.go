@@ -3,8 +3,8 @@ package listview
 import (
 	"fmt"
 	"os/exec"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -63,6 +63,7 @@ func clearExecResultCmd() bubbletea.Cmd {
 }
 
 type shellExecResultMsg struct{ err error }
+type portForwardResultMsg struct{ err error }
 
 type executeState int
 
@@ -194,6 +195,14 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			v.execResult = "exec failed: " + msg.err.Error()
 		} else {
 			v.execResult = "exec session ended"
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
+	}
+	if msg, ok := msg.(portForwardResultMsg); ok {
+		if msg.err != nil {
+			v.execResult = "port-forward failed: " + msg.err.Error()
+		} else {
+			v.execResult = "port-forward ended"
 		}
 		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
 	}
@@ -345,15 +354,20 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			switch key.String() {
 			case "enter":
 				label := v.execTargetLabel()
-				var resultMsg string
 				if v.execState == execInputScale {
-					resultMsg = "scaled " + label + " to " + v.execInput + " (simulated)"
+					resultMsg := "scaled " + label + " to " + v.execInput + " (simulated)"
+					v.execState = execNone
+					v.execResult = resultMsg
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
 				} else {
-					resultMsg = "port-fwd " + label + " " + v.execInput + " (simulated)"
+					cmd := v.portForwardCmd(strings.TrimSpace(v.execInput))
+					v.execState = execNone
+					if cmd == nil {
+						v.execResult = "port-forward unavailable for " + label
+						return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
+					}
+					return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 				}
-				v.execState = execNone
-				v.execResult = resultMsg
-				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
 			case "esc":
 				v.execState = execNone
 			case "backspace", "ctrl+h":
@@ -1841,6 +1855,52 @@ func (v *View) shellExecCmd() bubbletea.Cmd {
 	return bubbletea.ExecProcess(c, func(err error) bubbletea.Msg {
 		return shellExecResultMsg{err: err}
 	})
+}
+
+// portForwardCmd returns a bubbletea command that suspends the TUI and runs
+// "kubectl [-n <namespace>] port-forward <pod/name|service/name> <ports>".
+func (v *View) portForwardCmd(ports string) bubbletea.Cmd {
+	selected, ok := v.list.SelectedItem().(item)
+	if !ok {
+		return nil
+	}
+	args, ok := v.portForwardArgs(selected, ports)
+	if !ok {
+		return nil
+	}
+	c := exec.Command("kubectl", args...)
+	return bubbletea.ExecProcess(c, func(err error) bubbletea.Msg {
+		return portForwardResultMsg{err: err}
+	})
+}
+
+func (v *View) portForwardArgs(selected item, ports string) ([]string, bool) {
+	ports = strings.TrimSpace(ports)
+	if selected.data.Name == "" || ports == "" {
+		return nil, false
+	}
+
+	target := "pod/" + selected.data.Name
+	if strings.HasPrefix(strings.ToLower(v.resource.Name()), "service") {
+		target = "service/" + selected.data.Name
+	}
+
+	args := make([]string, 0, 6)
+	if ns := v.execNamespace(selected.data); ns != "" && ns != resources.AllNamespaces {
+		args = append(args, "-n", ns)
+	}
+	args = append(args, "port-forward", target, ports)
+	return args, true
+}
+
+func (v *View) execNamespace(item resources.ResourceItem) string {
+	if ns := strings.TrimSpace(item.Namespace); ns != "" {
+		return ns
+	}
+	if scoped, ok := v.resource.(resources.NamespaceScoped); ok {
+		return strings.TrimSpace(scoped.Namespace())
+	}
+	return ""
 }
 
 // currentReplicas extracts the desired replica count from the selected item's

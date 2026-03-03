@@ -2,6 +2,7 @@ package listview
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -313,6 +314,43 @@ func TestExecMenuKeepsStateForUnsupportedAction(t *testing.T) {
 	}
 }
 
+func TestPortForwardArgsForPodUsesResourceNamespace(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewPods(), registry)
+
+	args, ok := view.portForwardArgs(item{data: resources.ResourceItem{Name: "web-123"}}, "8080:80")
+	if !ok {
+		t.Fatal("expected args to be generated")
+	}
+	want := []string{"-n", resources.DefaultNamespace, "port-forward", "pod/web-123", "8080:80"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("unexpected args: got %v want %v", args, want)
+	}
+}
+
+func TestPortForwardArgsForServiceUsesItemNamespace(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewServices(), registry)
+
+	args, ok := view.portForwardArgs(item{data: resources.ResourceItem{Name: "api", Namespace: "kube-system"}}, "8443:443")
+	if !ok {
+		t.Fatal("expected args to be generated")
+	}
+	want := []string{"-n", "kube-system", "port-forward", "service/api", "8443:443"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("unexpected args: got %v want %v", args, want)
+	}
+}
+
+func TestPortForwardArgsRejectsEmptyPorts(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewPods(), registry)
+
+	if _, ok := view.portForwardArgs(item{data: resources.ResourceItem{Name: "web-123"}}, " "); ok {
+		t.Fatal("expected empty ports to be rejected")
+	}
+}
+
 func TestFilterModeFooterIndicator(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
@@ -597,10 +635,10 @@ func (f fakeWorkloadsLiveResource) Sort([]resources.ResourceItem) {}
 func (f fakeWorkloadsLiveResource) Detail(resources.ResourceItem) resources.DetailData {
 	return resources.DetailData{}
 }
-func (f fakeWorkloadsLiveResource) Logs(resources.ResourceItem) []string     { return nil }
-func (f fakeWorkloadsLiveResource) Events(resources.ResourceItem) []string   { return nil }
-func (f fakeWorkloadsLiveResource) YAML(resources.ResourceItem) string       { return "" }
-func (f fakeWorkloadsLiveResource) Describe(resources.ResourceItem) string   { return "" }
+func (f fakeWorkloadsLiveResource) Logs(resources.ResourceItem) []string   { return nil }
+func (f fakeWorkloadsLiveResource) Events(resources.ResourceItem) []string { return nil }
+func (f fakeWorkloadsLiveResource) YAML(resources.ResourceItem) string     { return "" }
+func (f fakeWorkloadsLiveResource) Describe(resources.ResourceItem) string { return "" }
 func (f fakeWorkloadsLiveResource) ListResource(name string) ([]resources.ResourceItem, error) {
 	if name != "pods" {
 		return nil, errors.New("unsupported")
