@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/dloss/podji/internal/resources"
+	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestClientGoNamespaceCacheHitAndExpire(t *testing.T) {
@@ -70,4 +73,73 @@ func TestBoundedNonEmptyLinesHandlesZeroMax(t *testing.T) {
 	if len(got) != 1 || got[0] != "b" {
 		t.Fatalf("expected single most recent line, got %#v", got)
 	}
+}
+
+func TestDetailFromObjectStatefulSetIncludesWorkloadFields(t *testing.T) {
+	replicas := int32(3)
+	obj := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "db",
+			Labels: map[string]string{"app": "db"},
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:    &replicas,
+			ServiceName: "db-headless",
+			Selector:    &metav1.LabelSelector{MatchLabels: map[string]string{"app": "db"}},
+		},
+		Status: appsv1.StatefulSetStatus{
+			ReadyReplicas: 2,
+		},
+	}
+	detail := detailFromObject(obj, "workloads", resources.ResourceItem{Name: "db", Kind: "STS"})
+	if len(detail.Summary) == 0 {
+		t.Fatal("expected non-empty summary")
+	}
+	flat := strings.Join(summaryValues(detail.Summary), " ")
+	if !strings.Contains(flat, "StatefulSet") || !strings.Contains(flat, "2/3") || !strings.Contains(flat, "db-headless") {
+		t.Fatalf("expected statefulset detail fields, got %#v", detail.Summary)
+	}
+}
+
+func TestDetailFromObjectIngressIncludesHostsAndServices(t *testing.T) {
+	pathType := networkingv1.PathTypePrefix
+	obj := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "web",
+			Labels: map[string]string{"app": "web"},
+		},
+		Spec: networkingv1.IngressSpec{
+			Rules: []networkingv1.IngressRule{
+				{
+					Host: "web.example.com",
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     "/",
+									PathType: &pathType,
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{Name: "web-svc"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	detail := detailFromObject(obj, "ingresses", resources.ResourceItem{Name: "web", Kind: "Ingress"})
+	flat := strings.Join(summaryValues(detail.Summary), " ")
+	if !strings.Contains(flat, "web.example.com") || !strings.Contains(flat, "web-svc") {
+		t.Fatalf("expected ingress host/service in detail summary, got %#v", detail.Summary)
+	}
+}
+
+func summaryValues(summary []resources.SummaryField) []string {
+	out := make([]string, 0, len(summary))
+	for _, s := range summary {
+		out = append(out, s.Value)
+	}
+	return out
 }

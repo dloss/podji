@@ -1601,9 +1601,160 @@ func detailFromObject(obj any, resourceName string, item resources.ResourceItem)
 			},
 			Labels: labelsFromMap(o.Labels),
 		}
+	case *appsv1.StatefulSet:
+		desired := int32(1)
+		if o.Spec.Replicas != nil {
+			desired = *o.Spec.Replicas
+		}
+		status := "Healthy"
+		if o.Status.ReadyReplicas < desired {
+			status = "Progressing"
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "StatefulSet"},
+				{Key: "status", Label: "Status", Value: status},
+				{Key: "ready", Label: "Ready", Value: strconv.Itoa(int(o.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired))},
+				{Key: "selector", Label: "Selector", Value: valueOr(labelSelectorString(o.Spec.Selector.MatchLabels), "<none>")},
+				{Key: "service", Label: "Service", Value: valueOr(o.Spec.ServiceName, "<none>")},
+				{Key: "images", Label: "Images", Value: valueOr(containerImages(o.Spec.Template.Spec.Containers), "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *appsv1.DaemonSet:
+		status := "Healthy"
+		if o.Status.NumberUnavailable > 0 {
+			status = "Degraded"
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "DaemonSet"},
+				{Key: "status", Label: "Status", Value: status},
+				{Key: "ready", Label: "Ready", Value: strconv.Itoa(int(o.Status.NumberReady)) + "/" + strconv.Itoa(int(o.Status.DesiredNumberScheduled))},
+				{Key: "selector", Label: "Selector", Value: valueOr(labelSelectorString(o.Spec.Selector.MatchLabels), "<none>")},
+				{Key: "images", Label: "Images", Value: valueOr(containerImages(o.Spec.Template.Spec.Containers), "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *batchv1.Job:
+		completions := int32(1)
+		if o.Spec.Completions != nil {
+			completions = *o.Spec.Completions
+		}
+		status := "Running"
+		if o.Status.Failed > 0 {
+			status = "Failed"
+		} else if o.Status.Succeeded >= completions {
+			status = "Succeeded"
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Job"},
+				{Key: "status", Label: "Status", Value: status},
+				{Key: "ready", Label: "Completions", Value: strconv.Itoa(int(o.Status.Succeeded)) + "/" + strconv.Itoa(int(completions))},
+				{Key: "parallelism", Label: "Parallelism", Value: strconv.Itoa(int(ptrInt32(o.Spec.Parallelism, 1)))},
+				{Key: "images", Label: "Images", Value: valueOr(containerImages(o.Spec.Template.Spec.Containers), "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *batchv1.CronJob:
+		suspend := "false"
+		if o.Spec.Suspend != nil && *o.Spec.Suspend {
+			suspend = "true"
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "CronJob"},
+				{Key: "status", Label: "Status", Value: "Scheduled"},
+				{Key: "schedule", Label: "Schedule", Value: valueOr(o.Spec.Schedule, "<none>")},
+				{Key: "suspend", Label: "Suspend", Value: suspend},
+				{Key: "images", Label: "Images", Value: valueOr(containerImages(o.Spec.JobTemplate.Spec.Template.Spec.Containers), "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *networkingv1.Ingress:
+		services := ingressBackendServices(*o)
+		servicesValue := "<none>"
+		if len(services) > 0 {
+			servicesValue = strings.Join(services, ",")
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Ingress"},
+				{Key: "status", Label: "Status", Value: "Configured"},
+				{Key: "class", Label: "Class", Value: valueOr(ptrString(o.Spec.IngressClassName), "<none>")},
+				{Key: "hosts", Label: "Hosts", Value: valueOr(ingressHosts(o.Spec.Rules), "*")},
+				{Key: "services", Label: "Services", Value: servicesValue},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.ConfigMap:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "ConfigMap"},
+				{Key: "status", Label: "Status", Value: "Available"},
+				{Key: "keys", Label: "Data Keys", Value: strconv.Itoa(len(o.Data))},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.Secret:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Secret"},
+				{Key: "status", Label: "Status", Value: "Available"},
+				{Key: "type", Label: "Type", Value: valueOr(string(o.Type), "Opaque")},
+				{Key: "keys", Label: "Data Keys", Value: strconv.Itoa(len(o.Data))},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.PersistentVolumeClaim:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "PersistentVolumeClaim"},
+				{Key: "status", Label: "Status", Value: valueOr(string(o.Status.Phase), "Unknown")},
+				{Key: "volume", Label: "Volume", Value: valueOr(o.Spec.VolumeName, "<none>")},
+				{Key: "storage_class", Label: "StorageClass", Value: valueOr(ptrString(o.Spec.StorageClassName), "<none>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.Node:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Node"},
+				{Key: "status", Label: "Status", Value: valueOr(nodeReadyStatus(*o), "Unknown")},
+				{Key: "pod_cidr", Label: "Pod CIDR", Value: valueOr(o.Spec.PodCIDR, "<none>")},
+				{Key: "kubelet", Label: "Kubelet", Value: valueOr(o.Status.NodeInfo.KubeletVersion, "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.Namespace:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Namespace"},
+				{Key: "status", Label: "Status", Value: valueOr(string(o.Status.Phase), "Unknown")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *corev1.Event:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Event"},
+				{Key: "status", Label: "Type", Value: valueOr(o.Type, "Normal")},
+				{Key: "reason", Label: "Reason", Value: valueOr(o.Reason, "<none>")},
+				{Key: "object", Label: "Object", Value: valueOr(o.InvolvedObject.Name, "<none>")},
+			},
+			Events: []string{strings.TrimSpace(o.Message)},
+		}
 	default:
 		return genericLiveDetail(item)
 	}
+}
+
+func ptrInt32(v *int32, fallback int32) int32 {
+	if v == nil {
+		return fallback
+	}
+	return *v
 }
 
 func ptrString(v *string) string {

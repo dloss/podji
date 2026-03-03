@@ -28,6 +28,7 @@ This file now reflects completion status after the pre-wiring architecture pass.
 - `KubeReadModel` now prefers typed kube API object reads for YAML/describe when available
 - `clientGoAPI` now serves typed object YAML/describe for live resources (`pods`, `services`, `deployments`, workload kinds, `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `namespaces`, `events`)
 - `KubeReadModel` now also prefers typed kube API object reads for detail when available (with safe fallback)
+- typed detail mapping now includes richer workload and ingress summaries beyond deployment-only coverage
 
 ## Constraint (Still Active)
 
