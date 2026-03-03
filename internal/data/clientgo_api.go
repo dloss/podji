@@ -1,7 +1,7 @@
 package data
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -26,6 +26,8 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+const maxLogLines = 2000
 
 type clientGoAPI struct {
 	loader  clientcmd.ClientConfigLoadingRules
@@ -214,11 +216,10 @@ func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]s
 	}
 	defer stream.Close()
 
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, stream); err != nil {
+	lines, err := boundedNonEmptyLines(stream, maxLogLines)
+	if err != nil {
 		return nil, fmt.Errorf("failed reading logs for %s/%s: %w", namespace, pod, err)
 	}
-	lines := splitNonEmptyLines(buf.String())
 	if len(lines) == 0 {
 		return []string{"No log lines returned."}, nil
 	}
@@ -1325,6 +1326,38 @@ func containerImages(containers []corev1.Container) string {
 		images = append(images, c.Image)
 	}
 	return strings.Join(images, ",")
+}
+
+func boundedNonEmptyLines(r io.Reader, maxLines int) ([]string, error) {
+	if maxLines <= 0 {
+		maxLines = 1
+	}
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	out := make([]string, 0, minInt(256, maxLines))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		if len(out) < maxLines {
+			out = append(out, line)
+			continue
+		}
+		copy(out, out[1:])
+		out[len(out)-1] = line
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (k *clientGoAPI) namespaceCacheGet(contextName string) ([]string, bool) {

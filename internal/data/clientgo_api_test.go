@@ -1,6 +1,7 @@
 package data
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -46,5 +47,27 @@ func TestClientGoListCacheHitAndExpire(t *testing.T) {
 	time.Sleep(35 * time.Millisecond)
 	if _, ok := api.listCacheGet("dev|default|pods"); ok {
 		t.Fatal("expected list cache entry to expire")
+	}
+}
+
+func TestBoundedNonEmptyLinesTrimsAndBounds(t *testing.T) {
+	in := strings.NewReader("\n  a  \n\nb\nc\n")
+	got, err := boundedNonEmptyLines(in, 2)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(got) != 2 || got[0] != "b" || got[1] != "c" {
+		t.Fatalf("expected bounded tail lines [b c], got %#v", got)
+	}
+}
+
+func TestBoundedNonEmptyLinesHandlesZeroMax(t *testing.T) {
+	in := strings.NewReader("a\nb\n")
+	got, err := boundedNonEmptyLines(in, 0)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(got) != 1 || got[0] != "b" {
+		t.Fatalf("expected single most recent line, got %#v", got)
 	}
 }

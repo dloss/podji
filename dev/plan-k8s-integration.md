@@ -110,6 +110,7 @@ Done now:
 - resources now expose optional option-aware logs/events interfaces (`tail`/`follow` and `limit`)
 - `ReadBackedResource` propagates context + options into read-model streaming hooks with bounded request timeouts
 - log/event views now use option-aware readers when available (including window-tail refetching for logs)
+- client-go pod-log streaming now uses bounded line buffering to cap memory growth during large log streams
 
 Scope:
 
