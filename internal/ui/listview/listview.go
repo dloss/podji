@@ -3,6 +3,7 @@ package listview
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"sort"
 	"strings"
 	"time"
@@ -666,19 +667,23 @@ func (v *View) Footer() string {
 		resourceLabel := resources.SingularName(breadcrumbLabel(v.resource.Name()))
 		skeys := sortKeysForView(v.resource, v.columns)
 		chars := sortDisplayedChars(v.resource, v.columns, skeys, resourceLabel)
-		for _, i := range uniqueSortKeyIndices(chars) {
-			sk := skeys[i]
+		seen := make(map[rune]bool, len(chars))
+		for i, sk := range skeys {
 			ch := chars[i]
-			lower := string(ch)
-			upper := string(unicode.ToUpper(ch))
 			colIdx := activeSortColumn(v.resource, v.columns, sk.Mode)
+			keyHint := sortColumnNumberLabel(colIdx)
+			if ch != 0 && !seen[ch] {
+				lower := string(ch)
+				upper := string(unicode.ToUpper(ch))
+				keyHint = keyHint + "/" + lower + "/" + upper
+				seen[ch] = true
+			}
 			label := strings.ToLower(displayedColHeader(v.columns, colIdx, resourceLabel))
 			if label == "" {
 				label = sk.Label
 			}
-			opts = append(opts, style.B(lower+"/"+upper, label))
+			opts = append(opts, style.B(keyHint, label))
 		}
-		opts = append(opts, style.B("1-9/⇧", "col"))
 		opts = append(opts, style.B("esc", "cancel"))
 		line2 = sortLabel + "  " + style.FormatBindings(opts)
 		if v.list.Width() > 0 {
@@ -1181,9 +1186,27 @@ func uniqueSortKeyIndices(chars []rune) []int {
 	return indices
 }
 
+func sortColumnNumberLabel(colIdx int) string {
+	if colIdx < 0 {
+		return "-"
+	}
+	n := colIdx + 1
+	if n == 10 {
+		return "0"
+	}
+	return strconv.Itoa(n)
+}
+
 func sortKeysForView(resource resources.ResourceType, columns []resources.TableColumn) []resources.SortKey {
 	if sortable, ok := resource.(resources.Sortable); ok {
-		return sortable.SortKeys()
+		all := sortable.SortKeys()
+		keys := make([]resources.SortKey, 0, len(all))
+		for _, sk := range all {
+			if activeSortColumn(resource, columns, sk.Mode) >= 0 {
+				keys = append(keys, sk)
+			}
+		}
+		return keys
 	}
 	keys := make([]resources.SortKey, 0, len(columns))
 	for _, col := range columns {
@@ -1202,7 +1225,15 @@ func sortKeysForView(resource resources.ResourceType, columns []resources.TableC
 
 func defaultSortMode(resource resources.ResourceType, columns []resources.TableColumn) string {
 	if sortable, ok := resource.(resources.Sortable); ok {
-		return sortable.SortMode()
+		if mode := sortable.SortMode(); activeSortColumn(resource, columns, mode) >= 0 {
+			return mode
+		}
+		for _, sk := range sortable.SortKeys() {
+			if activeSortColumn(resource, columns, sk.Mode) >= 0 {
+				return sk.Mode
+			}
+		}
+		return ""
 	}
 	if idx := firstColumnWithID(columns, "name"); idx >= 0 {
 		return columns[idx].ID

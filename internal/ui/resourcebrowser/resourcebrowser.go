@@ -2,6 +2,7 @@ package resourcebrowser
 
 import (
 	"fmt"
+	"strconv"
 	"sort"
 	"strings"
 	"unicode"
@@ -281,14 +282,18 @@ func (v *View) Footer() string {
 	if v.sortPickMode {
 		opts := make([]style.Binding, 0, len(v.columns)+2)
 		chars := browserSortChars(v.columns)
-		for _, idx := range uniqueSortKeyIndices(chars) {
-			col := v.columns[idx]
+		seen := make(map[rune]bool, len(chars))
+		for idx, col := range v.columns {
 			ch := chars[idx]
-			lower := string(ch)
-			upper := string(unicode.ToUpper(ch))
-			opts = append(opts, style.B(lower+"/"+upper, strings.ToLower(col.name)))
+			keyHint := sortColumnNumberLabel(idx)
+			if ch != 0 && !seen[ch] {
+				lower := string(ch)
+				upper := string(unicode.ToUpper(ch))
+				keyHint = keyHint + "/" + lower + "/" + upper
+				seen[ch] = true
+			}
+			opts = append(opts, style.B(keyHint, strings.ToLower(col.name)))
 		}
-		opts = append(opts, style.B("1-9/⇧", "col"))
 		opts = append(opts, style.B("esc", "cancel"))
 		line2 = style.FooterKey.Render("sort") + "  " + style.FormatBindings(opts)
 		if v.list.Width() > 0 {
@@ -643,6 +648,14 @@ func browserNumericSortKey(r rune) (int, bool) {
 		return 9, true
 	}
 	return 0, false
+}
+
+func sortColumnNumberLabel(colIdx int) string {
+	n := colIdx + 1
+	if n == 10 {
+		return "0"
+	}
+	return strconv.Itoa(n)
 }
 
 func singleRune(key bubbletea.KeyMsg) rune {
