@@ -311,3 +311,37 @@ func TestKubeStorePodsByRestartsUsesLiveListWhenAvailable(t *testing.T) {
 		t.Fatalf("expected live restart ordering, got %#v", got)
 	}
 }
+
+func TestKubeStoreUnhealthyItemsSetsPartialOnUnsupportedLiveQuery(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_ = store.UnhealthyItems()
+	status := store.Status()
+	if status.State != StoreStatePartial {
+		t.Fatalf("expected partial status on unsupported unhealthy query fallback, got %#v", status)
+	}
+	if !strings.Contains(status.Message, "unhealthy") {
+		t.Fatalf("expected unhealthy query fallback message, got %#v", status)
+	}
+}
+
+func TestKubeStorePodsByRestartsSetsStatusOnLiveQueryError(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listErrByKey: map[string]error{
+			"dev/default/pods": errors.New("connection refused"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_ = store.PodsByRestarts()
+	status := store.Status()
+	if status.State != StoreStateUnreachable {
+		t.Fatalf("expected unreachable status on restarts live query error, got %#v", status)
+	}
+}

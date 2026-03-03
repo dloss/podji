@@ -73,6 +73,7 @@ Done now:
 - kube read-model marks `partial` when list data falls back to mock due unsupported live list paths
 - kube store now starts in `loading` and transitions to `ready` on successful live reads
 - scope/context switches now move kube store back to `loading` until fresh live reads complete
+- command-query fallbacks (`unhealthy`, `restarts`) now set explicit `partial`/error store state instead of silent fallback
 
 Scope:
 

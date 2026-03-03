@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -149,8 +150,10 @@ func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
 	deployments, errDeps := s.api.ListResources(s.scope.Context, s.scope.Namespace, "deployments")
 	pvcs, errPVC := s.api.ListResources(s.scope.Context, s.scope.Namespace, "persistentvolumeclaims")
 	if errPods != nil || errDeps != nil || errPVC != nil {
+		s.setStatusForQueryFallback("unhealthy", errPods, errDeps, errPVC)
 		return resources.UnhealthyItems(s.scope.Namespace)
 	}
+	s.markStatusReady()
 
 	var out []resources.ResourceItem
 	for _, item := range append(append(pods, deployments...), pvcs...) {
@@ -178,8 +181,10 @@ func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
 func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
 	pods, err := s.api.ListResources(s.scope.Context, s.scope.Namespace, "pods")
 	if err != nil {
+		s.setStatusForQueryFallback("restarts", err)
 		return resources.PodsByRestarts(s.scope.Namespace)
 	}
+	s.markStatusReady()
 	out := make([]resources.ResourceItem, 0, len(pods))
 	for _, item := range pods {
 		if parseRestartCount(item.Restarts) > 0 {
@@ -195,6 +200,23 @@ func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
 		return out[i].Name < out[j].Name
 	})
 	return out
+}
+
+func (s *KubeStore) setStatusForQueryFallback(query string, errs ...error) {
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, ErrListNotSupported) {
+			s.status = StoreStatus{
+				State:   StoreStatePartial,
+				Message: fmt.Sprintf("live %s query unavailable; using mock fallback", query),
+			}
+			continue
+		}
+		s.setStatusForError(err)
+		return
+	}
 }
 
 func (s *KubeStore) configurePodFetchers() {
