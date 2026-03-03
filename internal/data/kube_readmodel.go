@@ -99,6 +99,18 @@ func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem,
 }
 
 func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	if reader, ok := k.api.(KubeObjectReader); ok {
+		ns, contextName := k.resolveScope(scope, item)
+		yaml, err := reader.ResourceYAML(contextName, ns, resourceName, item)
+		if err == nil {
+			k.markReady(resourceName)
+			return yaml, nil
+		}
+		if !errors.Is(err, ErrObjectReadNotSupported) {
+			k.report(err)
+			return "", err
+		}
+	}
 	if yaml, ok := liveYAML(resourceName, item, scope); ok {
 		k.markReady(resourceName)
 		return yaml, nil
@@ -110,6 +122,18 @@ func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, s
 }
 
 func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	if reader, ok := k.api.(KubeObjectReader); ok {
+		ns, contextName := k.resolveScope(scope, item)
+		desc, err := reader.ResourceDescribe(contextName, ns, resourceName, item)
+		if err == nil {
+			k.markReady(resourceName)
+			return desc, nil
+		}
+		if !errors.Is(err, ErrObjectReadNotSupported) {
+			k.report(err)
+			return "", err
+		}
+	}
 	if desc, ok := liveDescribe(resourceName, item, scope); ok {
 		k.markReady(resourceName)
 		return desc, nil

@@ -3,6 +3,7 @@ package data
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -25,6 +26,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 )
 
 const maxLogLines = 2000
@@ -276,6 +278,67 @@ func (k *clientGoAPI) PodEvents(contextName, namespace, pod string) ([]string, e
 		out = append(out, fmt.Sprintf("%s   %s   %s   %s", prefix, evType, reason, msg))
 	}
 	return out, nil
+}
+
+func (k *clientGoAPI) ResourceYAML(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
+	obj, err := k.resourceObject(contextName, namespace, resourceName, item)
+	if err != nil {
+		return "", err
+	}
+	return marshalKubeObjectYAML(obj, resourceName, item)
+}
+
+func (k *clientGoAPI) ResourceDescribe(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
+	obj, err := k.resourceObject(contextName, namespace, resourceName, item)
+	if err != nil {
+		return "", err
+	}
+	return describeKubeObject(obj, resourceName, item, namespace), nil
+}
+
+func (k *clientGoAPI) resourceObject(contextName, namespace, resourceName string, item resources.ResourceItem) (any, error) {
+	client, err := k.clientForContext(contextName)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	name := strings.TrimSpace(item.Name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: missing resource name", ErrObjectReadNotSupported)
+	}
+	ns := strings.TrimSpace(item.Namespace)
+	if ns == "" {
+		ns = strings.TrimSpace(namespace)
+	}
+	key := strings.ToLower(strings.TrimSpace(resourceName))
+	switch key {
+	case "pods":
+		return client.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+	case "services":
+		return client.CoreV1().Services(ns).Get(ctx, name, metav1.GetOptions{})
+	case "deployments":
+		return client.AppsV1().Deployments(ns).Get(ctx, name, metav1.GetOptions{})
+	case "workloads":
+		return workloadObject(ctx, client, ns, name, item.Kind)
+	case "ingresses":
+		return client.NetworkingV1().Ingresses(ns).Get(ctx, name, metav1.GetOptions{})
+	case "configmaps":
+		return client.CoreV1().ConfigMaps(ns).Get(ctx, name, metav1.GetOptions{})
+	case "secrets":
+		return client.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
+	case "persistentvolumeclaims":
+		return client.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
+	case "nodes":
+		return client.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
+	case "namespaces":
+		return client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+	case "events":
+		return client.CoreV1().Events(ns).Get(ctx, name, metav1.GetOptions{})
+	default:
+		return nil, fmt.Errorf("%w: %s", ErrObjectReadNotSupported, resourceName)
+	}
 }
 
 func (k *clientGoAPI) clientForContext(contextName string) (kubernetes.Interface, error) {
@@ -1340,6 +1403,134 @@ func containerImages(containers []corev1.Container) string {
 		images = append(images, c.Image)
 	}
 	return strings.Join(images, ",")
+}
+
+func workloadObject(ctx context.Context, client kubernetes.Interface, namespace, name, kind string) (any, error) {
+	switch strings.ToUpper(strings.TrimSpace(kind)) {
+	case "DEP", "DEPLOYMENT", "":
+		return client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	case "STS", "STATEFULSET":
+		return client.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
+	case "DS", "DAEMONSET":
+		return client.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
+	case "JOB":
+		return client.BatchV1().Jobs(namespace).Get(ctx, name, metav1.GetOptions{})
+	case "CJ", "CRONJOB":
+		return client.BatchV1().CronJobs(namespace).Get(ctx, name, metav1.GetOptions{})
+	default:
+		return nil, fmt.Errorf("%w: workload kind %q", ErrObjectReadNotSupported, kind)
+	}
+}
+
+func marshalKubeObjectYAML(obj any, resourceName string, item resources.ResourceItem) (string, error) {
+	raw, err := json.Marshal(obj)
+	if err != nil {
+		return "", fmt.Errorf("failed marshaling %s object: %w", resourceName, err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return "", fmt.Errorf("failed decoding %s object json: %w", resourceName, err)
+	}
+	if _, ok := doc["apiVersion"]; !ok {
+		doc["apiVersion"] = valueOr(item.APIVersion, "v1")
+	}
+	if _, ok := doc["kind"]; !ok {
+		doc["kind"] = valueOr(item.Kind, singularKindName(resourceName))
+	}
+	meta, _ := doc["metadata"].(map[string]any)
+	if meta == nil {
+		meta = map[string]any{}
+		doc["metadata"] = meta
+	}
+	if _, ok := meta["name"]; !ok && strings.TrimSpace(item.Name) != "" {
+		meta["name"] = item.Name
+	}
+	if _, ok := meta["namespace"]; !ok && strings.TrimSpace(item.Namespace) != "" {
+		meta["namespace"] = item.Namespace
+	}
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", fmt.Errorf("failed marshaling %s yaml: %w", resourceName, err)
+	}
+	return string(out), nil
+}
+
+func describeKubeObject(obj any, resourceName string, item resources.ResourceItem, fallbackNamespace string) string {
+	kind := valueOr(item.Kind, singularKindName(resourceName))
+	name := valueOr(item.Name, "<unknown>")
+	ns := valueOr(item.Namespace, fallbackNamespace)
+	lines := []string{
+		"Name:        " + name,
+		"Namespace:   " + valueOr(ns, resources.DefaultNamespace),
+		"Kind:        " + kind,
+	}
+	switch o := obj.(type) {
+	case *corev1.Pod:
+		lines = append(lines,
+			"Status:      "+valueOr(string(o.Status.Phase), "Unknown"),
+			"Node:        "+valueOr(o.Spec.NodeName, "<none>"),
+			"IP:          "+valueOr(o.Status.PodIP, "<none>"),
+			"Containers:  "+containerNames(o.Spec.Containers),
+		)
+	case *corev1.Service:
+		lines = append(lines,
+			"Type:        "+valueOr(string(o.Spec.Type), "ClusterIP"),
+			"ClusterIP:   "+valueOr(o.Spec.ClusterIP, "<none>"),
+			"Selector:    "+valueOr(labelSelectorString(o.Spec.Selector), "<none>"),
+		)
+	case *appsv1.Deployment:
+		desired := int32(1)
+		if o.Spec.Replicas != nil {
+			desired = *o.Spec.Replicas
+		}
+		lines = append(lines,
+			"Status:      "+deploymentStatus(*o),
+			"Ready:       "+strconv.Itoa(int(o.Status.ReadyReplicas))+"/"+strconv.Itoa(int(desired)),
+			"Strategy:    "+valueOr(string(o.Spec.Strategy.Type), "<none>"),
+			"Images:      "+containerImages(o.Spec.Template.Spec.Containers),
+		)
+	case *corev1.ConfigMap:
+		lines = append(lines, "Data Keys:    "+strconv.Itoa(len(o.Data)))
+	case *corev1.Secret:
+		lines = append(lines,
+			"Type:        "+valueOr(string(o.Type), "Opaque"),
+			"Data Keys:    "+strconv.Itoa(len(o.Data)),
+		)
+	case *corev1.PersistentVolumeClaim:
+		lines = append(lines,
+			"Status:      "+valueOr(string(o.Status.Phase), "Unknown"),
+			"Volume:      "+valueOr(o.Spec.VolumeName, "<none>"),
+		)
+	case *networkingv1.Ingress:
+		lines = append(lines, "Class:       "+valueOr(ptrString(o.Spec.IngressClassName), "<none>"))
+	case *corev1.Node:
+		lines = append(lines,
+			"Status:      "+valueOr(nodeReadyStatus(*o), "Unknown"),
+			"Pod CIDR:    "+valueOr(o.Spec.PodCIDR, "<none>"),
+		)
+	case *corev1.Namespace:
+		lines = append(lines, "Status:      "+valueOr(string(o.Status.Phase), "Unknown"))
+	case *corev1.Event:
+		lines = append(lines,
+			"Type:        "+valueOr(o.Type, "Normal"),
+			"Reason:      "+valueOr(o.Reason, "<none>"),
+			"Message:     "+valueOr(strings.TrimSpace(o.Message), "<none>"),
+		)
+	}
+	if status := strings.TrimSpace(item.Status); status != "" {
+		lines = append(lines, "List Status: "+status)
+	}
+	if ready := strings.TrimSpace(item.Ready); ready != "" {
+		lines = append(lines, "List Ready:  "+ready)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func ptrString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func boundedNonEmptyLines(r io.Reader, maxLines int) ([]string, error) {

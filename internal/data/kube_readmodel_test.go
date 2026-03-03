@@ -17,9 +17,31 @@ type fakeKubeAPIMeta struct {
 	cacheBacked bool
 }
 
+type fakeKubeAPIObjectReader struct {
+	fakeKubeAPI
+	yamlByKey     map[string]string
+	describeByKey map[string]string
+}
+
 func (f fakeKubeAPIMeta) ListResourcesMeta(contextName, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
 	items, err := f.fakeKubeAPI.ListResources(contextName, namespace, resourceName)
 	return items, f.cacheBacked, err
+}
+
+func (f fakeKubeAPIObjectReader) ResourceYAML(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
+	key := contextName + "/" + namespace + "/" + resourceName + "/" + item.Name
+	if out, ok := f.yamlByKey[key]; ok {
+		return out, nil
+	}
+	return "", ErrObjectReadNotSupported
+}
+
+func (f fakeKubeAPIObjectReader) ResourceDescribe(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
+	key := contextName + "/" + namespace + "/" + resourceName + "/" + item.Name
+	if out, ok := f.describeByKey[key]; ok {
+		return out, nil
+	}
+	return "", ErrObjectReadNotSupported
 }
 
 func (f fallbackDetailReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
@@ -352,6 +374,30 @@ func TestKubeReadModelUsesLiveYAMLForConfigMaps(t *testing.T) {
 	}
 }
 
+func TestKubeReadModelPrefersAPIObjectReaderForYAML(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPIObjectReader{
+			yamlByKey: map[string]string{
+				"dev/default/pods/api-1": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: api-1\n",
+			},
+		},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	got, err := read.YAML("pods", resources.ResourceItem{Name: "api-1"}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !containsAll(got, "kind: Pod", "name: api-1") {
+		t.Fatalf("expected object-reader yaml, got %q", got)
+	}
+}
+
 func TestKubeReadModelUsesLiveDescribeForConfigMaps(t *testing.T) {
 	reg := resources.DefaultRegistry()
 	read := NewKubeReadModel(
@@ -376,6 +422,30 @@ func TestKubeReadModelUsesLiveDescribeForConfigMaps(t *testing.T) {
 	}
 	if !containsAll(describe, "Kind:        ConfigMap", "Name:        app-config") {
 		t.Fatalf("expected live describe content, got %q", describe)
+	}
+}
+
+func TestKubeReadModelPrefersAPIObjectReaderForDescribe(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPIObjectReader{
+			describeByKey: map[string]string{
+				"dev/default/services/api": "Name:        api\nKind:        Service\n",
+			},
+		},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	got, err := read.Describe("services", resources.ResourceItem{Name: "api"}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !containsAll(got, "Name:        api", "Kind:        Service") {
+		t.Fatalf("expected object-reader describe, got %q", got)
 	}
 }
 

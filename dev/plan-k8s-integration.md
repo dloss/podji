@@ -24,6 +24,10 @@ This file now reflects completion status after the pre-wiring architecture pass.
 - query navigation consistency across mock and kube-like store adapters
 - stack lifecycle/disposal behavior covered across navigation/scope transitions
 
+4. Initial typed Kubernetes object wiring
+- `KubeReadModel` now prefers typed kube API object reads for YAML/describe when available
+- `clientGoAPI` now serves typed object YAML/describe for live resources (`pods`, `services`, `deployments`, workload kinds, `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `namespaces`, `events`)
+
 ## Constraint (Still Active)
 
 Mock mode remains a first-class parallel path for development, demos, and deterministic testing.

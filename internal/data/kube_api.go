@@ -12,6 +12,7 @@ import (
 )
 
 var ErrListNotSupported = errors.New("list not supported")
+var ErrObjectReadNotSupported = errors.New("object read not supported")
 
 type KubeAPI interface {
 	Contexts() ([]string, error)
@@ -19,6 +20,13 @@ type KubeAPI interface {
 	ListResources(context, namespace, resourceName string) ([]resources.ResourceItem, error)
 	PodLogs(context, namespace, pod string, tail int) ([]string, error)
 	PodEvents(context, namespace, pod string) ([]string, error)
+}
+
+// KubeObjectReader is an optional extension for typed object fetches used by
+// live YAML/describe rendering paths.
+type KubeObjectReader interface {
+	ResourceYAML(context, namespace, resourceName string, item resources.ResourceItem) (string, error)
+	ResourceDescribe(context, namespace, resourceName string, item resources.ResourceItem) (string, error)
 }
 
 type commandRunner interface {
