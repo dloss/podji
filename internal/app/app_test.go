@@ -290,6 +290,38 @@ func TestPushBatchesNextInitCommand(t *testing.T) {
 	}
 }
 
+func TestScopeSwitchDisposesPreviousStackViews(t *testing.T) {
+	disposable := &disposableSpyView{}
+	m := New()
+	m.stack = append(m.stack, disposable)
+	m.crumbs = append(m.crumbs, "logs")
+
+	updated, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	got := updated.(Model)
+	if len(got.stack) != 1 {
+		t.Fatalf("expected scope switch to reset stack to one view, got %d", len(got.stack))
+	}
+	if !disposable.disposed {
+		t.Fatal("expected previous stack views to be disposed on scope switch")
+	}
+}
+
+func TestResourceHotkeyDisposesPreviousStackViews(t *testing.T) {
+	disposable := &disposableSpyView{}
+	m := New()
+	m.stack = append(m.stack, disposable)
+	m.crumbs = append(m.crumbs, "logs")
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'P'}})
+	got := updated.(Model)
+	if len(got.stack) != 1 {
+		t.Fatalf("expected resource hotkey to reset stack, got %d", len(got.stack))
+	}
+	if !disposable.disposed {
+		t.Fatal("expected previous stack views to be disposed on resource switch")
+	}
+}
+
 func TestRKeyOpensRelatedPickerOverlay(t *testing.T) {
 	m := New()
 

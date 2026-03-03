@@ -66,6 +66,7 @@ Current state:
 - env-mode and scope/query contract tests exist in data layer
 - app-level scope selection now has explicit loading-status synchronization coverage
 - app command queries (`unhealthy`, `restarts`) now have status synchronization coverage
+- app tests now cover stack-reset lifecycle behavior (scope/resource switches dispose prior views)
 
 Scope:
 
