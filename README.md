@@ -59,7 +59,7 @@ The app uses stub data — no real Kubernetes cluster needed.
 `PODJI_MODE` controls which store backend is used at startup:
 
 - `mock` (default): deterministic stub data
-- `kube`: kubectl-backed context/namespace discovery; falls back to mock if unavailable
+- `kube`: client-go backed live cluster reads (with mock fallback if unavailable)
 
 Example:
 
@@ -114,7 +114,12 @@ go test ./...
 - **Scope switching**: `N`/`X` open overlay pickers; selecting applies scope without changing stack depth
 - **Related panel**: `r` toggles a persistent side panel; `Tab` switches focus
 
-**Store**: thin in-memory cluster projection via client-go shared informers, with minimal eager indexes (owner → children, service → EndpointSlices). UI reads from Store only.
+**Store/Data layer**:
+- `MockStore`: deterministic datasets for UX work, demos, and tests
+- `KubeStore`: client-go backed reads with explicit store status (`loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`)
+- `ReadModel` adapters: shared contract for list/detail/logs/events/describe/yaml across mock and kube modes
+- client-go informer cache path for core list resources (`pods`, `services`, `deployments`, `workloads`) with direct-list fallback
+- relation index derived from read-model data for related-resource navigation
 
 ## v1 Scope
 

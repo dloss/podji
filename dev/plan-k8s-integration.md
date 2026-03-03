@@ -1,160 +1,86 @@
 # Podji Kubernetes Integration Remaining Plan
 
-This plan contains only the remaining architectural work before full Kubernetes wiring.
+This plan now contains only unresolved architecture work before full Kubernetes wiring.
 
 ## Non-Negotiable Constraint
 
-Keep **mock mode as a first-class parallel path** even after real-cluster support lands.
+Keep mock mode as a first-class parallel path even after real-cluster support lands.
 
 Reason:
 
 - local/offline development and demos need deterministic, rich datasets
-- large realistic clusters are not always available for day-to-day iteration
+- realistic multi-workload clusters are not always available for day-to-day iteration
 - UI regression testing is faster and more stable in mock mode
 
 ## Remaining Work
 
-## 1. Complete Read-Model Split for Non-Stub Data Paths (Partially Done)
+## 1. Live Detail/YAML/Describe Adapter Path
 
-Done now:
+Current state:
 
-- read-model contract exists for list/detail/logs/events/describe/yaml
-- app list/query/navigation paths are routed through `Store.AdaptResource(...)`
-- `KubeReadModel` now routes pod logs/events through `KubeAPI` instead of stub-only paths
-- related picker consumes `RelationIndex` for category counts and indexed related list opening paths
+- list/logs/events have kube-backed read paths
+- detail/yaml/describe still rely on mock-backed resource methods through fallback adapters
 
 Scope:
 
-- introduce explicit read-model interfaces for:
-  - list
-  - detail
-  - logs
-  - events
-  - describe
-  - yaml
-- route app-side query/navigation logic through these interfaces, not direct stub structs
-- keep `resources/*` as mock dataset providers behind adapters, not as app-facing query APIs
+- add kube-backed detail/yaml/describe providers (client-go typed reads)
+- map live objects into existing detail panels without breaking mock rendering parity
+- keep mock and kube adapters behind the same `ReadModel` contract
 
 Exit criteria:
 
-- mock adapter and kube adapter satisfy the same interface contract end-to-end
+- in `kube` mode, detail/yaml/describe no longer depend on stub datasets for core resources
+- in `mock` mode, behavior remains deterministic and unchanged
 
-## 2. Replace Kubectl Shelling with Client-Go Store (In Progress)
+## 2. Explicit Data Freshness and Cache Readiness UX
 
-Done now:
+Current state:
 
-- `NewKubeStore()` initializes a `client-go` based `KubeAPI` implementation
-- contexts, namespaces, pod logs, and pod events are served via client-go calls
-- namespace lookups have a short TTL cache to reduce repeated API calls during fast UI actions
-- read-model list calls for `pods`, `services`, `deployments`, and `workloads` now use client-go data with short TTL caching
-- live list coverage expanded to include `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`, plus `contexts`/`namespaces`
-- live `workloads` now aggregates Deployment/StatefulSet/DaemonSet/Job/CronJob kinds
-- shared informer-backed cache path added for core high-traffic list resources (`pods`, `services`, `deployments`, `workloads`) with safe direct-list fallback
-- pod-derived config/secret/PVC references are now used to populate related-resource categories from live data
+- store status already supports `loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`
+- informer-backed list reads have direct-list fallback
 
 Scope:
 
-- move kube discovery/query paths from `kubectl` command execution to `client-go`
-- introduce shared informer caches and typed getters
-- ensure view rendering reads from cache, not direct blocking API calls
+- surface cache/readiness metadata as explicit user-visible state when useful
+- distinguish "live but warming cache" from hard errors
+- ensure scope/context changes always converge from loading to a final visible state
 
 Exit criteria:
 
-- no runtime dependency on external `kubectl` binary for core data flows
-- cache sync/readiness surfaced as explicit app state
+- no ambiguous silent transitions during cache warm-up or scope changes
+- users can tell whether they are seeing warm-cache or direct-list backed data
 
-## 3. Add Explicit Loading/Error/Permission States in App Flow (Partially Done)
+## 3. Streaming Lifecycle and Cancellation Hardening
 
-Done now:
+Current state:
 
-- `StoreStatus` expanded with `loading`, `partial`, `forbidden`, `unreachable`, `degraded`
-- kube error classification maps discovery/log/event failures to explicit states
-- app renders state-qualified store message (`store (<state>): ...`)
-- kube read-model marks `partial` when list data falls back to mock due unsupported live list paths
-- kube store now starts in `loading` and transitions to `ready` on successful live reads
-- scope/context switches now move kube store back to `loading` until fresh live reads complete
-- command-query fallbacks (`unhealthy`, `restarts`) now set explicit `partial`/error store state instead of silent fallback
+- read-model supports context-aware logs/events
+- option-aware log/event reads are wired (tail/follow/limit)
+- bounded buffering is in place for client-go log streaming
 
 Scope:
 
-- represent and render:
-  - loading
-  - forbidden
-  - unreachable
-  - partial data
-- ensure scope switches (`N`/`X`) and command queries handle these states predictably
+- introduce cancellable background fetch lifecycle for long-running log/event refresh flows
+- guarantee cleanup on view pop and scope/context switches
+- define follow-mode behavior against kube APIs without leaking goroutines or requests
 
 Exit criteria:
 
-- no silent fallback behavior on cluster errors in main data flows
-- user always gets clear state feedback for startup/scope/discovery failures
+- no leaked background work when navigation/scope changes interrupt active log/event flows
+- follow-mode behavior is consistent and bounded for both mock and kube modes
 
-## 4. Normalize Object Identity for Navigation and Relations (Done)
+## 4. Integration Contract Coverage for End-to-End Mode Flow
 
-Scope:
-
-- ensure domain items carry stable identity fields (`kind`, `apiVersion`, `namespace`, `name`, optional `uid`)
-- use normalized identity keys for related lookups and stack restoration
-
-Exit criteria:
-
-- relation lookups are deterministic and not dependent on fragile display strings
-
-## 5. Tighten Logs/Events Contracts for Streaming and Cancellation (Partially Done)
-
-Done now:
-
-- pod logs/events are centralized through `KubeReadModel` instead of view-local fetcher wiring
-- kube read errors are surfaced via store status path
-- read-model contracts now include context-aware logs/events hooks with backward-compatible fallback
-- resources now expose optional option-aware logs/events interfaces (`tail`/`follow` and `limit`)
-- `ReadBackedResource` propagates context + options into read-model streaming hooks with bounded request timeouts
-- log/event views now use option-aware readers when available (including window-tail refetching for logs)
-- client-go pod-log streaming now uses bounded line buffering to cap memory growth during large log streams
-
-Scope:
-
-- add context-aware fetch APIs and bounded buffers
-- support follow/tail semantics through interfaces (not view-local hacks)
-- define clear fallback behavior for empty/forbidden/unavailable sources
-
-Exit criteria:
-
-- context-aware streaming APIs exist in read-model contracts
-- cancellation and scope changes do not leak background work
-
-## 6. Integration Test Matrix for Mode and Scope (Partially Done)
-
-Done now:
+Current state:
 
 - mode startup/fallback tests exist
-- `PODJI_MODE=kube` env startup path is explicitly tested for both success and fallback behavior
-- scope switch tests exist across mock/kube adapters
-- contract tests validate `unhealthy` and `restarts` query consistency across adapters
-- read-relation-index and live list/cache behavior are covered with dedicated data-layer tests
-- startup `loading -> ready` transition is explicitly tested for kube mode live lists
+- env-mode and scope/query contract tests exist in data layer
 
 Scope:
 
-- add tests for:
-  - `mock` vs `kube` mode startup
-  - invalid mode fallback
-  - context/namespace switching across modes
-  - command query consistency (`unhealthy`, `restarts`) across adapters
+- add end-to-end app-level tests that exercise mode + scope + status transitions together
+- verify command-bar/query behavior remains consistent across mock and kube adapters
 
 Exit criteria:
 
-- mode switching and scope behavior are contract-tested end-to-end
-
-## 7. Keep Mock Dataset as a Productized Dev Tool (Done/Ongoing)
-
-Scope:
-
-- preserve deterministic mock scenarios for demos, UX work, and CI
-- allow running mock and kube modes in parallel without code divergence
-- document scenario toggles and intended usage
-
-Exit criteria:
-
-- mock mode remains feature-complete for navigation and debugging workflows
-- kube mode can evolve without breaking mock reliability
+- adapter and app-flow contracts are test-covered from startup through scope switching and query paths
