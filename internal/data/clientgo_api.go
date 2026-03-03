@@ -14,6 +14,7 @@ import (
 	"github.com/dloss/podji/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -94,6 +95,68 @@ func (k *clientGoAPI) Namespaces(contextName string) ([]string, error) {
 	return out, nil
 }
 
+func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string) ([]resources.ResourceItem, error) {
+	key := strings.ToLower(strings.TrimSpace(resourceName))
+	cacheKey := contextName + "|" + namespace + "|" + key
+	if cached, ok := k.listCacheGet(cacheKey); ok {
+		return cached, nil
+	}
+
+	var (
+		out    []resources.ResourceItem
+		err    error
+		client kubernetes.Interface
+	)
+
+	switch key {
+	case "contexts":
+		out, err = k.listContexts()
+	case "namespaces":
+		out, err = k.listNamespaces(contextName)
+	default:
+		client, err = k.clientForContext(contextName)
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+
+		switch key {
+		case "pods":
+			out, err = k.listPods(ctx, client, namespace)
+		case "services":
+			out, err = k.listServices(ctx, client, namespace)
+		case "deployments":
+			out, err = k.listDeployments(ctx, client, namespace)
+		case "workloads":
+			out, err = k.listDeployments(ctx, client, namespace)
+			for i := range out {
+				out[i].Kind = "DEP"
+			}
+		case "ingresses":
+			out, err = k.listIngresses(ctx, client, namespace)
+		case "configmaps":
+			out, err = k.listConfigMaps(ctx, client, namespace)
+		case "secrets":
+			out, err = k.listSecrets(ctx, client, namespace)
+		case "persistentvolumeclaims":
+			out, err = k.listPVCs(ctx, client, namespace)
+		case "nodes":
+			out, err = k.listNodes(ctx, client)
+		case "events":
+			out, err = k.listEvents(ctx, client, namespace)
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrListNotSupported, resourceName)
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	k.listCacheSet(cacheKey, out)
+	return out, nil
+}
+
 func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]string, error) {
 	client, err := k.clientForContext(contextName)
 	if err != nil {
@@ -106,9 +169,7 @@ func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]s
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{
-		TailLines: &tail64,
-	})
+	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{TailLines: &tail64})
 	stream, err := req.Stream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream logs for %s/%s: %w", namespace, pod, err)
@@ -124,43 +185,6 @@ func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]s
 		return []string{"No log lines returned."}, nil
 	}
 	return lines, nil
-}
-
-func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string) ([]resources.ResourceItem, error) {
-	key := strings.ToLower(strings.TrimSpace(resourceName))
-	cacheKey := contextName + "|" + namespace + "|" + key
-	if cached, ok := k.listCacheGet(cacheKey); ok {
-		return cached, nil
-	}
-
-	client, err := k.clientForContext(contextName)
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-
-	var out []resources.ResourceItem
-	switch key {
-	case "pods":
-		out, err = k.listPods(ctx, client, namespace)
-	case "services":
-		out, err = k.listServices(ctx, client, namespace)
-	case "deployments":
-		out, err = k.listDeployments(ctx, client, namespace)
-	case "workloads":
-		out, err = k.listDeployments(ctx, client, namespace)
-		for i := range out {
-			out[i].Kind = "DEP"
-		}
-	default:
-		return nil, fmt.Errorf("%w: %s", ErrListNotSupported, resourceName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	k.listCacheSet(cacheKey, out)
-	return out, nil
 }
 
 func (k *clientGoAPI) PodEvents(contextName, namespace, pod string) ([]string, error) {
@@ -182,15 +206,12 @@ func (k *clientGoAPI) PodEvents(contextName, namespace, pod string) ([]string, e
 	}
 
 	sort.SliceStable(list.Items, func(i, j int) bool {
-		return list.Items[i].LastTimestamp.Time.After(list.Items[j].LastTimestamp.Time)
+		return eventTime(list.Items[i]).After(eventTime(list.Items[j]))
 	})
 	out := make([]string, 0, len(list.Items))
 	for _, ev := range list.Items {
-		ts := ev.LastTimestamp.Time
-		if ts.IsZero() {
-			ts = ev.EventTime.Time
-		}
 		prefix := "—"
+		ts := eventTime(ev)
 		if !ts.IsZero() {
 			prefix = ts.UTC().Format(time.RFC3339)
 		}
@@ -269,11 +290,6 @@ func (k *clientGoAPI) listServices(ctx context.Context, client kubernetes.Interf
 		if len(s.Spec.ExternalIPs) > 0 {
 			externalIP = strings.Join(s.Spec.ExternalIPs, ",")
 		}
-		parts := make([]string, 0, len(selector))
-		for k, v := range selector {
-			parts = append(parts, k+"="+v)
-		}
-		sort.Strings(parts)
 		out = append(out, resources.ResourceItem{
 			UID:       string(s.UID),
 			Name:      s.Name,
@@ -285,7 +301,7 @@ func (k *clientGoAPI) listServices(ctx context.Context, client kubernetes.Interf
 			Selector:  selector,
 			Extra: map[string]string{
 				"external-ip": externalIP,
-				"selector":    strings.Join(parts, ","),
+				"selector":    labelSelectorString(selector),
 			},
 		})
 	}
@@ -311,7 +327,7 @@ func (k *clientGoAPI) listDeployments(ctx context.Context, client kubernetes.Int
 			Status:    deploymentStatus(d),
 			Ready:     strconv.Itoa(int(d.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired)),
 			Age:       ageString(d.CreationTimestamp.Time),
-			Selector:  copyLabelSelector(d.Spec.Selector.MatchLabels),
+			Selector:  copyMap(d.Spec.Selector.MatchLabels),
 			Extra: map[string]string{
 				"selector":   labelSelectorString(d.Spec.Selector.MatchLabels),
 				"strategy":   string(d.Spec.Strategy.Type),
@@ -321,6 +337,199 @@ func (k *clientGoAPI) listDeployments(ctx context.Context, client kubernetes.Int
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listIngresses(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	list, err := client.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ingresses for %q: %w", namespace, err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, ing := range list.Items {
+		class := "nginx"
+		if ing.Spec.IngressClassName != nil && *ing.Spec.IngressClassName != "" {
+			class = *ing.Spec.IngressClassName
+		}
+		status := "Healthy"
+		if len(ing.Status.LoadBalancer.Ingress) == 0 {
+			status = "Pending"
+		}
+		tls := "False"
+		if len(ing.Spec.TLS) > 0 {
+			tls = "True"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(ing.UID),
+			Name:      ing.Name,
+			Namespace: ing.Namespace,
+			Kind:      class,
+			Status:    status,
+			Ready:     ingressHosts(ing.Spec.Rules),
+			Age:       ageString(ing.CreationTimestamp.Time),
+			Extra: map[string]string{
+				"tls":   tls,
+				"rules": strconv.Itoa(len(ing.Spec.Rules)),
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listConfigMaps(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	list, err := client.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list configmaps for %q: %w", namespace, err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, cm := range list.Items {
+		managedBy := cm.Labels["app.kubernetes.io/managed-by"]
+		if managedBy == "" {
+			managedBy = "unknown"
+		}
+		binaryData := strconv.Itoa(len(cm.BinaryData))
+		out = append(out, resources.ResourceItem{
+			UID:       string(cm.UID),
+			Name:      cm.Name,
+			Namespace: cm.Namespace,
+			Status:    "Healthy",
+			Age:       ageString(cm.CreationTimestamp.Time),
+			Extra: map[string]string{
+				"managed-by":  managedBy,
+				"binary-data": binaryData,
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listSecrets(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	list, err := client.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secrets for %q: %w", namespace, err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, sec := range list.Items {
+		out = append(out, resources.ResourceItem{
+			UID:       string(sec.UID),
+			Name:      sec.Name,
+			Namespace: sec.Namespace,
+			Kind:      string(sec.Type),
+			Status:    "Healthy",
+			Age:       ageString(sec.CreationTimestamp.Time),
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listPVCs(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	list, err := client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pvc for %q: %w", namespace, err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, pvc := range list.Items {
+		capacity := "-"
+		if q, ok := pvc.Status.Capacity[corev1.ResourceStorage]; ok {
+			capacity = q.String()
+		} else if q, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok {
+			capacity = q.String()
+		}
+		access := "RWO"
+		if len(pvc.Spec.AccessModes) > 0 {
+			access = string(pvc.Spec.AccessModes[0])
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(pvc.UID),
+			Name:      pvc.Name,
+			Namespace: pvc.Namespace,
+			Kind:      access,
+			Status:    string(pvc.Status.Phase),
+			Ready:     capacity,
+			Age:       ageString(pvc.CreationTimestamp.Time),
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listNodes(ctx context.Context, client kubernetes.Interface) ([]resources.ResourceItem, error) {
+	list, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, n := range list.Items {
+		out = append(out, resources.ResourceItem{
+			UID:    string(n.UID),
+			Name:   n.Name,
+			Status: nodeReadyStatus(n),
+			Ready:  nodePodsCapacity(n),
+			Age:    ageString(n.CreationTimestamp.Time),
+			Extra: map[string]string{
+				"internal-ip":    nodeAddress(n.Status.Addresses, corev1.NodeInternalIP),
+				"os":             n.Status.NodeInfo.OperatingSystem,
+				"arch":           n.Status.NodeInfo.Architecture,
+				"kernel-version": n.Status.NodeInfo.KernelVersion,
+				"runtime":        n.Status.NodeInfo.ContainerRuntimeVersion,
+				"instance-type":  nodeLabel(n.Labels, "node.kubernetes.io/instance-type"),
+				"zone":           nodeLabel(n.Labels, "topology.kubernetes.io/zone"),
+				"taints":         strconv.Itoa(len(n.Spec.Taints)),
+			},
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listEvents(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	list, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list events for %q: %w", namespace, err)
+	}
+	out := make([]resources.ResourceItem, 0, len(list.Items))
+	for _, ev := range list.Items {
+		status := "Healthy"
+		if strings.EqualFold(ev.Type, "Warning") {
+			status = "Warning"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(ev.UID),
+			Name:      ev.InvolvedObject.Name + "." + ev.Reason,
+			Namespace: ev.Namespace,
+			Kind:      ev.Type,
+			Status:    status,
+			Age:       ageString(eventTime(ev)),
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listNamespaces(contextName string) ([]resources.ResourceItem, error) {
+	names, err := k.Namespaces(contextName)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, 0, len(names))
+	for _, n := range names {
+		out = append(out, resources.ResourceItem{Name: n, Status: "Active", Age: "?"})
+	}
+	return out, nil
+}
+
+func (k *clientGoAPI) listContexts() ([]resources.ResourceItem, error) {
+	names, err := k.Contexts()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, 0, len(names))
+	for _, n := range names {
+		out = append(out, resources.ResourceItem{Name: n, Status: "Available", Age: "?"})
+	}
 	return out, nil
 }
 
@@ -388,6 +597,63 @@ func podController(p corev1.Pod) string {
 	return ""
 }
 
+func ingressHosts(rules []networkingv1.IngressRule) string {
+	hosts := make([]string, 0, len(rules))
+	for _, r := range rules {
+		if strings.TrimSpace(r.Host) != "" {
+			hosts = append(hosts, r.Host)
+		}
+	}
+	if len(hosts) == 0 {
+		return "*"
+	}
+	sort.Strings(hosts)
+	return strings.Join(hosts, ",")
+}
+
+func nodeReadyStatus(n corev1.Node) string {
+	for _, c := range n.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			if c.Status == corev1.ConditionTrue {
+				return "Ready"
+			}
+			return "NotReady"
+		}
+	}
+	return "Unknown"
+}
+
+func nodePodsCapacity(n corev1.Node) string {
+	pods := n.Status.Capacity.Pods().Value()
+	return "0/" + strconv.FormatInt(pods, 10)
+}
+
+func nodeAddress(addrs []corev1.NodeAddress, kind corev1.NodeAddressType) string {
+	for _, a := range addrs {
+		if a.Type == kind {
+			return a.Address
+		}
+	}
+	return ""
+}
+
+func nodeLabel(labels map[string]string, key string) string {
+	if labels == nil {
+		return ""
+	}
+	return labels[key]
+}
+
+func eventTime(ev corev1.Event) time.Time {
+	if !ev.LastTimestamp.IsZero() {
+		return ev.LastTimestamp.Time
+	}
+	if !ev.EventTime.IsZero() {
+		return ev.EventTime.Time
+	}
+	return ev.CreationTimestamp.Time
+}
+
 func ageString(created time.Time) string {
 	if created.IsZero() {
 		return "0m"
@@ -411,10 +677,6 @@ func copyMap(src map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
-}
-
-func copyLabelSelector(src map[string]string) map[string]string {
-	return copyMap(src)
 }
 
 func labelSelectorString(selector map[string]string) string {
@@ -462,10 +724,7 @@ func (k *clientGoAPI) namespaceCacheSet(contextName string, items []string) {
 	defer k.mu.Unlock()
 	out := make([]string, len(items))
 	copy(out, items)
-	k.ns[contextName] = namespaceCacheEntry{
-		items:     out,
-		expiresAt: time.Now().Add(k.nsTTL),
-	}
+	k.ns[contextName] = namespaceCacheEntry{items: out, expiresAt: time.Now().Add(k.nsTTL)}
 }
 
 func (k *clientGoAPI) listCacheGet(cacheKey string) ([]resources.ResourceItem, bool) {
@@ -485,8 +744,5 @@ func (k *clientGoAPI) listCacheSet(cacheKey string, items []resources.ResourceIt
 	defer k.mu.Unlock()
 	out := make([]resources.ResourceItem, len(items))
 	copy(out, items)
-	k.list[cacheKey] = listCacheEntry{
-		items:     out,
-		expiresAt: time.Now().Add(k.listTTL),
-	}
+	k.list[cacheKey] = listCacheEntry{items: out, expiresAt: time.Now().Add(k.listTTL)}
 }

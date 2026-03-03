@@ -83,6 +83,9 @@ func TestNewKubeStoreUsesFirstSortedContext(t *testing.T) {
 	if got := store.Scope().Context; got != "prod" {
 		t.Fatalf("expected first context prod, got %q", got)
 	}
+	if status := store.Status(); status.State != StoreStateLoading {
+		t.Fatalf("expected initial loading status, got %#v", status)
+	}
 }
 
 func TestKubeStoreNamespaceNamesFallbackOnError(t *testing.T) {
@@ -179,6 +182,23 @@ func TestKubeStoreStatusForbiddenOnPermissionError(t *testing.T) {
 	}
 }
 
+func TestKubeStoreStatusPartialWhenListFallsBack(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_, err = store.ReadModel().List("configmaps", store.Scope())
+	if err != nil {
+		t.Fatalf("expected fallback list without hard error, got %v", err)
+	}
+	status := store.Status()
+	if status.State != StoreStatePartial {
+		t.Fatalf("expected partial status after unsupported live list, got %#v", status)
+	}
+}
+
 func TestKubeStorePodLogsFetcherWired(t *testing.T) {
 	store, err := newKubeStore(fakeKubeAPI{
 		contexts: []string{"dev"},
@@ -216,5 +236,51 @@ func TestKubeStorePodEventsFetcherWired(t *testing.T) {
 	lines := pods.Events(resources.ResourceItem{Name: "api"})
 	if len(lines) == 0 || !strings.Contains(lines[0], "BackOff") {
 		t.Fatalf("expected live event line, got %#v", lines)
+	}
+}
+
+func TestKubeStoreUnhealthyItemsUsesLiveListsWhenAvailable(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/pods": {
+				{Name: "pod-ok", Status: "Running", Age: "5m"},
+				{Name: "pod-bad", Status: "CrashLoop", Age: "2m"},
+			},
+			"dev/default/deployments": {
+				{Name: "dep-bad", Status: "Degraded", Age: "10m"},
+			},
+			"dev/default/persistentvolumeclaims": {
+				{Name: "pvc-ok", Status: "Bound", Age: "1d"},
+				{Name: "pvc-pending", Status: "Pending", Age: "3m"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	got := store.UnhealthyItems()
+	if len(got) != 3 {
+		t.Fatalf("expected 3 unhealthy items from live lists, got %#v", got)
+	}
+}
+
+func TestKubeStorePodsByRestartsUsesLiveListWhenAvailable(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/pods": {
+				{Name: "pod-a", Restarts: "0"},
+				{Name: "pod-b", Restarts: "12"},
+				{Name: "pod-c", Restarts: "3"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	got := store.PodsByRestarts()
+	if len(got) != 2 || got[0].Name != "pod-b" || got[1].Name != "pod-c" {
+		t.Fatalf("expected live restart ordering, got %#v", got)
 	}
 }

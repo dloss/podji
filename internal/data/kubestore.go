@@ -2,6 +2,8 @@ package data
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dloss/podji/internal/resources"
@@ -47,10 +49,10 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 	store := &KubeStore{
 		registry:  registry,
 		read:      nil,
-		relations: newMockRelationIndex(registry),
+		relations: nil,
 		scope:     scope,
 		api:       api,
-		status:    StoreStatus{State: StoreStateReady},
+		status:    StoreStatus{State: StoreStateLoading, Message: "connecting to cluster"},
 	}
 	store.read = NewKubeReadModel(
 		NewMockReadModel(registry),
@@ -60,6 +62,7 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 		store.setStatusPartialForUnsupportedList,
 		store.markStatusReady,
 	)
+	store.relations = newReadRelationIndex(store.read)
 	store.configurePodFetchers()
 	return store, nil
 }
@@ -138,13 +141,56 @@ func (s *KubeStore) ContextNames() []string {
 }
 
 func (s *KubeStore) UnhealthyItems() []resources.ResourceItem {
-	// Query aggregation still uses the shared resource query path for now.
-	return resources.UnhealthyItems(s.scope.Namespace)
+	pods, errPods := s.api.ListResources(s.scope.Context, s.scope.Namespace, "pods")
+	deployments, errDeps := s.api.ListResources(s.scope.Context, s.scope.Namespace, "deployments")
+	pvcs, errPVC := s.api.ListResources(s.scope.Context, s.scope.Namespace, "persistentvolumeclaims")
+	if errPods != nil || errDeps != nil || errPVC != nil {
+		return resources.UnhealthyItems(s.scope.Namespace)
+	}
+
+	var out []resources.ResourceItem
+	for _, item := range append(append(pods, deployments...), pvcs...) {
+		if !isUnhealthy(item) {
+			continue
+		}
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		si := unhealthySeverity(out[i])
+		sj := unhealthySeverity(out[j])
+		if si != sj {
+			return si < sj
+		}
+		ai := parseAgeForSort(out[i].Age)
+		aj := parseAgeForSort(out[j].Age)
+		if ai != aj {
+			return ai < aj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 func (s *KubeStore) PodsByRestarts() []resources.ResourceItem {
-	// Query aggregation still uses the shared resource query path for now.
-	return resources.PodsByRestarts(s.scope.Namespace)
+	pods, err := s.api.ListResources(s.scope.Context, s.scope.Namespace, "pods")
+	if err != nil {
+		return resources.PodsByRestarts(s.scope.Namespace)
+	}
+	out := make([]resources.ResourceItem, 0, len(pods))
+	for _, item := range pods {
+		if parseRestartCount(item.Restarts) > 0 {
+			out = append(out, item)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ri := parseRestartCount(out[i].Restarts)
+		rj := parseRestartCount(out[j].Restarts)
+		if ri != rj {
+			return ri > rj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 func (s *KubeStore) configurePodFetchers() {
@@ -202,4 +248,56 @@ func (s *KubeStore) setStatusPartialForUnsupportedList(resourceName string) {
 
 func (s *KubeStore) markStatusReady() {
 	s.status = StoreStatus{State: StoreStateReady}
+}
+
+func parseRestartCount(raw string) int {
+	fields := strings.Fields(raw)
+	if len(fields) == 0 {
+		return 0
+	}
+	n, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func unhealthySeverity(item resources.ResourceItem) int {
+	if strings.Contains(strings.ToLower(item.Status), "fail") || strings.Contains(strings.ToLower(item.Status), "crash") {
+		return 0
+	}
+	if strings.Contains(strings.ToLower(item.Status), "degrad") {
+		return 1
+	}
+	return 2
+}
+
+func isUnhealthy(item resources.ResourceItem) bool {
+	status := strings.ToLower(item.Status)
+	if status == "" || status == "healthy" || status == "running" || status == "bound" {
+		return false
+	}
+	return true
+}
+
+func parseAgeForSort(age string) int {
+	age = strings.TrimSpace(age)
+	if age == "" {
+		return 0
+	}
+	suffix := age[len(age)-1]
+	n, err := strconv.Atoi(age[:len(age)-1])
+	if err != nil {
+		return 0
+	}
+	switch suffix {
+	case 'm':
+		return n
+	case 'h':
+		return n * 60
+	case 'd':
+		return n * 24 * 60
+	default:
+		return 0
+	}
 }
