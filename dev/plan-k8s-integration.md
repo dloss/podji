@@ -50,6 +50,7 @@ Done now:
 - live list coverage expanded to include `ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`, plus `contexts`/`namespaces`
 - live `workloads` now aggregates Deployment/StatefulSet/DaemonSet/Job/CronJob kinds
 - shared informer-backed cache path added for core high-traffic list resources (`pods`, `services`, `deployments`, `workloads`) with safe direct-list fallback
+- pod-derived config/secret/PVC references are now used to populate related-resource categories from live data
 
 Scope:
 
