@@ -2,8 +2,8 @@ package resourcebrowser
 
 import (
 	"fmt"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -65,33 +65,33 @@ type builtinInfo struct {
 }
 
 var builtinResourceInfo = map[string]builtinInfo{
-	"workloads":   {kind: "Workload", group: "podji.io", version: "v1", namespaced: true},
-	"pods":        {kind: "Pod", group: "core", version: "v1", namespaced: true},
-	"deployments": {kind: "Deployment", group: "apps", version: "v1", namespaced: true},
-	"services":    {kind: "Service", group: "core", version: "v1", namespaced: true},
-	"ingresses":   {kind: "Ingress", group: "core", version: "v1", namespaced: true},
-	"configmaps":  {kind: "ConfigMap", group: "core", version: "v1", namespaced: true},
-	"secrets":     {kind: "Secret", group: "core", version: "v1", namespaced: true},
+	"workloads":              {kind: "Workload", group: "podji.io", version: "v1", namespaced: true},
+	"pods":                   {kind: "Pod", group: "core", version: "v1", namespaced: true},
+	"deployments":            {kind: "Deployment", group: "apps", version: "v1", namespaced: true},
+	"services":               {kind: "Service", group: "core", version: "v1", namespaced: true},
+	"ingresses":              {kind: "Ingress", group: "core", version: "v1", namespaced: true},
+	"configmaps":             {kind: "ConfigMap", group: "core", version: "v1", namespaced: true},
+	"secrets":                {kind: "Secret", group: "core", version: "v1", namespaced: true},
 	"persistentvolumeclaims": {kind: "PersistentVolumeClaims", group: "core", version: "v1", namespaced: true},
-	"namespaces":  {kind: "Namespace", group: "core", version: "v1", namespaced: false},
-	"nodes":       {kind: "Node", group: "core", version: "v1", namespaced: false},
-	"events":      {kind: "Event", group: "core", version: "v1", namespaced: true},
-	"contexts":    {kind: "Context", group: "kubeconfig", version: "v1", namespaced: false},
+	"namespaces":             {kind: "Namespace", group: "core", version: "v1", namespaced: false},
+	"nodes":                  {kind: "Node", group: "core", version: "v1", namespaced: false},
+	"events":                 {kind: "Event", group: "core", version: "v1", namespaced: true},
+	"contexts":               {kind: "Context", group: "kubeconfig", version: "v1", namespaced: false},
 }
 
 // View is the resource browser: a filterable list of all resource types
 // (built-ins and CRDs). Selecting an entry navigates to its instance list.
 type View struct {
-	registry    *resources.Registry
-	entries     []entry
-	list        list.Model
-	columns     []browserColumn
-	colWidths   []int
+	registry     *resources.Registry
+	entries      []entry
+	list         list.Model
+	columns      []browserColumn
+	colWidths    []int
 	sortPickMode bool
-	sortCol     int
-	sortDesc    bool
-	findMode    bool
-	findTargets map[int]bool
+	sortCol      int
+	sortDesc     bool
+	findMode     bool
+	findTargets  map[int]bool
 }
 
 // New creates the resource browser populated with registry built-ins and the
@@ -103,11 +103,11 @@ func New(registry *resources.Registry, crds []resources.CRDMeta) *View {
 	widths := columnWidthsForRows(cols, rows, 0)
 
 	v := &View{
-		registry:   registry,
-		entries:    entries,
-		columns:    cols,
-		colWidths:  widths,
-		sortCol:    0,
+		registry:  registry,
+		entries:   entries,
+		columns:   cols,
+		colWidths: widths,
+		sortCol:   0,
 	}
 	delegate := newBrowserDelegate(&v.findMode, &v.findTargets)
 	model := list.New(buildListItems(entries, rows, widths), delegate, 0, 0)
@@ -264,7 +264,7 @@ func (v *View) Footer() string {
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
 	}
-	
+
 	// When setting filter, show filter input in status row instead of indicators
 	if v.list.SettingFilter() {
 		filterInput := filterbar.FilterInputView(v.list)
@@ -275,7 +275,7 @@ func (v *View) Footer() string {
 		}
 		return line1 + "\n" + line2
 	}
-	
+
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
 	}

@@ -26,14 +26,14 @@ func (d *Deployments) TableColumns() []TableColumn {
 
 func (d *Deployments) TableRow(item ResourceItem) map[string]string {
 	return map[string]string{
-		"namespace":  item.Namespace,
-		"name":       item.Name,
-		"status":     item.Status,
-		"ready":      item.Ready,
-		"up-to-date": deploymentUpToDate(item.Status, item.Ready),
-		"available":  deploymentAvailable(item.Ready),
+		"namespace":   item.Namespace,
+		"name":        item.Name,
+		"status":      item.Status,
+		"ready":       item.Ready,
+		"up-to-date":  deploymentUpToDate(item.Status, item.Ready),
+		"available":   deploymentAvailable(item.Ready),
 		"unavailable": deploymentUnavailable(item.Ready),
-		"age":        item.Age,
+		"age":         item.Age,
 	}
 }
 

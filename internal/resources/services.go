@@ -35,15 +35,15 @@ func (s *Services) TableRow(item ResourceItem) map[string]string {
 		externalIP = "<none>"
 	}
 	return map[string]string{
-		"namespace":   item.Namespace,
-		"name":        item.Name,
-		"type":        svcType,
-		"cluster-ip":  serviceClusterIP(item.Name, svcType),
-		"external-ip": externalIP,
-		"port":        servicePort(item.Name, svcType),
-		"endpoints":   item.Ready,
+		"namespace":        item.Namespace,
+		"name":             item.Name,
+		"type":             svcType,
+		"cluster-ip":       serviceClusterIP(item.Name, svcType),
+		"external-ip":      externalIP,
+		"port":             servicePort(item.Name, svcType),
+		"endpoints":        item.Ready,
 		"session-affinity": serviceSessionAffinity(item.Name),
-		"age":         item.Age,
+		"age":              item.Age,
 	}
 }
 

@@ -30,12 +30,12 @@ func nodeRole(name string) string {
 
 func (n *Nodes) TableRow(item ResourceItem) map[string]string {
 	return map[string]string{
-		"name":    item.Name,
-		"status":  item.Status,
-		"roles":   nodeRole(item.Name),
-		"version": "v1.29.2",
+		"name":        item.Name,
+		"status":      item.Status,
+		"roles":       nodeRole(item.Name),
+		"version":     "v1.29.2",
 		"internal-ip": item.Extra["internal-ip"],
-		"age":     item.Age,
+		"age":         item.Age,
 	}
 }
 

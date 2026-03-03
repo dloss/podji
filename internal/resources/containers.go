@@ -16,7 +16,7 @@ func NewContainerResource(podItem ResourceItem, parent ResourceType) *ContainerR
 	}
 }
 
-func (c *ContainerResource) PodItem() ResourceItem   { return c.podItem }
+func (c *ContainerResource) PodItem() ResourceItem        { return c.podItem }
 func (c *ContainerResource) ParentResource() ResourceType { return c.parentRes }
 
 func (c *ContainerResource) Name() string { return "containers" }

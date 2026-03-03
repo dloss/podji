@@ -45,4 +45,3 @@ func namespacedColumnsFor(namespace string, cols []TableColumn) []TableColumn {
 	}
 	return append([]TableColumn{{ID: "namespace", Name: "NAMESPACE", Width: 16, Default: true}}, cols...)
 }
-
