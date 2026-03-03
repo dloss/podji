@@ -54,3 +54,33 @@ func TestReadRelationIndexServiceResolvesBackends(t *testing.T) {
 		t.Fatalf("expected 2 backend pods from live list, got %#v", got["backends"])
 	}
 }
+
+func TestReadRelationIndexIngressServiceMappingUsesBackendList(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/services": {
+				{Name: "api-svc"},
+				{Name: "web-svc"},
+			},
+			"dev/default/ingresses": {
+				{Name: "main", Extra: map[string]string{"services": "api-svc,web-svc"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ing := resources.ResourceItem{Name: "main", Extra: map[string]string{"services": "api-svc,web-svc"}}
+	gotIngress := store.RelationIndex().Related(store.Scope(), "ingresses", ing)
+	if len(gotIngress["services"]) != 2 {
+		t.Fatalf("expected ingress to resolve 2 services, got %#v", gotIngress["services"])
+	}
+
+	svc := resources.ResourceItem{Name: "api-svc"}
+	gotService := store.RelationIndex().Related(store.Scope(), "services", svc)
+	if len(gotService["ingresses"]) != 1 || gotService["ingresses"][0].Name != "main" {
+		t.Fatalf("expected service to resolve ingress by backend map, got %#v", gotService["ingresses"])
+	}
+}

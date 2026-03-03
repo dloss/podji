@@ -359,6 +359,7 @@ func (k *clientGoAPI) listIngresses(ctx context.Context, client kubernetes.Inter
 		if len(ing.Spec.TLS) > 0 {
 			tls = "True"
 		}
+		backendServices := ingressBackendServices(ing)
 		out = append(out, resources.ResourceItem{
 			UID:       string(ing.UID),
 			Name:      ing.Name,
@@ -368,13 +369,42 @@ func (k *clientGoAPI) listIngresses(ctx context.Context, client kubernetes.Inter
 			Ready:     ingressHosts(ing.Spec.Rules),
 			Age:       ageString(ing.CreationTimestamp.Time),
 			Extra: map[string]string{
-				"tls":   tls,
-				"rules": strconv.Itoa(len(ing.Spec.Rules)),
+				"tls":      tls,
+				"rules":    strconv.Itoa(len(ing.Spec.Rules)),
+				"services": strings.Join(backendServices, ","),
 			},
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+func ingressBackendServices(ing networkingv1.Ingress) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0)
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	if ing.Spec.DefaultBackend != nil && ing.Spec.DefaultBackend.Service != nil {
+		add(ing.Spec.DefaultBackend.Service.Name)
+	}
+	for _, rule := range ing.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, p := range rule.HTTP.Paths {
+			if p.Backend.Service != nil {
+				add(p.Backend.Service.Name)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (k *clientGoAPI) listConfigMaps(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {

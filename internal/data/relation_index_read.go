@@ -125,7 +125,8 @@ func relatedBackendsForService(service resources.ResourceItem, pods []resources.
 func relatedIngressesForService(service resources.ResourceItem, ingresses []resources.ResourceItem) []resources.ResourceItem {
 	out := make([]resources.ResourceItem, 0)
 	for _, ing := range ingresses {
-		if ing.Name == service.Name || strings.Contains(ing.Ready, service.Name) {
+		backendNames := splitCSVNames(ing.Extra["services"])
+		if containsName(backendNames, service.Name) || ing.Name == service.Name || strings.Contains(ing.Ready, service.Name) {
 			out = append(out, ing)
 		}
 	}
@@ -134,8 +135,9 @@ func relatedIngressesForService(service resources.ResourceItem, ingresses []reso
 
 func relatedServicesForIngress(ingress resources.ResourceItem, services []resources.ResourceItem) []resources.ResourceItem {
 	out := make([]resources.ResourceItem, 0)
+	backendNames := splitCSVNames(ingress.Extra["services"])
 	for _, s := range services {
-		if s.Name == ingress.Name {
+		if containsName(backendNames, s.Name) || s.Name == ingress.Name {
 			out = append(out, s)
 		}
 	}
@@ -158,6 +160,30 @@ func selectorsOverlap(a, b map[string]string) bool {
 	}
 	if resources.MatchesSelector(a, b) || resources.MatchesSelector(b, a) {
 		return true
+	}
+	return false
+}
+
+func splitCSVNames(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func containsName(items []string, name string) bool {
+	for _, item := range items {
+		if item == name {
+			return true
+		}
 	}
 	return false
 }
