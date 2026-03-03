@@ -27,13 +27,23 @@ dev/ui.sh quit
 
 ## Lightweight Real-Cluster Loop (Kube)
 
-Use a minimal local cluster (single-node `k3d` or `kind`) with low resource pressure.
+Use the kube helper scripts for quick fixture setup/teardown:
 
 ```bash
+dev/kube/tui-fixtures.sh up
 ./podji --mode kube
+dev/kube/tui-fixtures.sh down
 ```
 
 If kube mode cannot initialize, Podji falls back to mock mode with a warning.
+
+For local startup timing checks:
+
+```bash
+PODJI_DEBUG_DATA=1 ./podji
+```
+
+Look for `podji:app startup_ms=...` in logs.
 
 ## Resource Tips
 

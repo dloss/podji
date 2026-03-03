@@ -65,6 +65,8 @@ Tradeoffs:
 - Requires explicit index maintenance logic.
 - Additional test surface (contract tests across adapters).
 
-## Next Implementation Steps
+## Remaining Implications
 
-Architecture baseline is in place; proceed with feature-by-feature Kubernetes wiring on top of the shared store/read-model contracts.
+- New features should be added via `Store` + `ReadModel` contracts first, then implemented for both `mock` and `kube` backends.
+- Related-resource lookups must stay local/indexed; no network calls on picker open.
+- Any new high-fanout query should define explicit cache/use limits and be covered by adapter contract tests.
