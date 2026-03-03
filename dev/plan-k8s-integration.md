@@ -39,7 +39,13 @@ Exit criteria:
 
 - mock adapter and kube adapter satisfy the same interface contract end-to-end
 
-## 2. Replace Kubectl Shelling with Client-Go Store (Not Started)
+## 2. Replace Kubectl Shelling with Client-Go Store (In Progress)
+
+Done now:
+
+- `NewKubeStore()` initializes a `client-go` based `KubeAPI` implementation
+- contexts, namespaces, pod logs, and pod events are served via client-go calls
+- namespace lookups have a short TTL cache to reduce repeated API calls during fast UI actions
 
 Scope:
 
