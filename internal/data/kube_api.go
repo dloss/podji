@@ -2,15 +2,21 @@ package data
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
+
+	"github.com/dloss/podji/internal/resources"
 )
+
+var ErrListNotSupported = errors.New("list not supported")
 
 type KubeAPI interface {
 	Contexts() ([]string, error)
 	Namespaces(context string) ([]string, error)
+	ListResources(context, namespace, resourceName string) ([]resources.ResourceItem, error)
 	PodLogs(context, namespace, pod string, tail int) ([]string, error)
 	PodEvents(context, namespace, pod string) ([]string, error)
 }
@@ -110,6 +116,10 @@ func (k *kubectlAPI) PodEvents(context, namespace, pod string) ([]string, error)
 		return []string{"—   No recent events"}, nil
 	}
 	return lines, nil
+}
+
+func (k *kubectlAPI) ListResources(context, namespace, resourceName string) ([]resources.ResourceItem, error) {
+	return nil, fmt.Errorf("%w: %s", ErrListNotSupported, resourceName)
 }
 
 func splitNonEmptyLines(raw string) []string {

@@ -3,6 +3,8 @@ package data
 import (
 	"testing"
 	"time"
+
+	"github.com/dloss/podji/internal/resources"
 )
 
 func TestClientGoNamespaceCacheHitAndExpire(t *testing.T) {
@@ -23,5 +25,26 @@ func TestClientGoNamespaceCacheHitAndExpire(t *testing.T) {
 	time.Sleep(35 * time.Millisecond)
 	if _, ok := api.namespaceCacheGet("dev"); ok {
 		t.Fatal("expected namespace cache entry to expire")
+	}
+}
+
+func TestClientGoListCacheHitAndExpire(t *testing.T) {
+	api := &clientGoAPI{
+		listTTL: 25 * time.Millisecond,
+		list:    map[string]listCacheEntry{},
+	}
+	api.listCacheSet("dev|default|pods", []resources.ResourceItem{{Name: "api-a"}})
+
+	got, ok := api.listCacheGet("dev|default|pods")
+	if !ok {
+		t.Fatal("expected list cache hit")
+	}
+	if len(got) != 1 || got[0].Name != "api-a" {
+		t.Fatalf("unexpected cached list entries: %#v", got)
+	}
+
+	time.Sleep(35 * time.Millisecond)
+	if _, ok := api.listCacheGet("dev|default|pods"); ok {
+		t.Fatal("expected list cache entry to expire")
 	}
 }

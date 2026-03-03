@@ -76,3 +76,40 @@ func TestKubeStoreAdaptedPodUsesKubeReadModelForLogs(t *testing.T) {
 		t.Fatalf("expected adapted resource to use kube read model logs, got %#v", got)
 	}
 }
+
+func TestKubeReadModelUsesAPIForPodList(t *testing.T) {
+	read := NewKubeReadModel(NewMockReadModel(resources.DefaultRegistry()), fakeKubeAPI{
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/pods": {{Name: "live-pod-a"}},
+		},
+	}, func() Scope {
+		return Scope{Context: "dev", Namespace: "default"}
+	}, nil)
+
+	got, err := read.List("pods", Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "live-pod-a" {
+		t.Fatalf("expected live pod list, got %#v", got)
+	}
+}
+
+func TestKubeReadModelFallsBackWhenListUnsupported(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(NewMockReadModel(reg), fakeKubeAPI{
+		listErrByKey: map[string]error{
+			"dev/default/configmaps": ErrListNotSupported,
+		},
+	}, func() Scope {
+		return Scope{Context: "dev", Namespace: "default"}
+	}, nil)
+
+	got, err := read.List("configmaps", Scope{})
+	if err != nil {
+		t.Fatalf("expected fallback list success, got %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatalf("expected fallback items, got %#v", got)
+	}
+}

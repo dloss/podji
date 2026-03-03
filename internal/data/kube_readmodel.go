@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,20 @@ func NewKubeReadModel(fallback ReadModel, api KubeAPI, scope func() Scope, onErr
 }
 
 func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.ResourceItem, error) {
+	if k.api != nil {
+		active := scope
+		if k.scope != nil {
+			active = k.scope()
+		}
+		items, err := k.api.ListResources(active.Context, active.Namespace, resourceName)
+		if err == nil {
+			return items, nil
+		}
+		if !errors.Is(err, ErrListNotSupported) {
+			k.report(err)
+			return nil, err
+		}
+	}
 	if k.fallback == nil {
 		return nil, fmt.Errorf("kube read model fallback is nil")
 	}

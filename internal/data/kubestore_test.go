@@ -13,6 +13,8 @@ type fakeKubeAPI struct {
 	contextErr      error
 	namespacesByCtx map[string][]string
 	namespaceErr    map[string]error
+	listsByKey      map[string][]resources.ResourceItem
+	listErrByKey    map[string]error
 	logsByKey       map[string][]string
 	logErrByKey     map[string]error
 	eventsByKey     map[string][]string
@@ -34,6 +36,16 @@ func (f fakeKubeAPI) Namespaces(context string) ([]string, error) {
 	}
 	out := make([]string, len(f.namespacesByCtx[context]))
 	copy(out, f.namespacesByCtx[context])
+	return out, nil
+}
+
+func (f fakeKubeAPI) ListResources(context, namespace, resourceName string) ([]resources.ResourceItem, error) {
+	key := context + "/" + namespace + "/" + resourceName
+	if err := f.listErrByKey[key]; err != nil {
+		return nil, err
+	}
+	out := make([]resources.ResourceItem, len(f.listsByKey[key]))
+	copy(out, f.listsByKey[key])
 	return out, nil
 }
 
