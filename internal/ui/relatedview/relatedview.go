@@ -847,6 +847,14 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 	openResource := func(r resources.ResourceType) func() viewstate.View {
 		return func() viewstate.View { return newRelationList(r, registry) }
 	}
+	openResourceIndexed := func(key string, fallback resources.ResourceType) func() viewstate.View {
+		if items, ok := indexed[key]; ok {
+			base := relationBaseResource(key, fallback, registry)
+			query := resources.NewQueryResource(key, items, base)
+			return openResource(query)
+		}
+		return openResource(fallback)
+	}
 	openEvents := func(count int) func() viewstate.View {
 		return openResource(resources.NewScopedEvents(source.Name, count))
 	}
@@ -862,25 +870,25 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 			name:        "owner",
 			count:       countFor("owner", 1),
 			description: "Owning workload (Deployment, StatefulSet, etc.)",
-			open:        openResource(resources.NewPodOwner(source.Name)),
+			open:        openResourceIndexed("owner", resources.NewPodOwner(source.Name)),
 		})
 		entries = append(entries, entry{
 			name:        "services",
 			count:       countFor("services", 1),
 			description: "Services selecting this pod",
-			open:        openResource(resources.NewPodServices(source, registry)),
+			open:        openResourceIndexed("services", resources.NewPodServices(source, registry)),
 		})
 		entries = append(entries, entry{
 			name:        "config",
 			count:       countFor("config", 2),
 			description: "ConfigMaps and Secrets mounted by this pod",
-			open:        openResource(resources.NewPodConfig(source.Name)),
+			open:        openResourceIndexed("config", resources.NewPodConfig(source.Name)),
 		})
 		entries = append(entries, entry{
 			name:        "storage",
 			count:       countFor("storage", 1),
 			description: "PVCs mounted by this pod",
-			open:        openResource(resources.NewPodStorage(source.Name)),
+			open:        openResourceIndexed("storage", resources.NewPodStorage(source.Name)),
 		})
 		return entries
 	}
@@ -896,7 +904,7 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 			name:        "pods",
 			count:       countFor("pods", 0),
 			description: "Owned pods",
-			open:        openResource(resources.NewWorkloadPods(source, registry)),
+			open:        openResourceIndexed("pods", resources.NewWorkloadPods(source, registry)),
 		})
 		if source.Kind == "CJ" {
 			entries = append(entries, entry{
@@ -910,34 +918,34 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 			name:        "services",
 			count:       countFor("services", 1),
 			description: "Network endpoints",
-			open:        openResource(resources.NewRelatedServices(source, registry)),
+			open:        openResourceIndexed("services", resources.NewRelatedServices(source, registry)),
 		})
 		entries = append(entries, entry{
 			name:        "config",
 			count:       countFor("config", 2),
 			description: "ConfigMaps and Secrets",
-			open:        openResource(resources.NewRelatedConfig(source.Name)),
+			open:        openResourceIndexed("config", resources.NewRelatedConfig(source.Name)),
 		})
 		entries = append(entries, entry{
 			name:        "storage",
 			count:       countFor("storage", 1),
 			description: "PVC and PV references",
-			open:        openResource(resources.NewRelatedStorage(source.Name)),
+			open:        openResourceIndexed("storage", resources.NewRelatedStorage(source.Name)),
 		})
 		return entries
 	}
 
 	if name == "services" {
 		return []entry{
-			{name: "backends", count: countFor("backends", 0), description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source, registry))},
-			{name: "ingresses", count: countFor("ingresses", 0), description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
+			{name: "backends", count: countFor("backends", 0), description: "EndpointSlice observed endpoints", open: openResourceIndexed("backends", resources.NewBackends(source, registry))},
+			{name: "ingresses", count: countFor("ingresses", 0), description: "Ingresses exposing this service", open: openResourceIndexed("ingresses", resources.NewRelatedIngresses(source.Name))},
 			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
 		}
 	}
 
 	if name == "ingresses" {
 		return []entry{
-			{name: "services", count: countFor("services", 0), description: "Backend services this Ingress routes to", open: openResource(resources.NewIngressServices(source.Name))},
+			{name: "services", count: countFor("services", 0), description: "Backend services this Ingress routes to", open: openResourceIndexed("services", resources.NewIngressServices(source.Name))},
 			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
 		}
 	}
@@ -951,7 +959,7 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 
 	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
 		return []entry{
-			{name: "mounted-by", count: countFor("mounted-by", 0), description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
+			{name: "mounted-by", count: countFor("mounted-by", 0), description: "Pods mounting this claim", open: openResourceIndexed("mounted-by", resources.NewMountedBy(source.Name))},
 			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
 		}
 	}
@@ -959,6 +967,31 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 	return []entry{
 		{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
 	}
+}
+
+func relationBaseResource(key string, fallback resources.ResourceType, registry *resources.Registry) resources.ResourceType {
+	if registry == nil {
+		return fallback
+	}
+	switch key {
+	case "pods", "mounted-by", "consumers":
+		if res := registry.ByName("pods"); res != nil {
+			return res
+		}
+	case "services":
+		if res := registry.ByName("services"); res != nil {
+			return res
+		}
+	case "ingresses":
+		if res := registry.ByName("ingresses"); res != nil {
+			return res
+		}
+	case "owner":
+		if res := registry.ByName("workloads"); res != nil {
+			return res
+		}
+	}
+	return fallback
 }
 
 func relatedCountCell(count int) string {

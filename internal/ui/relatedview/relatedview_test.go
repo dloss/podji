@@ -129,6 +129,32 @@ func TestPickerUsesRelationIndexCountsWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestPickerOpensIndexedRelationItemsWhenAvailable(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{
+		item:     workloads.Items()[0],
+		resource: workloads,
+	}
+	rel := fakeRelationIndex{
+		related: map[string][]resources.ResourceItem{
+			"pods": {{Name: "from-index-a"}, {Name: "from-index-b"}},
+		},
+	}
+	picker := NewPickerForSelection(parent, resources.DefaultRegistry(), rel, data.Scope{Context: "default", Namespace: "default"})
+	picker.SetSize(120, 40)
+	picker.Update(keyRunes('j')) // move to "pods"
+
+	msg := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter}).Cmd().(SelectedMsg)
+	next := msg.Open()
+	related, ok := next.(*relationList)
+	if !ok {
+		t.Fatalf("expected relation list, got %T", next)
+	}
+	if got := len(related.list.Items()); got == 0 {
+		t.Fatalf("expected indexed relation items, got %d", got)
+	}
+}
+
 func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
 	picker := NewPickerForSelection(struct{}{}, nil, nil, data.Scope{})
 	if len(picker.entries) != 0 {
