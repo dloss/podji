@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"time"
 
 	"github.com/dloss/podji/internal/resources"
 )
@@ -46,7 +47,7 @@ func (r *ReadBackedResource) Detail(item resources.ResourceItem) resources.Detai
 }
 
 func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
-	lines, err := ReadLogs(context.Background(), r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{Tail: 200})
+	lines, err := r.LogsWithOptions(context.Background(), item, resources.LogOptions{Tail: 200})
 	if err != nil {
 		return r.base.Logs(item)
 	}
@@ -54,11 +55,28 @@ func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
 }
 
 func (r *ReadBackedResource) Events(item resources.ResourceItem) []string {
-	lines, err := ReadEvents(context.Background(), r.read, r.base.Name(), item, r.scopeFunc(), EventOptions{})
+	lines, err := r.EventsWithOptions(context.Background(), item, resources.EventOptions{Limit: 200})
 	if err != nil {
 		return r.base.Events(item)
 	}
 	return lines
+}
+
+func (r *ReadBackedResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return ReadLogs(reqCtx, r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{
+		Tail:   opts.Tail,
+		Follow: opts.Follow,
+	})
+}
+
+func (r *ReadBackedResource) EventsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.EventOptions) ([]string, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	return ReadEvents(reqCtx, r.read, r.base.Name(), item, r.scopeFunc(), EventOptions{
+		Limit: opts.Limit,
+	})
 }
 
 func (r *ReadBackedResource) YAML(item resources.ResourceItem) string {

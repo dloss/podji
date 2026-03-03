@@ -1,6 +1,7 @@
 package logview
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -9,6 +10,32 @@ import (
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
+
+type optionsLogsResource struct {
+	base      resources.ResourceType
+	tailCalls []int
+}
+
+func (o *optionsLogsResource) Name() string                        { return o.base.Name() }
+func (o *optionsLogsResource) Key() rune                           { return o.base.Key() }
+func (o *optionsLogsResource) Items() []resources.ResourceItem     { return o.base.Items() }
+func (o *optionsLogsResource) Sort(items []resources.ResourceItem) { o.base.Sort(items) }
+func (o *optionsLogsResource) Detail(item resources.ResourceItem) resources.DetailData {
+	return o.base.Detail(item)
+}
+func (o *optionsLogsResource) Logs(item resources.ResourceItem) []string { return o.base.Logs(item) }
+func (o *optionsLogsResource) Events(item resources.ResourceItem) []string {
+	return o.base.Events(item)
+}
+func (o *optionsLogsResource) YAML(item resources.ResourceItem) string { return o.base.YAML(item) }
+func (o *optionsLogsResource) Describe(item resources.ResourceItem) string {
+	return o.base.Describe(item)
+}
+
+func (o *optionsLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
+	o.tailCalls = append(o.tailCalls, opts.Tail)
+	return []string{"line-a", "line-b"}, nil
+}
 
 func TestWrapLine(t *testing.T) {
 	tests := []struct {
@@ -82,6 +109,18 @@ func TestFooterShowsSinceAndMatchStatus(t *testing.T) {
 	}
 	if !strings.Contains(footer, "match") {
 		t.Fatalf("expected footer to include match indicator, got %q", footer)
+	}
+}
+
+func TestSinceWindowRefetchesWithTailOptions(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	if len(res.tailCalls) != 1 || res.tailCalls[0] != 200 {
+		t.Fatalf("expected initial tail=200 fetch, got %#v", res.tailCalls)
+	}
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	if len(res.tailCalls) != 2 || res.tailCalls[1] != 500 {
+		t.Fatalf("expected second tail=500 fetch after ] window switch, got %#v", res.tailCalls)
 	}
 }
 

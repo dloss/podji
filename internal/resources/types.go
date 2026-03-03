@@ -1,5 +1,7 @@
 package resources
 
+import "context"
+
 type ResourceItem struct {
 	UID        string
 	APIVersion string
@@ -73,6 +75,27 @@ type ResourceType interface {
 	Events(item ResourceItem) []string
 	YAML(item ResourceItem) string
 	Describe(item ResourceItem) string
+}
+
+type LogOptions struct {
+	Tail   int
+	Follow bool
+}
+
+type EventOptions struct {
+	Limit int
+}
+
+// LogOptionsReader is an optional extension for resources that can honor
+// explicit log read options such as tail and follow.
+type LogOptionsReader interface {
+	LogsWithOptions(ctx context.Context, item ResourceItem, opts LogOptions) ([]string, error)
+}
+
+// EventOptionsReader is an optional extension for resources that can honor
+// explicit event read options such as result limits.
+type EventOptionsReader interface {
+	EventsWithOptions(ctx context.Context, item ResourceItem, opts EventOptions) ([]string, error)
 }
 
 // TableResource lets a resource define custom table columns and row rendering.

@@ -1,6 +1,7 @@
 package eventview
 
 import (
+	"context"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -17,10 +18,20 @@ type View struct {
 }
 
 func New(item resources.ResourceItem, resource resources.ResourceType) *View {
-	lines := resource.Events(item)
+	lines := readEvents(resource, item)
 	vp := viewport.New(0, 0)
 	vp.SetContent(strings.Join(lines, "\n"))
 	return &View{item: item, resource: resource, viewport: vp}
+}
+
+func readEvents(resource resources.ResourceType, item resources.ResourceItem) []string {
+	if reader, ok := resource.(resources.EventOptionsReader); ok {
+		lines, err := reader.EventsWithOptions(context.Background(), item, resources.EventOptions{Limit: 200})
+		if err == nil && len(lines) > 0 {
+			return lines
+		}
+	}
+	return resource.Events(item)
 }
 
 func (v *View) Init() bubbletea.Cmd { return nil }

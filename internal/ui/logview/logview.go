@@ -1,6 +1,7 @@
 package logview
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -43,19 +44,17 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 }
 
 func NewWithContainer(item resources.ResourceItem, resource resources.ResourceType, container string) *View {
-	lines := resource.Logs(item)
 	vp := viewport.New(0, 0)
 	v := &View{
 		item:      item,
 		resource:  resource,
 		container: container,
-		allLines:  lines,
-		lines:     lines,
 		viewport:  vp,
 		follow:    true,
 		wrap:      true,
 		sinceIdx:  1, // default to 5m
 	}
+	v.reloadLogs()
 	v.refreshContent()
 	return v
 }
@@ -117,10 +116,12 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "]":
 			v.sinceIdx = (v.sinceIdx + 1) % len(sinceWindows)
+			v.reloadLogs()
 			v.refreshWindow()
 			v.refreshContent()
 		case "[":
 			v.sinceIdx = (v.sinceIdx - 1 + len(sinceWindows)) % len(sinceWindows)
+			v.reloadLogs()
 			v.refreshWindow()
 			v.refreshContent()
 		case "c":
@@ -234,6 +235,38 @@ func (v *View) refreshContent() {
 
 func (v *View) refreshWindow() {
 	v.lines = applySinceWindow(v.allLines, sinceWindows[v.sinceIdx])
+}
+
+func (v *View) reloadLogs() {
+	opts := resources.LogOptions{
+		Tail:   tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow: v.follow,
+	}
+	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
+		lines, err := reader.LogsWithOptions(context.Background(), v.item, opts)
+		if err == nil && len(lines) > 0 {
+			v.allLines = lines
+			return
+		}
+	}
+	v.allLines = v.resource.Logs(v.item)
+}
+
+func tailForWindow(window string) int {
+	switch window {
+	case "1m":
+		return 50
+	case "5m":
+		return 200
+	case "15m":
+		return 500
+	case "1h":
+		return 1000
+	case "all":
+		return 2000
+	default:
+		return 200
+	}
 }
 
 func applySinceWindow(lines []string, window string) []string {

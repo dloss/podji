@@ -106,6 +106,9 @@ Done now:
 - pod logs/events are centralized through `KubeReadModel` instead of view-local fetcher wiring
 - kube read errors are surfaced via store status path
 - read-model contracts now include context-aware logs/events hooks with backward-compatible fallback
+- resources now expose optional option-aware logs/events interfaces (`tail`/`follow` and `limit`)
+- `ReadBackedResource` propagates context + options into read-model streaming hooks with bounded request timeouts
+- log/event views now use option-aware readers when available (including window-tail refetching for logs)
 
 Scope:
 
