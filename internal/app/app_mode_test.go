@@ -10,7 +10,7 @@ import (
 func TestNewFromEnvUnknownModeReturnsError(t *testing.T) {
 	prev := newStoreFromEnvFn
 	newStoreFromEnvFn = func() (data.Store, error) {
-		return nil, errors.New("unknown PODJI_MODE")
+		return nil, errors.New("unknown mode")
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
 	if _, err := NewFromEnv(); err == nil {

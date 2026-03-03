@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/ui/commandbar"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
@@ -123,11 +124,39 @@ func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	if !strings.Contains(lines[0], "Context:") || !strings.Contains(lines[0], "Namespace:") {
 		t.Fatalf("expected scope line with context and namespace, got %q", lines[0])
 	}
-	if !strings.Contains(lines[0], "Mode:") {
-		t.Fatalf("expected scope line with mode label, got %q", lines[0])
+	if strings.Contains(lines[0], "Mode:") {
+		t.Fatalf("did not expect mode label in scope line, got %q", lines[0])
 	}
 	if !strings.Contains(lines[1], "Workload") {
 		t.Fatalf("expected breadcrumb line with root resource tag, got %q", lines[1])
+	}
+}
+
+func TestRenderScopeLineShowsMockWhenActive(t *testing.T) {
+	m := Model{
+		mode:      data.ModeMock,
+		context:   "default",
+		namespace: "default",
+		width:     80,
+	}
+
+	line := m.renderScopeLine()
+	if !strings.Contains(line, "MOCK") {
+		t.Fatalf("expected MOCK marker in scope line, got %q", line)
+	}
+}
+
+func TestRenderScopeLineHidesModeWhenNotMock(t *testing.T) {
+	m := Model{
+		mode:      data.ModeKube,
+		context:   "default",
+		namespace: "default",
+		width:     80,
+	}
+
+	line := m.renderScopeLine()
+	if strings.Contains(line, "MOCK") || strings.Contains(line, "KUBE") || strings.Contains(line, "Mode:") {
+		t.Fatalf("expected no mode marker in scope line, got %q", line)
 	}
 }
 

@@ -13,7 +13,7 @@ This keeps iteration fast while still verifying real-cluster paths.
 
 ```bash
 go test ./...
-./podji --mode mock
+PODJI_MOCK=1 ./podji
 ```
 
 For reproducible UI checks:
@@ -31,7 +31,7 @@ Use the kube helper scripts for quick fixture setup/teardown:
 
 ```bash
 dev/kube/tui-fixtures.sh up
-./podji --mode kube
+./podji
 dev/kube/tui-fixtures.sh down
 ```
 

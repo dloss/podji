@@ -467,7 +467,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 }
 
 func (m Model) renderHeader() string {
-	return m.scopeLine() + "\n" + m.breadcrumbLine()
+	return m.renderScopeLine() + "\n" + m.breadcrumbLine()
 }
 
 func (m Model) renderBody() string {
@@ -642,14 +642,6 @@ func contextTier(name string) string {
 
 func (m Model) scopeLine() string {
 	sep := style.NavSep.Render(" > ")
-	modeLabel := style.Scope.Render("Mode: ")
-	modeValue := style.ScopeValue.Render(strings.ToUpper(strings.TrimSpace(m.mode)))
-	if strings.EqualFold(m.mode, data.ModeMock) {
-		modeValue = style.Muted.Render("MOCK")
-	} else if strings.EqualFold(m.mode, data.ModeKube) {
-		modeValue = style.ScopeActiveValue.Render("KUBE")
-	}
-
 	var contextLabel, contextValue string
 	switch contextTier(m.context) {
 	case "prod":
@@ -671,18 +663,28 @@ func (m Model) scopeLine() string {
 		nsValue = style.ScopeValue.Render(m.namespace)
 	}
 
-	return modeLabel + modeValue + sep + contextLabel + contextValue + sep + nsLabel + nsValue
+	return contextLabel + contextValue + sep + nsLabel + nsValue
+}
+
+func (m Model) renderScopeLine() string {
+	left := m.scopeLine()
+	if !strings.EqualFold(m.mode, data.ModeMock) {
+		return left
+	}
+	right := style.Muted.Render("MOCK")
+	if m.width <= 0 {
+		return left + " " + right
+	}
+	leftWidth := lipgloss.Width(left)
+	rightWidth := lipgloss.Width(right)
+	if leftWidth+1+rightWidth > m.width {
+		return left
+	}
+	return left + strings.Repeat(" ", m.width-leftWidth-rightWidth) + right
 }
 
 // namespaceLabelX returns the visual column where "Namespace:" starts in the scope line.
 func (m Model) namespaceLabelX() int {
-	modeLabel := style.Scope.Render("Mode: ")
-	modeValue := style.ScopeValue.Render(strings.ToUpper(strings.TrimSpace(m.mode)))
-	if strings.EqualFold(m.mode, data.ModeMock) {
-		modeValue = style.Muted.Render("MOCK")
-	} else if strings.EqualFold(m.mode, data.ModeKube) {
-		modeValue = style.ScopeActiveValue.Render("KUBE")
-	}
 	var contextLabel, contextValue string
 	switch contextTier(m.context) {
 	case "prod":
@@ -695,7 +697,7 @@ func (m Model) namespaceLabelX() int {
 		contextLabel = style.Scope.Render("Context: ")
 		contextValue = style.ScopeValue.Render(m.context)
 	}
-	return lipgloss.Width(modeLabel + modeValue + style.NavSep.Render(" > ") + contextLabel + contextValue + style.NavSep.Render(" > "))
+	return lipgloss.Width(contextLabel + contextValue + style.NavSep.Render(" > "))
 }
 
 func (m Model) breadcrumbLine() string {

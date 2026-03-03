@@ -13,24 +13,36 @@ const (
 
 var newKubeStoreFn = NewKubeStore
 
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "t", "true", "y", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 func NewStoreForMode(mode string) (Store, error) {
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	switch mode {
-	case "", ModeMock:
+	case ModeMock:
 		return NewMockStore(), nil
-	case ModeKube:
+	case "", ModeKube:
 		store, err := newKubeStoreFn()
 		if err == nil {
 			return store, nil
 		}
 		return nil, fmt.Errorf("kube mode unavailable: %w", err)
 	default:
-		return nil, fmt.Errorf("unknown PODJI_MODE=%q", mode)
+		return nil, fmt.Errorf("unknown mode=%q", mode)
 	}
 }
 
-// NewStoreFromEnv returns a store based on PODJI_MODE.
-// Supported values: "mock" (default), "kube".
+// NewStoreFromEnv returns a store based on PODJI_MOCK.
+// kube is the default; PODJI_MOCK truthy values force mock mode.
 func NewStoreFromEnv() (Store, error) {
-	return NewStoreForMode(os.Getenv("PODJI_MODE"))
+	if isTruthy(os.Getenv("PODJI_MOCK")) {
+		return NewStoreForMode(ModeMock)
+	}
+	return NewStoreForMode(ModeKube)
 }

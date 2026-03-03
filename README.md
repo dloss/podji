@@ -31,25 +31,17 @@ go build ./cmd/podji
 ./podji
 ```
 
-Default startup is `mock` mode (no cluster required).
+Default startup is `kube` mode.
 
 ## Runtime Modes
 
-`PODJI_MODE` controls which store backend is used at startup:
+`PODJI_MOCK` enables deterministic mock mode. When unset, Podji runs in `kube` mode (client-go backed live cluster reads).
 
-- `mock` (default): deterministic stub data
-- `kube`: client-go backed live cluster reads (startup fails if unavailable)
-
-Example:
+Examples:
 
 ```bash
-PODJI_MODE=kube ./podji
-```
-
-CLI flag alternative:
-
-```bash
-./podji --mode kube
+PODJI_MOCK=1 ./podji
+./podji -mock
 ```
 
 ## Mock Scenarios (for Testing and Demos)
@@ -73,8 +65,8 @@ Supported values:
 Examples:
 
 ```bash
-PODJI_MODE=mock PODJI_MOCK_SCENARIO=forbidden ./podji
-PODJI_MODE=mock PODJI_STRESS=1 ./podji
+PODJI_MOCK=1 PODJI_MOCK_SCENARIO=forbidden ./podji
+PODJI_MOCK=1 PODJI_STRESS=1 ./podji
 ```
 
 ## Test

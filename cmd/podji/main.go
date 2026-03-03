@@ -3,17 +3,16 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/app"
 )
 
 func main() {
-	modeFlag := flag.String("mode", "", "store mode: mock or kube")
+	mockFlag := flag.Bool("mock", false, "run with mock data")
 	flag.Parse()
-	if mode := strings.TrimSpace(*modeFlag); mode != "" {
-		_ = os.Setenv("PODJI_MODE", mode)
+	if *mockFlag {
+		_ = os.Setenv("PODJI_MOCK", "1")
 	}
 
 	model, err := app.NewFromEnv()
