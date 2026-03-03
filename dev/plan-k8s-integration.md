@@ -1,83 +1,35 @@
-# Podji Kubernetes Integration Remaining Plan
+# Podji Kubernetes Integration Plan Status
 
-This plan now contains only unresolved architecture work before full Kubernetes wiring.
+This file now reflects completion status after the pre-wiring architecture pass.
 
-## Non-Negotiable Constraint
+## Completed
 
-Keep mock mode as a first-class parallel path even after real-cluster support lands.
+1. Data freshness + cache readiness UX
+- explicit store states (`loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`)
+- cache-warming vs cache-ready status messaging (`warming cache for <resource>`, `cache ready for <resource>`)
+- render-time store-status sync so background transitions are visible without extra key input
+- scope-switch loading -> ready freshness transition covered with app rendering tests
 
-Reason:
+2. Streaming lifecycle + cancellation hardening
+- option-aware logs/events contracts (`tail`, `follow`, `limit`) wired through read-backed resources
+- bounded client-go log buffering
+- async cancellable log/event loads with request correlation
+- disposable view lifecycle hook and app-level disposal on pop/replace/scope/resource stack resets
+- test coverage for in-flight cancellation and disposal-triggered cleanup
 
-- local/offline development and demos need deterministic, rich datasets
-- realistic multi-workload clusters are not always available for day-to-day iteration
-- UI regression testing is faster and more stable in mock mode
+3. Integration contract coverage for mode/scope/query flows
+- app startup mode coverage via injectable store factory path (warning/no-warning + scope seeding)
+- scope selection status sync coverage
+- query status sync coverage (`unhealthy`, `restarts`)
+- query navigation consistency across mock and kube-like store adapters
+- stack lifecycle/disposal behavior covered across navigation/scope transitions
 
-## Remaining Work
+## Constraint (Still Active)
 
-## 1. Explicit Data Freshness and Cache Readiness UX
+Mock mode remains a first-class parallel path for development, demos, and deterministic testing.
 
-Current state:
+## Optional Follow-Ups (Not blockers for Kubernetes wiring)
 
-- store status already supports `loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`
-- informer-backed list reads have direct-list fallback
-- kube list reads now signal cache-backed vs direct-list paths; direct-list paths surface `loading` with a cache-warming message
-- status transition from cache-warming (`loading`) to `ready` on cache-backed list reads is explicitly covered in tests
-- app-level tests cover clearing temporary store loading banners once status returns to `ready`
-- ready-state store freshness messages are now surfaced in the UI status line (e.g. `store: cache ready for <resource>`)
-- app `View()` now syncs store status on render, so background-driven status transitions are visible without extra key events
-
-Scope:
-
-- surface cache/readiness metadata as explicit user-visible state when useful
-- distinguish "live but warming cache" from hard errors
-- ensure scope/context changes always converge from loading to a final visible state
-
-Exit criteria:
-
-- no ambiguous silent transitions during cache warm-up or scope changes
-- users can tell whether they are seeing warm-cache or direct-list backed data
-
-## 2. Streaming Lifecycle and Cancellation Hardening
-
-Current state:
-
-- read-model supports context-aware logs/events
-- option-aware log/event reads are wired (tail/follow/limit)
-- bounded buffering is in place for client-go log streaming
-- follow-mode toggles in log view now refetch through option-aware readers with bounded context timeouts
-- log view reloads run through cancellable commands, and app stack removal now calls view `Dispose()` hooks for cleanup
-- cancellation and disposal behavior are covered by logview/app tests (in-flight reload cancellation + pop disposal)
-- event view now uses cancellable async load in `Init`, and app push/replace flows execute pushed-view `Init` commands
-
-Scope:
-
-- introduce cancellable background fetch lifecycle for long-running log/event refresh flows
-- guarantee cleanup on view pop and scope/context switches
-- define follow-mode behavior against kube APIs without leaking goroutines or requests
-
-Exit criteria:
-
-- no leaked background work when navigation/scope changes interrupt active log/event flows
-- follow-mode behavior is consistent and bounded for both mock and kube modes
-
-## 3. Integration Contract Coverage for End-to-End Mode Flow
-
-Current state:
-
-- mode startup/fallback tests exist
-- app startup mode tests now cover warning/no-warning startup paths and scope seeding from store factory
-- env-mode and scope/query contract tests exist in data layer
-- app-level scope selection now has explicit loading-status synchronization coverage
-- app command queries (`unhealthy`, `restarts`) now have status synchronization coverage
-- app tests now cover stack-reset lifecycle behavior (scope/resource switches dispose prior views)
-- app render-flow tests now cover scope-switch status transition from loading to ready-freshness messaging
-- app tests now cover command-query navigation consistency (`unhealthy`, `restarts`) across mock and kube-like store adapters
-
-Scope:
-
-- add end-to-end app-level tests that exercise mode + scope + status transitions together
-- verify command-bar/query behavior remains consistent across mock and kube adapters
-
-Exit criteria:
-
-- adapter and app-flow contracts are test-covered from startup through scope switching and query paths
+- add explicit telemetry hooks for cache source decisions (informer vs direct API) if needed for debugging
+- add stress/integration tests that simulate repeated rapid scope switching while log/event loads are active
+- refine live describe/yaml formatting from metadata snapshots to richer typed object output as needed
