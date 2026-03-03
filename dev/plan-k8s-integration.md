@@ -14,26 +14,7 @@ Reason:
 
 ## Remaining Work
 
-## 1. Live Detail/YAML/Describe Adapter Path
-
-Current state:
-
-- list/logs/events have kube-backed read paths
-- kube read model now renders live detail/yaml/describe for all current list-backed live resources from item metadata
-- fallback rendering remains only for resources outside the live list-backed set
-
-Scope:
-
-- add kube-backed detail/yaml/describe providers (client-go typed reads)
-- map live objects into existing detail panels without breaking mock rendering parity
-- keep mock and kube adapters behind the same `ReadModel` contract
-
-Exit criteria:
-
-- in `kube` mode, detail/yaml/describe no longer depend on stub datasets for core resources
-- in `mock` mode, behavior remains deterministic and unchanged
-
-## 2. Explicit Data Freshness and Cache Readiness UX
+## 1. Explicit Data Freshness and Cache Readiness UX
 
 Current state:
 
@@ -53,7 +34,7 @@ Exit criteria:
 - no ambiguous silent transitions during cache warm-up or scope changes
 - users can tell whether they are seeing warm-cache or direct-list backed data
 
-## 3. Streaming Lifecycle and Cancellation Hardening
+## 2. Streaming Lifecycle and Cancellation Hardening
 
 Current state:
 
@@ -73,7 +54,7 @@ Exit criteria:
 - no leaked background work when navigation/scope changes interrupt active log/event flows
 - follow-mode behavior is consistent and bounded for both mock and kube modes
 
-## 4. Integration Contract Coverage for End-to-End Mode Flow
+## 3. Integration Contract Coverage for End-to-End Mode Flow
 
 Current state:
 
