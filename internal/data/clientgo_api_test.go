@@ -136,6 +136,27 @@ func TestDetailFromObjectIngressIncludesHostsAndServices(t *testing.T) {
 	}
 }
 
+func TestDescribeKubeObjectStatefulSetIncludesServiceAndReady(t *testing.T) {
+	replicas := int32(2)
+	obj := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "db"},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:    &replicas,
+			ServiceName: "db-headless",
+			Selector:    &metav1.LabelSelector{MatchLabels: map[string]string{"app": "db"}},
+		},
+		Status: appsv1.StatefulSetStatus{ReadyReplicas: 1},
+	}
+	out := describeKubeObject(obj, "workloads", resources.ResourceItem{
+		Name:   "db",
+		Kind:   "STS",
+		Status: "Progressing",
+	}, "default")
+	if !strings.Contains(out, "Service:     db-headless") || !strings.Contains(out, "Ready:       1/2") {
+		t.Fatalf("expected sts describe fields, got %q", out)
+	}
+}
+
 func summaryValues(summary []resources.SummaryField) []string {
 	out := make([]string, 0, len(summary))
 	for _, s := range summary {

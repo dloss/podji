@@ -1497,6 +1497,47 @@ func describeKubeObject(obj any, resourceName string, item resources.ResourceIte
 			"Strategy:    "+valueOr(string(o.Spec.Strategy.Type), "<none>"),
 			"Images:      "+containerImages(o.Spec.Template.Spec.Containers),
 		)
+	case *appsv1.StatefulSet:
+		desired := int32(1)
+		if o.Spec.Replicas != nil {
+			desired = *o.Spec.Replicas
+		}
+		lines = append(lines,
+			"Status:      "+valueOr(item.Status, "Progressing"),
+			"Ready:       "+strconv.Itoa(int(o.Status.ReadyReplicas))+"/"+strconv.Itoa(int(desired)),
+			"Service:     "+valueOr(o.Spec.ServiceName, "<none>"),
+			"Selector:    "+valueOr(labelSelectorString(o.Spec.Selector.MatchLabels), "<none>"),
+			"Images:      "+containerImages(o.Spec.Template.Spec.Containers),
+		)
+	case *appsv1.DaemonSet:
+		lines = append(lines,
+			"Status:      "+valueOr(item.Status, "Healthy"),
+			"Ready:       "+strconv.Itoa(int(o.Status.NumberReady))+"/"+strconv.Itoa(int(o.Status.DesiredNumberScheduled)),
+			"Selector:    "+valueOr(labelSelectorString(o.Spec.Selector.MatchLabels), "<none>"),
+			"Images:      "+containerImages(o.Spec.Template.Spec.Containers),
+		)
+	case *batchv1.Job:
+		completions := int32(1)
+		if o.Spec.Completions != nil {
+			completions = *o.Spec.Completions
+		}
+		lines = append(lines,
+			"Status:      "+valueOr(item.Status, "Running"),
+			"Completions: "+strconv.Itoa(int(o.Status.Succeeded))+"/"+strconv.Itoa(int(completions)),
+			"Parallelism: "+strconv.Itoa(int(ptrInt32(o.Spec.Parallelism, 1))),
+			"Images:      "+containerImages(o.Spec.Template.Spec.Containers),
+		)
+	case *batchv1.CronJob:
+		suspend := "false"
+		if o.Spec.Suspend != nil && *o.Spec.Suspend {
+			suspend = "true"
+		}
+		lines = append(lines,
+			"Status:      Scheduled",
+			"Schedule:    "+valueOr(o.Spec.Schedule, "<none>"),
+			"Suspend:     "+suspend,
+			"Images:      "+containerImages(o.Spec.JobTemplate.Spec.Template.Spec.Containers),
+		)
 	case *corev1.ConfigMap:
 		lines = append(lines, "Data Keys:    "+strconv.Itoa(len(o.Data)))
 	case *corev1.Secret:
