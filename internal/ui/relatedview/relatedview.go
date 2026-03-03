@@ -45,6 +45,9 @@ type Picker struct {
 	height  int
 }
 
+// HasEntries reports whether the picker has related categories to show.
+func (p *Picker) HasEntries() bool { return len(p.entries) > 0 }
+
 // NewPickerForSelection returns a Picker populated with related categories for
 // the currently selected item in parent.  Returns an empty Picker when no
 // selection is available.
@@ -771,7 +774,7 @@ func relatedEntriesLegacy(source resources.ResourceItem, resource resources.Reso
 		return openResource(resources.NewScopedEvents(source.Name, count))
 	}
 
-	if isPodResource(resource) {
+	if isPodResource(resource) || strings.HasPrefix(name, "pods") {
 		entries = append(entries, entry{
 			name:        "events",
 			count:       3,
@@ -805,7 +808,7 @@ func relatedEntriesLegacy(source resources.ResourceItem, resource resources.Reso
 		return entries
 	}
 
-	if name == "workloads" {
+	if name == "workloads" || name == "deployments" {
 		// Workload tweak: promote Events near top for debugging.
 		entries = append(entries, entry{
 			name:        "events",
@@ -910,7 +913,7 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 		return openResource(resources.NewScopedEvents(source.Name, count))
 	}
 
-	if isPodResource(resource) {
+	if isPodResource(resource) || strings.HasPrefix(name, "pods") {
 		entries = append(entries, entry{
 			name:        "events",
 			count:       3,
@@ -944,7 +947,7 @@ func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.R
 		return entries
 	}
 
-	if name == "workloads" {
+	if name == "workloads" || name == "deployments" {
 		entries = append(entries, entry{
 			name:        "events",
 			count:       12,

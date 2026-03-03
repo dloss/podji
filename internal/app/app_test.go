@@ -397,6 +397,23 @@ func TestRKeyOpensRelatedPickerOverlay(t *testing.T) {
 	}
 }
 
+func TestRKeyInResourceBrowserShowsStatusWithoutPicker(t *testing.T) {
+	m := New()
+
+	m1, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'A'}})
+	inBrowser := m1.(Model)
+
+	m2, _ := inBrowser.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	got := m2.(Model)
+
+	if got.relatedPicker != nil {
+		t.Fatal("expected relatedPicker to remain nil in resource browser")
+	}
+	if got.statusMsg == "" {
+		t.Fatal("expected status message explaining related is unavailable in resource browser")
+	}
+}
+
 func TestRelatedPickerEscClosesOverlay(t *testing.T) {
 	m := New()
 

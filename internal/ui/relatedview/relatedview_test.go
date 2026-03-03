@@ -141,6 +141,52 @@ func TestPickerUsesRelationIndexCountsWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestPickerUsesIndexedPodRelationsForWrappedPodResource(t *testing.T) {
+	parent := &fakeParent{
+		item:     resources.ResourceItem{Name: "api-123", Labels: map[string]string{"app": "api"}},
+		resource: &fallbackResource{name: "pods"},
+	}
+	rel := fakeRelationIndex{
+		related: map[string][]resources.ResourceItem{
+			"owner":    {{Name: "api", Kind: "DEP"}},
+			"services": {{Name: "api"}},
+			"config":   {{Name: "api-config"}},
+			"storage":  {{Name: "api-pvc"}},
+		},
+	}
+	picker := NewPickerForSelection(parent, nil, rel, data.Scope{Context: "default", Namespace: "default"})
+
+	if got := entryCountByName(picker.entries, "owner"); got != 1 {
+		t.Fatalf("expected owner count 1 from relation index, got %d", got)
+	}
+	if got := entryCountByName(picker.entries, "services"); got != 1 {
+		t.Fatalf("expected services count 1 from relation index, got %d", got)
+	}
+}
+
+func TestPickerUsesIndexedWorkloadRelationsForDeployments(t *testing.T) {
+	parent := &fakeParent{
+		item:     resources.ResourceItem{Name: "api", Selector: map[string]string{"app": "api"}},
+		resource: &fallbackResource{name: "deployments"},
+	}
+	rel := fakeRelationIndex{
+		related: map[string][]resources.ResourceItem{
+			"pods":     {{Name: "api-123"}},
+			"services": {{Name: "api"}},
+			"config":   {{Name: "api-config"}},
+			"storage":  {{Name: "api-pvc"}},
+		},
+	}
+	picker := NewPickerForSelection(parent, nil, rel, data.Scope{Context: "default", Namespace: "default"})
+
+	if got := entryCountByName(picker.entries, "pods"); got != 1 {
+		t.Fatalf("expected pods count 1 from relation index, got %d", got)
+	}
+	if got := entryCountByName(picker.entries, "services"); got != 1 {
+		t.Fatalf("expected services count 1 from relation index, got %d", got)
+	}
+}
+
 func TestPickerOpensIndexedRelationItemsWhenAvailable(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{

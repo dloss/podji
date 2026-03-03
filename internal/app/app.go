@@ -367,6 +367,7 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 		return msg, true, nil
 	case "A":
 		browser := resourcebrowser.New(m.registry, resources.StubCRDs())
+		browser.SetResourceAdapter(m.adaptResource)
 		browser.SetSize(m.width, m.availableHeight())
 		m.disposeStack(m.stack)
 		m.stack = []viewstate.View{browser}
@@ -477,8 +478,13 @@ func (m *Model) popView() {
 }
 
 func (m *Model) openRelatedPicker() {
-	m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
-	m.relatedPicker.SetSize(m.width, m.height-1)
+	picker := relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
+	if !picker.HasEntries() {
+		m.statusMsg = "No related resources in this view. Press Enter to open a resource first."
+		return
+	}
+	picker.SetSize(m.width, m.height-1)
+	m.relatedPicker = picker
 }
 
 func (m Model) renderHeader() string {

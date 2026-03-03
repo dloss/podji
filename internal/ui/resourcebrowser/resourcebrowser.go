@@ -82,16 +82,17 @@ var builtinResourceInfo = map[string]builtinInfo{
 // View is the resource browser: a filterable list of all resource types
 // (built-ins and CRDs). Selecting an entry navigates to its instance list.
 type View struct {
-	registry     *resources.Registry
-	entries      []entry
-	list         list.Model
-	columns      []browserColumn
-	colWidths    []int
-	sortPickMode bool
-	sortCol      int
-	sortDesc     bool
-	findMode     bool
-	findTargets  map[int]bool
+	registry      *resources.Registry
+	entries       []entry
+	list          list.Model
+	adaptResource func(resources.ResourceType) resources.ResourceType
+	columns       []browserColumn
+	colWidths     []int
+	sortPickMode  bool
+	sortCol       int
+	sortDesc      bool
+	findMode      bool
+	findTargets   map[int]bool
 }
 
 // New creates the resource browser populated with registry built-ins and the
@@ -103,11 +104,12 @@ func New(registry *resources.Registry, crds []resources.CRDMeta) *View {
 	widths := columnWidthsForRows(cols, rows, 0)
 
 	v := &View{
-		registry:  registry,
-		entries:   entries,
-		columns:   cols,
-		colWidths: widths,
-		sortCol:   0,
+		registry:      registry,
+		entries:       entries,
+		adaptResource: func(r resources.ResourceType) resources.ResourceType { return r },
+		columns:       cols,
+		colWidths:     widths,
+		sortCol:       0,
 	}
 	delegate := newBrowserDelegate(&v.findMode, &v.findTargets)
 	model := list.New(buildListItems(entries, rows, widths), delegate, 0, 0)
@@ -185,7 +187,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "enter", "l", "right":
 			if selected, ok := v.list.SelectedItem().(browserItem); ok {
-				lv := listview.New(selected.entry.resource, v.registry)
+				res := selected.entry.resource
+				if v.adaptResource != nil {
+					res = v.adaptResource(res)
+				}
+				lv := listview.New(res, v.registry)
 				return viewstate.Update{Action: viewstate.Push, Next: lv}
 			}
 		case "f":
@@ -203,6 +209,16 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	updated, cmd := v.list.Update(msg)
 	v.list = updated
 	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+}
+
+// SetResourceAdapter configures how selected resources are adapted before
+// opening a list view. Passing nil resets to identity adaptation.
+func (v *View) SetResourceAdapter(adapt func(resources.ResourceType) resources.ResourceType) {
+	if adapt == nil {
+		v.adaptResource = func(r resources.ResourceType) resources.ResourceType { return r }
+		return
+	}
+	v.adaptResource = adapt
 }
 
 func (v *View) View() string {
