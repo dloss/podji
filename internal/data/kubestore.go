@@ -95,12 +95,16 @@ func (s *KubeStore) Status() StoreStatus {
 }
 
 func (s *KubeStore) SetScope(scope Scope) {
+	prev := s.scope
 	if scope.Context == "" {
 		scope.Context = s.scope.Context
 	}
 	scope.Namespace = normalizeScopeNamespace(scope.Namespace)
 	s.scope = scope
 	s.registry.SetNamespace(s.scope.Namespace)
+	if prev.Context != s.scope.Context || prev.Namespace != s.scope.Namespace {
+		s.status = StoreStatus{State: StoreStateLoading, Message: "refreshing cluster data"}
+	}
 }
 
 func (s *KubeStore) NamespaceNames() []string {

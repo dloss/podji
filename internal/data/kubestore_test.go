@@ -143,6 +143,9 @@ func TestKubeStoreSetScopeUpdatesRegistryNamespace(t *testing.T) {
 	if got := store.Registry().Namespace(); got != "staging" {
 		t.Fatalf("expected registry namespace staging, got %q", got)
 	}
+	if status := store.Status(); status.State != StoreStateLoading {
+		t.Fatalf("expected loading status after scope change, got %#v", status)
+	}
 }
 
 func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
