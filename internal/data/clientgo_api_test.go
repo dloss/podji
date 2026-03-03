@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestClientGoNamespaceCacheHitAndExpire(t *testing.T) {
@@ -200,6 +201,24 @@ func TestDescribeKubeObjectServiceIncludesPorts(t *testing.T) {
 	if !strings.Contains(out, "Ports:       http:80/TCP,metrics:9090/TCP") {
 		t.Fatalf("expected service ports in describe output, got %q", out)
 	}
+}
+
+func TestEnsureInformersReturnsWithoutSyncWait(t *testing.T) {
+	api := &clientGoAPI{
+		inf: map[string]*contextInformers{},
+	}
+	client := fake.NewSimpleClientset()
+
+	start := time.Now()
+	inf := api.ensureInformers("dev", client)
+	elapsed := time.Since(start)
+	if inf == nil {
+		t.Fatal("expected informer context")
+	}
+	if elapsed > 250*time.Millisecond {
+		t.Fatalf("expected non-blocking informer setup, took %s", elapsed)
+	}
+	close(inf.stopCh)
 }
 
 func summaryValues(summary []resources.SummaryField) []string {

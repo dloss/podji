@@ -28,6 +28,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	networkinglisters "k8s.io/client-go/listers/networking/v1"
+	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
@@ -61,7 +62,6 @@ type contextInformers struct {
 	stopCh       chan struct{}
 	started      bool
 	synced       bool
-	lastSyncTry  time.Time
 	pods         corelisters.PodLister
 	services     corelisters.ServiceLister
 	deployments  appslisters.DeploymentLister
@@ -920,35 +920,33 @@ func (k *clientGoAPI) ensureInformers(contextName string, client kubernetes.Inte
 	if !inf.started {
 		inf.factory.Start(inf.stopCh)
 		inf.started = true
-	}
-	shouldTrySync := !inf.synced && time.Since(inf.lastSyncTry) > 500*time.Millisecond
-	inf.lastSyncTry = time.Now()
-	k.infMu.Unlock()
-
-	if shouldTrySync {
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if inf.factory.Core().V1().Pods().Informer().HasSynced() &&
-				inf.factory.Core().V1().Services().Informer().HasSynced() &&
-				inf.factory.Apps().V1().Deployments().Informer().HasSynced() &&
-				inf.factory.Apps().V1().StatefulSets().Informer().HasSynced() &&
-				inf.factory.Apps().V1().DaemonSets().Informer().HasSynced() &&
-				inf.factory.Batch().V1().Jobs().Informer().HasSynced() &&
-				inf.factory.Batch().V1().CronJobs().Informer().HasSynced() &&
-				inf.factory.Networking().V1().Ingresses().Informer().HasSynced() &&
-				inf.factory.Core().V1().ConfigMaps().Informer().HasSynced() &&
-				inf.factory.Core().V1().Secrets().Informer().HasSynced() &&
-				inf.factory.Core().V1().PersistentVolumeClaims().Informer().HasSynced() &&
-				inf.factory.Core().V1().Nodes().Informer().HasSynced() &&
-				inf.factory.Core().V1().Events().Informer().HasSynced() {
-				k.infMu.Lock()
-				inf.synced = true
-				k.infMu.Unlock()
-				break
+		go func(contextName string, current *contextInformers) {
+			synced := kcache.WaitForCacheSync(
+				current.stopCh,
+				current.factory.Core().V1().Pods().Informer().HasSynced,
+				current.factory.Core().V1().Services().Informer().HasSynced,
+				current.factory.Apps().V1().Deployments().Informer().HasSynced,
+				current.factory.Apps().V1().StatefulSets().Informer().HasSynced,
+				current.factory.Apps().V1().DaemonSets().Informer().HasSynced,
+				current.factory.Batch().V1().Jobs().Informer().HasSynced,
+				current.factory.Batch().V1().CronJobs().Informer().HasSynced,
+				current.factory.Networking().V1().Ingresses().Informer().HasSynced,
+				current.factory.Core().V1().ConfigMaps().Informer().HasSynced,
+				current.factory.Core().V1().Secrets().Informer().HasSynced,
+				current.factory.Core().V1().PersistentVolumeClaims().Informer().HasSynced,
+				current.factory.Core().V1().Nodes().Informer().HasSynced,
+				current.factory.Core().V1().Events().Informer().HasSynced,
+			)
+			if !synced {
+				return
 			}
-			time.Sleep(25 * time.Millisecond)
-		}
+			k.infMu.Lock()
+			current.synced = true
+			k.infMu.Unlock()
+			debugDataf("informers context=%s state=synced", contextName)
+		}(contextName, inf)
 	}
+	k.infMu.Unlock()
 	return inf
 }
 
