@@ -99,6 +99,10 @@ func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem,
 }
 
 func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	if yaml, ok := liveYAML(resourceName, item, scope); ok {
+		k.markReady()
+		return yaml, nil
+	}
 	if k.fallback == nil {
 		return "", fmt.Errorf("kube read model fallback is nil")
 	}
@@ -106,6 +110,10 @@ func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, s
 }
 
 func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	if desc, ok := liveDescribe(resourceName, item, scope); ok {
+		k.markReady()
+		return desc, nil
+	}
 	if k.fallback == nil {
 		return "", fmt.Errorf("kube read model fallback is nil")
 	}
@@ -316,4 +324,89 @@ func valueOr(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func liveYAML(resourceName string, item resources.ResourceItem, scope Scope) (string, bool) {
+	name := strings.ToLower(strings.TrimSpace(resourceName))
+	switch {
+	case strings.HasPrefix(name, "pods"), strings.HasPrefix(name, "services"), strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
+		kind := valueOr(item.Kind, singularKindName(name))
+		if strings.EqualFold(kind, "dep") || strings.EqualFold(kind, "deployment") {
+			kind = "Deployment"
+		}
+		lines := []string{
+			"apiVersion: " + valueOr(item.APIVersion, "v1"),
+			"kind: " + kind,
+			"metadata:",
+			"  name: " + valueOr(item.Name, "unknown"),
+			"  namespace: " + valueOr(item.Namespace, valueOr(scope.Namespace, resources.DefaultNamespace)),
+		}
+		if lbl := labelsFromMap(item.Labels); len(lbl) > 0 {
+			lines = append(lines, "  labels:")
+			for _, entry := range lbl {
+				parts := strings.SplitN(entry, "=", 2)
+				if len(parts) == 2 {
+					lines = append(lines, "    "+parts[0]+": "+parts[1])
+				}
+			}
+		}
+		lines = append(lines,
+			"status:",
+			"  phase: "+valueOr(item.Status, "Unknown"),
+			"  ready: "+valueOr(item.Ready, "unknown"),
+		)
+		return strings.Join(lines, "\n"), true
+	default:
+		return "", false
+	}
+}
+
+func liveDescribe(resourceName string, item resources.ResourceItem, scope Scope) (string, bool) {
+	name := strings.ToLower(strings.TrimSpace(resourceName))
+	switch {
+	case strings.HasPrefix(name, "pods"), strings.HasPrefix(name, "services"), strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
+		lines := []string{
+			"Name:        " + valueOr(item.Name, "unknown"),
+			"Namespace:   " + valueOr(item.Namespace, valueOr(scope.Namespace, resources.DefaultNamespace)),
+			"Kind:        " + valueOr(item.Kind, singularKindName(name)),
+			"Status:      " + valueOr(item.Status, "Unknown"),
+			"Ready:       " + valueOr(item.Ready, "unknown"),
+		}
+		if selector := strings.TrimSpace(item.Extra["selector"]); selector != "" {
+			lines = append(lines, "Selector:    "+selector)
+		}
+		if node := strings.TrimSpace(item.Extra["node"]); node != "" {
+			lines = append(lines, "Node:        "+node)
+		}
+		if ip := strings.TrimSpace(item.Extra["ip"]); ip != "" {
+			lines = append(lines, "IP:          "+ip)
+		}
+		if images := strings.TrimSpace(item.Extra["images"]); images != "" {
+			lines = append(lines, "Images:      "+images)
+		}
+		if labels := labelsFromMap(item.Labels); len(labels) > 0 {
+			lines = append(lines, "Labels:")
+			for _, entry := range labels {
+				lines = append(lines, "  "+entry)
+			}
+		}
+		return strings.Join(lines, "\n"), true
+	default:
+		return "", false
+	}
+}
+
+func singularKindName(resourceName string) string {
+	switch strings.TrimSpace(strings.ToLower(resourceName)) {
+	case "pods":
+		return "Pod"
+	case "services":
+		return "Service"
+	case "deployments":
+		return "Deployment"
+	case "workloads":
+		return "Workload"
+	default:
+		return "Resource"
+	}
 }

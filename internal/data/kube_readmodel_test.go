@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/dloss/podji/internal/resources"
@@ -25,6 +26,14 @@ func (f fallbackDetailReadModel) Detail(resourceName string, item resources.Reso
 	return resources.DetailData{
 		Summary: []resources.SummaryField{{Key: "status", Value: "from-fallback"}},
 	}, nil
+}
+
+func (f fallbackDetailReadModel) YAML(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	return "from-fallback-yaml", nil
+}
+
+func (f fallbackDetailReadModel) Describe(resourceName string, item resources.ResourceItem, scope Scope) (string, error) {
+	return "from-fallback-describe", nil
 }
 
 func TestKubeReadModelUsesAPIForPodLogs(t *testing.T) {
@@ -228,4 +237,74 @@ func TestKubeReadModelMarksWarmingWhenListIsDirectAPIBacked(t *testing.T) {
 	if !called {
 		t.Fatal("expected warming callback for direct API list path")
 	}
+}
+
+func TestKubeReadModelUsesLiveYAMLForPods(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	yaml, err := read.YAML("pods", resources.ResourceItem{
+		Name:      "api-1",
+		Namespace: "default",
+		Status:    "Running",
+		Ready:     "1/1",
+		Labels:    map[string]string{"app": "api"},
+	}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if yaml == "from-fallback-yaml" {
+		t.Fatalf("expected live yaml renderer, got fallback output %q", yaml)
+	}
+	if !containsAll(yaml, "kind: Pod", "name: api-1", "phase: Running") {
+		t.Fatalf("expected live yaml content, got %q", yaml)
+	}
+}
+
+func TestKubeReadModelUsesLiveDescribeForPods(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	describe, err := read.Describe("pods", resources.ResourceItem{
+		Name:      "api-1",
+		Namespace: "default",
+		Status:    "Running",
+		Ready:     "1/1",
+		Extra: map[string]string{
+			"node": "worker-1",
+			"ip":   "10.0.0.1",
+		},
+	}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if describe == "from-fallback-describe" {
+		t.Fatalf("expected live describe renderer, got fallback output %q", describe)
+	}
+	if !containsAll(describe, "Name:        api-1", "Status:      Running", "Node:        worker-1") {
+		t.Fatalf("expected live describe content, got %q", describe)
+	}
+}
+
+func containsAll(text string, parts ...string) bool {
+	for _, p := range parts {
+		if !strings.Contains(text, p) {
+			return false
+		}
+	}
+	return true
 }
