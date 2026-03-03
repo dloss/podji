@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dloss/podji/internal/resources"
@@ -22,6 +23,24 @@ func TestKubeReadModelUsesAPIForPodLogs(t *testing.T) {
 	}
 	if len(got) < 2 || got[0] != "live-a" || got[1] != "live-b" {
 		t.Fatalf("expected live pod logs from api, got %#v", got)
+	}
+}
+
+func TestKubeReadModelLogsWithContextCancelled(t *testing.T) {
+	api := fakeKubeAPI{
+		logsByKey: map[string][]string{
+			"dev/default/api-1": {"live-a", "live-b"},
+		},
+	}
+	read := NewKubeReadModel(NewMockReadModel(resources.DefaultRegistry()), api, func() Scope {
+		return Scope{Context: "dev", Namespace: "default"}
+	}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := read.LogsWithContext(ctx, "pods", resources.ResourceItem{Name: "api-1"}, Scope{}, LogOptions{Tail: 10})
+	if err == nil {
+		t.Fatal("expected cancellation error, got nil")
 	}
 }
 

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -54,15 +55,33 @@ func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceIte
 }
 
 func (k *KubeReadModel) Logs(resourceName string, item resources.ResourceItem, scope Scope) ([]string, error) {
+	return k.LogsWithContext(context.Background(), resourceName, item, scope, LogOptions{Tail: 200})
+}
+
+func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string, item resources.ResourceItem, scope Scope, opts LogOptions) ([]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	if k.isPodResourceName(resourceName) {
 		if k.api == nil {
 			return nil, fmt.Errorf("kube api is nil")
 		}
-		ns, ctx := k.resolveScope(scope, item)
-		lines, err := k.api.PodLogs(ctx, ns, item.Name, 200)
+		ns, contextName := k.resolveScope(scope, item)
+		tail := opts.Tail
+		if tail <= 0 {
+			tail = 200
+		}
+		lines, err := k.api.PodLogs(contextName, ns, item.Name, tail)
 		if err != nil {
 			k.report(err)
 			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
 		}
 		return lines, nil
 	}
@@ -73,15 +92,32 @@ func (k *KubeReadModel) Logs(resourceName string, item resources.ResourceItem, s
 }
 
 func (k *KubeReadModel) Events(resourceName string, item resources.ResourceItem, scope Scope) ([]string, error) {
+	return k.EventsWithContext(context.Background(), resourceName, item, scope, EventOptions{})
+}
+
+func (k *KubeReadModel) EventsWithContext(ctx context.Context, resourceName string, item resources.ResourceItem, scope Scope, opts EventOptions) ([]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	if k.isPodResourceName(resourceName) {
 		if k.api == nil {
 			return nil, fmt.Errorf("kube api is nil")
 		}
-		ns, ctx := k.resolveScope(scope, item)
-		lines, err := k.api.PodEvents(ctx, ns, item.Name)
+		ns, contextName := k.resolveScope(scope, item)
+		lines, err := k.api.PodEvents(contextName, ns, item.Name)
 		if err != nil {
 			k.report(err)
 			return nil, err
+		}
+		if opts.Limit > 0 && len(lines) > opts.Limit {
+			lines = lines[:opts.Limit]
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
 		}
 		return lines, nil
 	}

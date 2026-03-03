@@ -1,6 +1,10 @@
 package data
 
-import "github.com/dloss/podji/internal/resources"
+import (
+	"context"
+
+	"github.com/dloss/podji/internal/resources"
+)
 
 type ReadBackedResource struct {
 	base      resources.ResourceType
@@ -42,7 +46,7 @@ func (r *ReadBackedResource) Detail(item resources.ResourceItem) resources.Detai
 }
 
 func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
-	lines, err := r.read.Logs(r.base.Name(), item, r.scopeFunc())
+	lines, err := ReadLogs(context.Background(), r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{Tail: 200})
 	if err != nil {
 		return r.base.Logs(item)
 	}
@@ -50,7 +54,7 @@ func (r *ReadBackedResource) Logs(item resources.ResourceItem) []string {
 }
 
 func (r *ReadBackedResource) Events(item resources.ResourceItem) []string {
-	lines, err := r.read.Events(r.base.Name(), item, r.scopeFunc())
+	lines, err := ReadEvents(context.Background(), r.read, r.base.Name(), item, r.scopeFunc(), EventOptions{})
 	if err != nil {
 		return r.base.Events(item)
 	}
