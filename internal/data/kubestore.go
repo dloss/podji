@@ -52,7 +52,14 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 		api:       api,
 		status:    StoreStatus{State: StoreStateReady},
 	}
-	store.read = NewKubeReadModel(NewMockReadModel(registry), api, store.Scope, store.setStatusForError)
+	store.read = NewKubeReadModel(
+		NewMockReadModel(registry),
+		api,
+		store.Scope,
+		store.setStatusForError,
+		store.setStatusPartialForUnsupportedList,
+		store.markStatusReady,
+	)
 	store.configurePodFetchers()
 	return store, nil
 }
@@ -184,4 +191,15 @@ func (s *KubeStore) setStatusForError(err error) {
 	default:
 		s.status = StoreStatus{State: StoreStateDegraded, Message: msg}
 	}
+}
+
+func (s *KubeStore) setStatusPartialForUnsupportedList(resourceName string) {
+	s.status = StoreStatus{
+		State:   StoreStatePartial,
+		Message: fmt.Sprintf("live %s list unavailable; using mock fallback", resourceName),
+	}
+}
+
+func (s *KubeStore) markStatusReady() {
+	s.status = StoreStatus{State: StoreStateReady}
 }

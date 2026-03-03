@@ -13,9 +13,14 @@ func TestKubeReadModelUsesAPIForPodLogs(t *testing.T) {
 			"dev/default/api-1": {"live-a", "live-b"},
 		},
 	}
-	read := NewKubeReadModel(NewMockReadModel(resources.DefaultRegistry()), api, func() Scope {
-		return Scope{Context: "dev", Namespace: "default"}
-	}, nil)
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		api,
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
 
 	got, err := read.Logs("pods", resources.ResourceItem{Name: "api-1"}, Scope{})
 	if err != nil {
@@ -32,9 +37,14 @@ func TestKubeReadModelLogsWithContextCancelled(t *testing.T) {
 			"dev/default/api-1": {"live-a", "live-b"},
 		},
 	}
-	read := NewKubeReadModel(NewMockReadModel(resources.DefaultRegistry()), api, func() Scope {
-		return Scope{Context: "dev", Namespace: "default"}
-	}, nil)
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		api,
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -46,9 +56,14 @@ func TestKubeReadModelLogsWithContextCancelled(t *testing.T) {
 
 func TestKubeReadModelFallsBackForNonPodLogs(t *testing.T) {
 	reg := resources.DefaultRegistry()
-	read := NewKubeReadModel(NewMockReadModel(reg), fakeKubeAPI{}, func() Scope {
-		return Scope{Context: "dev", Namespace: "default"}
-	}, nil)
+	read := NewKubeReadModel(
+		NewMockReadModel(reg),
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
 
 	got, err := read.Logs("workloads", resources.ResourceItem{Name: "api-gateway"}, Scope{})
 	if err != nil {
@@ -78,13 +93,18 @@ func TestKubeStoreAdaptedPodUsesKubeReadModelForLogs(t *testing.T) {
 }
 
 func TestKubeReadModelUsesAPIForPodList(t *testing.T) {
-	read := NewKubeReadModel(NewMockReadModel(resources.DefaultRegistry()), fakeKubeAPI{
-		listsByKey: map[string][]resources.ResourceItem{
-			"dev/default/pods": {{Name: "live-pod-a"}},
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		fakeKubeAPI{
+			listsByKey: map[string][]resources.ResourceItem{
+				"dev/default/pods": {{Name: "live-pod-a"}},
+			},
 		},
-	}, func() Scope {
-		return Scope{Context: "dev", Namespace: "default"}
-	}, nil)
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
 
 	got, err := read.List("pods", Scope{})
 	if err != nil {
@@ -97,13 +117,18 @@ func TestKubeReadModelUsesAPIForPodList(t *testing.T) {
 
 func TestKubeReadModelFallsBackWhenListUnsupported(t *testing.T) {
 	reg := resources.DefaultRegistry()
-	read := NewKubeReadModel(NewMockReadModel(reg), fakeKubeAPI{
-		listErrByKey: map[string]error{
-			"dev/default/configmaps": ErrListNotSupported,
+	read := NewKubeReadModel(
+		NewMockReadModel(reg),
+		fakeKubeAPI{
+			listErrByKey: map[string]error{
+				"dev/default/configmaps": ErrListNotSupported,
+			},
 		},
-	}, func() Scope {
-		return Scope{Context: "dev", Namespace: "default"}
-	}, nil)
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+	)
 
 	got, err := read.List("configmaps", Scope{})
 	if err != nil {

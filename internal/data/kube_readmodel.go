@@ -12,18 +12,29 @@ import (
 // KubeReadModel routes pod logs/events through KubeAPI while falling back to
 // another read model for list/detail/yaml/describe and non-pod resources.
 type KubeReadModel struct {
-	fallback ReadModel
-	api      KubeAPI
-	scope    func() Scope
-	onError  func(error)
+	fallback  ReadModel
+	api       KubeAPI
+	scope     func() Scope
+	onError   func(error)
+	onPartial func(string)
+	onReady   func()
 }
 
-func NewKubeReadModel(fallback ReadModel, api KubeAPI, scope func() Scope, onError func(error)) *KubeReadModel {
+func NewKubeReadModel(
+	fallback ReadModel,
+	api KubeAPI,
+	scope func() Scope,
+	onError func(error),
+	onPartial func(string),
+	onReady func(),
+) *KubeReadModel {
 	return &KubeReadModel{
-		fallback: fallback,
-		api:      api,
-		scope:    scope,
-		onError:  onError,
+		fallback:  fallback,
+		api:       api,
+		scope:     scope,
+		onError:   onError,
+		onPartial: onPartial,
+		onReady:   onReady,
 	}
 }
 
@@ -35,11 +46,15 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 		}
 		items, err := k.api.ListResources(active.Context, active.Namespace, resourceName)
 		if err == nil {
+			k.markReady()
 			return items, nil
 		}
 		if !errors.Is(err, ErrListNotSupported) {
 			k.report(err)
 			return nil, err
+		}
+		if k.onPartial != nil {
+			k.onPartial(resourceName)
 		}
 	}
 	if k.fallback == nil {
@@ -93,6 +108,7 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 			k.report(err)
 			return nil, err
 		}
+		k.markReady()
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -126,6 +142,7 @@ func (k *KubeReadModel) EventsWithContext(ctx context.Context, resourceName stri
 			k.report(err)
 			return nil, err
 		}
+		k.markReady()
 		if opts.Limit > 0 && len(lines) > opts.Limit {
 			lines = lines[:opts.Limit]
 		}
@@ -161,5 +178,11 @@ func (k *KubeReadModel) resolveScope(scope Scope, item resources.ResourceItem) (
 func (k *KubeReadModel) report(err error) {
 	if err != nil && k.onError != nil {
 		k.onError(err)
+	}
+}
+
+func (k *KubeReadModel) markReady() {
+	if k.onReady != nil {
+		k.onReady()
 	}
 }
