@@ -65,8 +65,10 @@ type bodyRowProvider interface {
 	SelectedBodyRow() int
 }
 
+var newStoreFromEnvFn = data.NewStoreFromEnv
+
 func New() Model {
-	store, warning := data.NewStoreFromEnv()
+	store, warning := newStoreFromEnvFn()
 	model := NewWithStore(store)
 	if warning != "" {
 		model.statusMsg = warning

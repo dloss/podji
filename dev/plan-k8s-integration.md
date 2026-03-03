@@ -65,6 +65,7 @@ Exit criteria:
 Current state:
 
 - mode startup/fallback tests exist
+- app startup mode tests now cover warning/no-warning startup paths and scope seeding from store factory
 - env-mode and scope/query contract tests exist in data layer
 - app-level scope selection now has explicit loading-status synchronization coverage
 - app command queries (`unhealthy`, `restarts`) now have status synchronization coverage
