@@ -21,7 +21,7 @@ Done now:
 - read-model contract exists for list/detail/logs/events/describe/yaml
 - app list/query/navigation paths are routed through `Store.AdaptResource(...)`
 - `KubeReadModel` now routes pod logs/events through `KubeAPI` instead of stub-only paths
-- related picker can consume `RelationIndex` for category counts (no ad hoc relation counting required)
+- related picker consumes `RelationIndex` for category counts and indexed related list opening paths
 
 Scope:
 
@@ -37,7 +37,6 @@ Scope:
 
 Exit criteria:
 
-- all related-resource list opening paths resolve from read-model/index abstractions (no direct constructor queries)
 - mock adapter and kube adapter satisfy the same interface contract end-to-end
 
 ## 2. Replace Kubectl Shelling with Client-Go Store (Not Started)
@@ -92,6 +91,7 @@ Done now:
 
 - pod logs/events are centralized through `KubeReadModel` instead of view-local fetcher wiring
 - kube read errors are surfaced via store status path
+- read-model contracts now include context-aware logs/events hooks with backward-compatible fallback
 
 Scope:
 
