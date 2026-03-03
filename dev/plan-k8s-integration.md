@@ -46,6 +46,7 @@ Done now:
 - `NewKubeStore()` initializes a `client-go` based `KubeAPI` implementation
 - contexts, namespaces, pod logs, and pod events are served via client-go calls
 - namespace lookups have a short TTL cache to reduce repeated API calls during fast UI actions
+- read-model list calls for `pods`, `services`, `deployments`, and `workloads` now use client-go data with short TTL caching
 
 Scope:
 
