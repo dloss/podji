@@ -2,8 +2,10 @@ package logview
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -120,7 +122,11 @@ func TestSinceWindowRefetchesWithTailOptions(t *testing.T) {
 	if len(res.tailCalls) != 1 || res.tailCalls[0] != 200 {
 		t.Fatalf("expected initial tail=200 fetch, got %#v", res.tailCalls)
 	}
-	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after since-window change")
+	}
+	_ = upd.Cmd()
 	if len(res.tailCalls) != 2 || res.tailCalls[1] != 500 {
 		t.Fatalf("expected second tail=500 fetch after ] window switch, got %#v", res.tailCalls)
 	}
@@ -132,9 +138,86 @@ func TestFollowToggleRefetchesWithUpdatedFollowOption(t *testing.T) {
 	if len(res.follow) != 1 || !res.follow[0] {
 		t.Fatalf("expected initial follow=true fetch, got %#v", res.follow)
 	}
-	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'f'}})
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'f'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after follow toggle")
+	}
+	_ = upd.Cmd()
 	if len(res.follow) != 2 || res.follow[1] {
 		t.Fatalf("expected follow=false refetch after toggle, got %#v", res.follow)
+	}
+}
+
+type blockingLogsResource struct {
+	base      resources.ResourceType
+	ctxSeen   chan context.Context
+	cancelled chan struct{}
+}
+
+func (b *blockingLogsResource) Name() string                        { return b.base.Name() }
+func (b *blockingLogsResource) Key() rune                           { return b.base.Key() }
+func (b *blockingLogsResource) Items() []resources.ResourceItem     { return b.base.Items() }
+func (b *blockingLogsResource) Sort(items []resources.ResourceItem) { b.base.Sort(items) }
+func (b *blockingLogsResource) Detail(item resources.ResourceItem) resources.DetailData {
+	return b.base.Detail(item)
+}
+func (b *blockingLogsResource) Logs(item resources.ResourceItem) []string { return b.base.Logs(item) }
+func (b *blockingLogsResource) Events(item resources.ResourceItem) []string {
+	return b.base.Events(item)
+}
+func (b *blockingLogsResource) YAML(item resources.ResourceItem) string { return b.base.YAML(item) }
+func (b *blockingLogsResource) Describe(item resources.ResourceItem) string {
+	return b.base.Describe(item)
+}
+
+func (b *blockingLogsResource) LogsWithOptions(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions) ([]string, error) {
+	select {
+	case b.ctxSeen <- ctx:
+	default:
+	}
+	<-ctx.Done()
+	select {
+	case b.cancelled <- struct{}{}:
+	default:
+	}
+	return nil, ctx.Err()
+}
+
+func TestDisposeCancelsInFlightReload(t *testing.T) {
+	res := &blockingLogsResource{
+		base:      resources.NewPods(),
+		ctxSeen:   make(chan context.Context, 1),
+		cancelled: make(chan struct{}, 2),
+	}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'f'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd")
+	}
+	done := make(chan bubbletea.Msg, 1)
+	go func() { done <- upd.Cmd() }()
+	select {
+	case <-res.ctxSeen:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected blocking LogsWithOptions call to start")
+	}
+	v.Dispose()
+	select {
+	case <-res.cancelled:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected dispose to cancel in-flight reload")
+	}
+	select {
+	case msg := <-done:
+		result, ok := msg.(logReloadResultMsg)
+		if !ok {
+			t.Fatalf("expected logReloadResultMsg, got %T", msg)
+		}
+		if !errors.Is(result.err, context.Canceled) && !errors.Is(result.err, context.DeadlineExceeded) {
+			t.Fatalf("expected cancellation error, got %v", result.err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected reload command to return after cancellation")
 	}
 }
 

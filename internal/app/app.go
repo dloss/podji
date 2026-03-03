@@ -223,6 +223,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if res := m.bestResourceForScope(); res != nil {
 			view := listview.New(m.adaptResource(res), m.registry)
 			view.SetSize(m.width, m.availableHeight())
+			m.disposeStack(m.stack)
 			m.stack = []viewstate.View{view}
 			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 			m.activeResourceKey = res.Key()
@@ -282,6 +283,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, bubbletea.Quit
 		case "esc":
 			if len(m.stack) > 1 {
+				m.disposeView(m.stack[len(m.stack)-1])
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
@@ -289,6 +291,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, nil
 		case "backspace":
 			if len(m.stack) > 1 {
+				m.disposeView(m.stack[len(m.stack)-1])
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
@@ -296,6 +299,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			return m, nil
 		case "h", "left":
 			if len(m.stack) > 1 {
+				m.disposeView(m.stack[len(m.stack)-1])
 				m.stack = m.stack[:len(m.stack)-1]
 				m.crumbs = m.crumbs[:len(m.crumbs)-1]
 				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
@@ -324,6 +328,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		case "A":
 			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
 			browser.SetSize(m.width, m.availableHeight())
+			m.disposeStack(m.stack)
 			m.stack = []viewstate.View{browser}
 			m.crumbs = []string{"resources"}
 			return m, nil
@@ -363,6 +368,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 						} else {
 							m.registry.SetNamespace(b.namespace)
 						}
+						m.disposeStack(m.stack)
 						m.stack = append([]viewstate.View{}, b.stack...)
 						m.crumbs = append([]string{}, b.crumbs...)
 						m.top().SetSize(m.width, m.availableHeight())
@@ -374,6 +380,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 				if res := m.registry.ResourceByKey(key); res != nil {
 					view := listview.New(m.adaptResource(res), m.registry)
 					view.SetSize(m.width, m.availableHeight())
+					m.disposeStack(m.stack)
 					m.stack = []viewstate.View{view}
 					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 					m.activeResourceKey = key
@@ -384,6 +391,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	}
 
 	update := m.top().Update(routedMsg)
+	resultCmd := update.Cmd
 	switch update.Action {
 	case viewstate.Push:
 		if len(m.crumbs) > 0 {
@@ -400,16 +408,20 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.stack = append(m.stack, update.Next)
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
+		resultCmd = batchCmds(update.Cmd, update.Next.Init())
 	case viewstate.Pop:
 		if len(m.stack) > 1 {
+			m.disposeView(m.stack[len(m.stack)-1])
 			m.stack = m.stack[:len(m.stack)-1]
 			m.crumbs = m.crumbs[:len(m.crumbs)-1]
 			m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
 		}
 	case viewstate.Replace:
 		update.Next.SetSize(m.width, m.availableHeight())
+		m.disposeView(m.stack[len(m.stack)-1])
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
+		resultCmd = batchCmds(update.Cmd, update.Next.Init())
 	case viewstate.OpenRelated:
 		m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
 		m.relatedPicker.SetSize(m.width, m.height-1)
@@ -417,7 +429,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.stack[len(m.stack)-1] = update.Next
 	}
 
-	return m, update.Cmd
+	return m, resultCmd
 }
 
 func (m Model) renderHeader() string {
@@ -996,6 +1008,31 @@ func (m *Model) syncStoreStatus() {
 	if strings.HasPrefix(m.errorMsg, "store (") {
 		m.errorMsg = ""
 	}
+}
+
+func (m *Model) disposeView(v viewstate.View) {
+	if d, ok := v.(viewstate.Disposable); ok {
+		d.Dispose()
+	}
+}
+
+func (m *Model) disposeStack(stack []viewstate.View) {
+	for _, v := range stack {
+		m.disposeView(v)
+	}
+}
+
+func batchCmds(cmds ...bubbletea.Cmd) bubbletea.Cmd {
+	filtered := make([]bubbletea.Cmd, 0, len(cmds))
+	for _, cmd := range cmds {
+		if cmd != nil {
+			filtered = append(filtered, cmd)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return bubbletea.Batch(filtered...)
 }
 
 func uniqueSortedNames(items []resources.ResourceItem) []string {

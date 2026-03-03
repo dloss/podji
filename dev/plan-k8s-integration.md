@@ -43,6 +43,8 @@ Current state:
 - option-aware log/event reads are wired (tail/follow/limit)
 - bounded buffering is in place for client-go log streaming
 - follow-mode toggles in log view now refetch through option-aware readers with bounded context timeouts
+- log view reloads run through cancellable commands, and app stack removal now calls view `Dispose()` hooks for cleanup
+- cancellation and disposal behavior are covered by logview/app tests (in-flight reload cancellation + pop disposal)
 
 Scope:
 

@@ -17,6 +17,12 @@ import (
 
 var sinceWindows = []string{"1m", "5m", "15m", "1h", "all"}
 
+type logReloadResultMsg struct {
+	requestID int
+	lines     []string
+	err       error
+}
+
 type View struct {
 	item      resources.ResourceItem
 	resource  resources.ResourceType
@@ -33,6 +39,8 @@ type View struct {
 	searchQuery  string
 	matchLines   []int
 	matchIndex   int
+	requestID    int
+	cancel       context.CancelFunc
 
 	// ContainerViewFactory, when set, is called to produce a container-picker
 	// view for the pod. Pressing c opens that picker so the user can switch
@@ -64,6 +72,16 @@ func (v *View) Init() bubbletea.Cmd { return nil }
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	switch msg := msg.(type) {
+	case logReloadResultMsg:
+		if msg.requestID != v.requestID {
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+		if msg.err == nil && len(msg.lines) > 0 {
+			v.allLines = msg.lines
+			v.refreshWindow()
+			v.refreshContent()
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v}
 	case bubbletea.KeyMsg:
 		if v.searchActive {
 			switch msg.String() {
@@ -95,9 +113,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		switch msg.String() {
 		case "f":
 			v.follow = !v.follow
-			v.reloadLogs()
-			v.refreshWindow()
-			v.refreshContent()
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "w":
 			v.wrap = !v.wrap
 			v.refreshContent()
@@ -120,14 +136,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "]":
 			v.sinceIdx = (v.sinceIdx + 1) % len(sinceWindows)
-			v.reloadLogs()
-			v.refreshWindow()
-			v.refreshContent()
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "[":
 			v.sinceIdx = (v.sinceIdx - 1 + len(sinceWindows)) % len(sinceWindows)
-			v.reloadLogs()
-			v.refreshWindow()
-			v.refreshContent()
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "c":
 			if v.container != "" {
 				// Came here via the container picker — pop back so the user can
@@ -242,6 +254,7 @@ func (v *View) refreshWindow() {
 }
 
 func (v *View) reloadLogs() {
+	// Keep constructor path synchronous to render immediate content.
 	opts := resources.LogOptions{
 		Tail:   tailForWindow(sinceWindows[v.sinceIdx]),
 		Follow: v.follow,
@@ -256,6 +269,38 @@ func (v *View) reloadLogs() {
 		}
 	}
 	v.allLines = v.resource.Logs(v.item)
+}
+
+func (v *View) reloadLogsCmd() bubbletea.Cmd {
+	if v.cancel != nil {
+		v.cancel()
+		v.cancel = nil
+	}
+	opts := resources.LogOptions{
+		Tail:   tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow: v.follow,
+	}
+	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
+		v.requestID++
+		requestID := v.requestID
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		v.cancel = cancel
+		return func() bubbletea.Msg {
+			lines, err := reader.LogsWithOptions(ctx, v.item, opts)
+			return logReloadResultMsg{requestID: requestID, lines: lines, err: err}
+		}
+	}
+	v.allLines = v.resource.Logs(v.item)
+	v.refreshWindow()
+	v.refreshContent()
+	return nil
+}
+
+func (v *View) Dispose() {
+	if v.cancel != nil {
+		v.cancel()
+		v.cancel = nil
+	}
 }
 
 func tailForWindow(window string) int {

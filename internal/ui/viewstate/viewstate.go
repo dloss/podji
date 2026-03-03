@@ -30,6 +30,12 @@ type View interface {
 	SetSize(width, height int)
 }
 
+// Disposable is an optional hook for views that need cleanup when removed
+// from the navigation stack (e.g. cancel in-flight background work).
+type Disposable interface {
+	Dispose()
+}
+
 // SelectionProvider is implemented by views that have a selected item.
 type SelectionProvider interface {
 	SelectedItem() resources.ResourceItem

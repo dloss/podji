@@ -19,6 +19,9 @@ type keySpyView struct {
 	lastKey  string
 	suppress bool
 }
+type disposableSpyView struct {
+	disposed bool
+}
 
 func (overflowView) Init() bubbletea.Cmd { return nil }
 
@@ -66,6 +69,16 @@ func (*keySpyView) SetSize(width, height int) {}
 func (v *keySpyView) SuppressGlobalKeys() bool {
 	return v.suppress
 }
+
+func (v *disposableSpyView) Init() bubbletea.Cmd { return nil }
+func (v *disposableSpyView) Update(msg bubbletea.Msg) viewstate.Update {
+	return viewstate.Update{Action: viewstate.None, Next: v}
+}
+func (v *disposableSpyView) View() string              { return "" }
+func (v *disposableSpyView) Breadcrumb() string        { return "logs" }
+func (v *disposableSpyView) Footer() string            { return "" }
+func (v *disposableSpyView) SetSize(width, height int) {}
+func (v *disposableSpyView) Dispose()                  { v.disposed = true }
 
 func TestViewClampsBodyToWindowHeight(t *testing.T) {
 	m := Model{
@@ -209,6 +222,22 @@ func TestBackspaceWithSingleStackIsNoop(t *testing.T) {
 
 	if len(got.stack) != 1 {
 		t.Fatalf("expected stack len 1 after backspace at root, got %d", len(got.stack))
+	}
+}
+
+func TestBackNavigationDisposesPoppedView(t *testing.T) {
+	disposable := &disposableSpyView{}
+	m := New()
+	m.stack = append(m.stack, disposable)
+	m.crumbs = append(m.crumbs, "logs")
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyBackspace})
+	got := updated.(Model)
+	if len(got.stack) != 1 {
+		t.Fatalf("expected stack len 1 after backspace pop, got %d", len(got.stack))
+	}
+	if !disposable.disposed {
+		t.Fatal("expected popped disposable view to be disposed")
 	}
 }
 
