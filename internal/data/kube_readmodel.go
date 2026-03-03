@@ -19,7 +19,7 @@ type KubeReadModel struct {
 	onError   func(error)
 	onPartial func(string)
 	onWarming func(string)
-	onReady   func(string)
+	onReady   func(string, StoreDataSource)
 }
 
 func NewKubeReadModel(
@@ -29,7 +29,7 @@ func NewKubeReadModel(
 	onError func(error),
 	onPartial func(string),
 	onWarming func(string),
-	onReady func(string),
+	onReady func(string, StoreDataSource),
 ) *KubeReadModel {
 	return &KubeReadModel{
 		fallback:  fallback,
@@ -54,7 +54,7 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 			items, cacheBacked, err := withMeta.ListResourcesMeta(active.Context, active.Namespace, resourceName)
 			if err == nil {
 				if cacheBacked {
-					k.markReady(resourceName)
+					k.markReady(resourceName, StoreDataSourceCache)
 				} else if k.onWarming != nil {
 					k.onWarming(resourceName)
 				}
@@ -70,7 +70,7 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 		}
 		items, err := k.api.ListResources(active.Context, active.Namespace, resourceName)
 		if err == nil {
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return items, nil
 		}
 		if !errors.Is(err, ErrListNotSupported) {
@@ -95,7 +95,7 @@ func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem,
 		ns, contextName := k.resolveScope(scope, item)
 		detail, err := reader.ResourceDetail(contextName, ns, resourceName, item)
 		if err == nil {
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return detail, nil
 		}
 		if !errors.Is(err, ErrObjectReadNotSupported) {
@@ -104,7 +104,7 @@ func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem,
 		}
 	}
 	if detail, ok := liveDetail(resourceName, item); ok {
-		k.markReady(resourceName)
+		k.markReady(resourceName, StoreDataSourceLive)
 		return detail, nil
 	}
 	if k.fallback == nil {
@@ -118,7 +118,7 @@ func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, s
 		ns, contextName := k.resolveScope(scope, item)
 		yaml, err := reader.ResourceYAML(contextName, ns, resourceName, item)
 		if err == nil {
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return yaml, nil
 		}
 		if !errors.Is(err, ErrObjectReadNotSupported) {
@@ -127,7 +127,7 @@ func (k *KubeReadModel) YAML(resourceName string, item resources.ResourceItem, s
 		}
 	}
 	if yaml, ok := liveYAML(resourceName, item, scope); ok {
-		k.markReady(resourceName)
+		k.markReady(resourceName, StoreDataSourceLive)
 		return yaml, nil
 	}
 	if k.fallback == nil {
@@ -141,7 +141,7 @@ func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceIte
 		ns, contextName := k.resolveScope(scope, item)
 		desc, err := reader.ResourceDescribe(contextName, ns, resourceName, item)
 		if err == nil {
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return desc, nil
 		}
 		if !errors.Is(err, ErrObjectReadNotSupported) {
@@ -150,7 +150,7 @@ func (k *KubeReadModel) Describe(resourceName string, item resources.ResourceIte
 		}
 	}
 	if desc, ok := liveDescribe(resourceName, item, scope); ok {
-		k.markReady(resourceName)
+		k.markReady(resourceName, StoreDataSourceLive)
 		return desc, nil
 	}
 	if k.fallback == nil {
@@ -180,7 +180,7 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 				k.report(err)
 				return nil, err
 			}
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -197,7 +197,7 @@ func (k *KubeReadModel) LogsWithContext(ctx context.Context, resourceName string
 			k.report(err)
 			return nil, err
 		}
-		k.markReady(resourceName)
+		k.markReady(resourceName, StoreDataSourceLive)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -228,7 +228,7 @@ func (k *KubeReadModel) StreamLogsWithContext(ctx context.Context, resourceName 
 				k.report(err)
 				return err
 			}
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return nil
 		}
 		if streamer, ok := k.api.(KubeAPILogStreamer); ok && opts.Follow {
@@ -242,7 +242,7 @@ func (k *KubeReadModel) StreamLogsWithContext(ctx context.Context, resourceName 
 				k.report(err)
 				return err
 			}
-			k.markReady(resourceName)
+			k.markReady(resourceName, StoreDataSourceLive)
 			return nil
 		}
 	}
@@ -276,7 +276,7 @@ func (k *KubeReadModel) EventsWithContext(ctx context.Context, resourceName stri
 			k.report(err)
 			return nil, err
 		}
-		k.markReady(resourceName)
+		k.markReady(resourceName, StoreDataSourceLive)
 		if opts.Limit > 0 && len(lines) > opts.Limit {
 			lines = lines[:opts.Limit]
 		}
@@ -315,9 +315,9 @@ func (k *KubeReadModel) report(err error) {
 	}
 }
 
-func (k *KubeReadModel) markReady(resourceName string) {
+func (k *KubeReadModel) markReady(resourceName string, source StoreDataSource) {
 	if k.onReady != nil {
-		k.onReady(resourceName)
+		k.onReady(resourceName, source)
 	}
 }
 

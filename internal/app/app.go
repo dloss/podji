@@ -48,6 +48,7 @@ type Model struct {
 	cmdBar            *commandbar.Model
 	context           string
 	namespace         string
+	storeStatus       data.StoreStatus
 	errorMsg          string
 	statusMsg         string
 	bookmarks         [9]*Bookmark
@@ -117,6 +118,7 @@ func NewWithStore(store data.Store) Model {
 		crumbs:            []string{rootCrumb},
 		context:           scope.Context,
 		namespace:         scope.Namespace,
+		storeStatus:       store.Status(),
 		activeResourceKey: 'W',
 	}
 }
@@ -495,6 +497,8 @@ func (m Model) renderMain() string {
 		} else {
 			footer = msg
 		}
+	} else {
+		footer = m.decorateFooterWithStoreFreshness(footer)
 	}
 
 	sections := []string{header}
@@ -1049,6 +1053,7 @@ func (m *Model) syncStoreStatus() {
 		return
 	}
 	status := m.store.Status()
+	m.storeStatus = status
 	if status.State != data.StoreStateReady {
 		msg := strings.TrimSpace(status.Message)
 		if msg == "" {
@@ -1060,16 +1065,56 @@ func (m *Model) syncStoreStatus() {
 	if strings.HasPrefix(m.errorMsg, "store (") {
 		m.errorMsg = ""
 	}
-	msg := strings.TrimSpace(status.Message)
-	if msg != "" {
-		if m.statusMsg == "" || strings.HasPrefix(m.statusMsg, "store: ") {
-			m.statusMsg = "store: " + msg
-		}
-		return
-	}
 	if strings.HasPrefix(m.statusMsg, "store: ") {
 		m.statusMsg = ""
 	}
+}
+
+func (m Model) decorateFooterWithStoreFreshness(footer string) string {
+	badge := m.storeFreshnessBadge()
+	if badge == "" {
+		return footer
+	}
+	lines := strings.SplitN(footer, "\n", 2)
+	if len(lines) == 0 {
+		return badge
+	}
+	line1 := badge
+	existing := strings.TrimSpace(lines[0])
+	if existing != "" {
+		line1 += "  " + existing
+	}
+	if m.width > 0 {
+		line1 = ansi.Truncate(line1, m.width, "…")
+	}
+	lines[0] = line1
+	if len(lines) == 1 {
+		return lines[0]
+	}
+	return lines[0] + "\n" + lines[1]
+}
+
+func (m Model) storeFreshnessBadge() string {
+	if m.mode != data.ModeKube {
+		return ""
+	}
+	status := m.storeStatus
+	if status.StaleAfter <= 0 {
+		status.StaleAfter = 15 * time.Second
+	}
+	if status.State == data.StoreStateLoading {
+		return style.Muted.Render("data:warming")
+	}
+	if status.State != data.StoreStateReady {
+		return style.Error.Render("data:error")
+	}
+	if !status.LastSuccessAt.IsZero() && time.Since(status.LastSuccessAt) > status.StaleAfter {
+		return style.Warning.Render("data:stale")
+	}
+	if status.Source == data.StoreDataSourceCache {
+		return style.Muted.Render("data:cache")
+	}
+	return ""
 }
 
 func (m *Model) disposeView(v viewstate.View) {

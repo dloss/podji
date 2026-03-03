@@ -1,5 +1,7 @@
 package data
 
+import "time"
+
 type StoreState string
 
 const (
@@ -11,7 +13,19 @@ const (
 	StoreStateDegraded    StoreState = "degraded"
 )
 
+type StoreDataSource string
+
+const (
+	StoreDataSourceUnknown StoreDataSource = "unknown"
+	StoreDataSourceLive    StoreDataSource = "live"
+	StoreDataSourceCache   StoreDataSource = "cache"
+)
+
 type StoreStatus struct {
-	State   StoreState
-	Message string
+	State         StoreState
+	Message       string
+	Source        StoreDataSource
+	LastSuccessAt time.Time
+	LastAttemptAt time.Time
+	StaleAfter    time.Duration
 }

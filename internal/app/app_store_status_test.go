@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 	"testing"
+	"time"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/data"
@@ -186,8 +187,8 @@ func TestSyncStoreStatusShowsReadyStoreFreshnessMessage(t *testing.T) {
 	if m.errorMsg != "" {
 		t.Fatalf("expected no error message for ready store state, got %q", m.errorMsg)
 	}
-	if m.statusMsg != "store: cache ready for pods" {
-		t.Fatalf("expected ready freshness status message, got %q", m.statusMsg)
+	if m.statusMsg != "" {
+		t.Fatalf("expected no store-prefixed ready message, got %q", m.statusMsg)
 	}
 }
 
@@ -224,8 +225,24 @@ func TestScopeSwitchRenderTransitionsFromLoadingToReadyFreshness(t *testing.T) {
 		Message: "cache ready for workloads",
 	}
 	readyView := got.View()
-	if !strings.Contains(readyView, "store: cache ready for workloads") {
-		t.Fatalf("expected ready freshness status after transition, got %q", readyView)
+	if strings.Contains(readyView, "store: cache ready for workloads") {
+		t.Fatalf("expected no ready store status banner after transition, got %q", readyView)
+	}
+}
+
+func TestDecorateFooterWithStoreFreshnessCacheBadge(t *testing.T) {
+	m := NewWithStore(newStatusStore())
+	m.mode = data.ModeKube
+	m.storeStatus = data.StoreStatus{
+		State:         data.StoreStateReady,
+		Source:        data.StoreDataSourceCache,
+		LastSuccessAt: time.Now(),
+		StaleAfter:    15 * time.Second,
+	}
+	m.width = 120
+	footer := m.decorateFooterWithStoreFreshness("status line\nactions line")
+	if !strings.Contains(footer, "data:cache") {
+		t.Fatalf("expected cache freshness badge in footer, got %q", footer)
 	}
 }
 

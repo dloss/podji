@@ -254,8 +254,11 @@ func TestKubeStoreStatusTransitionsToReadyAfterLiveListSuccess(t *testing.T) {
 	if status := store.Status(); status.State != StoreStateReady {
 		t.Fatalf("expected ready status after live list, got %#v", status)
 	}
-	if status := store.Status(); !strings.Contains(status.Message, "cache ready for workloads") {
-		t.Fatalf("expected cache-ready message, got %#v", status)
+	if status := store.Status(); !strings.Contains(status.Message, "live data for workloads") {
+		t.Fatalf("expected live-data message, got %#v", status)
+	}
+	if status := store.Status(); status.Source != StoreDataSourceLive {
+		t.Fatalf("expected live source after direct list path, got %#v", status)
 	}
 }
 
