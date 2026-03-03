@@ -129,10 +129,7 @@ func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string)
 		case "deployments":
 			out, err = k.listDeployments(ctx, client, namespace)
 		case "workloads":
-			out, err = k.listDeployments(ctx, client, namespace)
-			for i := range out {
-				out[i].Kind = "DEP"
-			}
+			out, err = k.listWorkloads(ctx, client, namespace)
 		case "ingresses":
 			out, err = k.listIngresses(ctx, client, namespace)
 		case "configmaps":
@@ -336,6 +333,163 @@ func (k *clientGoAPI) listDeployments(ctx context.Context, client kubernetes.Int
 			},
 		})
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (k *clientGoAPI) listWorkloads(ctx context.Context, client kubernetes.Interface, namespace string) ([]resources.ResourceItem, error) {
+	var out []resources.ResourceItem
+
+	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployments for workloads in %q: %w", namespace, err)
+	}
+	for _, d := range deployments.Items {
+		desired := int32(1)
+		if d.Spec.Replicas != nil {
+			desired = *d.Spec.Replicas
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(d.UID),
+			Name:      d.Name,
+			Namespace: d.Namespace,
+			Kind:      "DEP",
+			Status:    deploymentStatus(d),
+			Ready:     strconv.Itoa(int(d.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired)),
+			Restarts:  "0",
+			Age:       ageString(d.CreationTimestamp.Time),
+			Selector:  copyMap(d.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(d.Spec.Selector.MatchLabels),
+				"strategy":   string(d.Spec.Strategy.Type),
+				"containers": containerNames(d.Spec.Template.Spec.Containers),
+				"images":     containerImages(d.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+
+	stsList, err := client.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list statefulsets for workloads in %q: %w", namespace, err)
+	}
+	for _, s := range stsList.Items {
+		desired := int32(1)
+		if s.Spec.Replicas != nil {
+			desired = *s.Spec.Replicas
+		}
+		status := "Healthy"
+		if s.Status.ReadyReplicas < desired {
+			if s.Status.ReadyReplicas == 0 {
+				status = "Degraded"
+			} else {
+				status = "Progressing"
+			}
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(s.UID),
+			Name:      s.Name,
+			Namespace: s.Namespace,
+			Kind:      "STS",
+			Status:    status,
+			Ready:     strconv.Itoa(int(s.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired)),
+			Restarts:  "0",
+			Age:       ageString(s.CreationTimestamp.Time),
+			Selector:  copyMap(s.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(s.Spec.Selector.MatchLabels),
+				"strategy":   string(s.Spec.UpdateStrategy.Type),
+				"containers": containerNames(s.Spec.Template.Spec.Containers),
+				"images":     containerImages(s.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+
+	dsList, err := client.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list daemonsets for workloads in %q: %w", namespace, err)
+	}
+	for _, d := range dsList.Items {
+		desired := d.Status.DesiredNumberScheduled
+		ready := d.Status.NumberReady
+		status := "Healthy"
+		if ready < desired {
+			if ready == 0 {
+				status = "Degraded"
+			} else {
+				status = "Progressing"
+			}
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(d.UID),
+			Name:      d.Name,
+			Namespace: d.Namespace,
+			Kind:      "DS",
+			Status:    status,
+			Ready:     strconv.Itoa(int(ready)) + "/" + strconv.Itoa(int(desired)),
+			Restarts:  "0",
+			Age:       ageString(d.CreationTimestamp.Time),
+			Selector:  copyMap(d.Spec.Selector.MatchLabels),
+			Extra: map[string]string{
+				"selector":   labelSelectorString(d.Spec.Selector.MatchLabels),
+				"strategy":   string(d.Spec.UpdateStrategy.Type),
+				"containers": containerNames(d.Spec.Template.Spec.Containers),
+				"images":     containerImages(d.Spec.Template.Spec.Containers),
+			},
+		})
+	}
+
+	jobs, err := client.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list jobs for workloads in %q: %w", namespace, err)
+	}
+	for _, j := range jobs.Items {
+		completions := int32(1)
+		if j.Spec.Completions != nil {
+			completions = *j.Spec.Completions
+		}
+		status := "Healthy"
+		if j.Status.Failed > 0 {
+			status = "Failed"
+		} else if j.Status.Succeeded < completions {
+			status = "Progressing"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(j.UID),
+			Name:      j.Name,
+			Namespace: j.Namespace,
+			Kind:      "JOB",
+			Status:    status,
+			Ready:     strconv.Itoa(int(j.Status.Succeeded)) + "/" + strconv.Itoa(int(completions)),
+			Restarts:  strconv.Itoa(int(j.Status.Failed)),
+			Age:       ageString(j.CreationTimestamp.Time),
+		})
+	}
+
+	cronJobs, err := client.BatchV1().CronJobs(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list cronjobs for workloads in %q: %w", namespace, err)
+	}
+	for _, cj := range cronJobs.Items {
+		ready := "Last: —"
+		if cj.Status.LastScheduleTime != nil {
+			ready = "Last: " + ageString(cj.Status.LastScheduleTime.Time)
+		}
+		status := "Healthy"
+		if cj.Spec.Suspend != nil && *cj.Spec.Suspend {
+			status = "Suspended"
+		}
+		out = append(out, resources.ResourceItem{
+			UID:       string(cj.UID),
+			Name:      cj.Name,
+			Namespace: cj.Namespace,
+			Kind:      "CJ",
+			Status:    status,
+			Ready:     ready,
+			Restarts:  "—",
+			Age:       ageString(cj.CreationTimestamp.Time),
+		})
+	}
+
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
