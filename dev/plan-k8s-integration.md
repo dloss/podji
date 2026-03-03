@@ -45,6 +45,4 @@ Mock mode remains a first-class parallel path for development, demos, and determ
 
 ## Remaining Before Full Kubernetes Wiring
 
-1. Expand informer-backed listing coverage for currently direct-list resources (`ingresses`, `configmaps`, `secrets`, `persistentvolumeclaims`, `nodes`, `events`) to further reduce API list pressure.
-2. Add light telemetry/debug surface for cache-source decisions (`informer` vs direct API) and relation snapshot refreshes.
-3. Add stress tests for rapid scope/context switching while log/event requests are active.
+No architecture-prep blockers remain. Next work can focus on direct feature wiring against real cluster data paths.

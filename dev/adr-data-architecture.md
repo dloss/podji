@@ -67,6 +67,4 @@ Tradeoffs:
 
 ## Next Implementation Steps
 
-1. Expand informer-backed source coverage to additional resources that still use direct list calls.
-2. Add low-noise cache/refresh telemetry hooks for debugging data-source decisions.
-3. Add stress tests for rapid scope/context switching with concurrent log/event loads.
+Architecture baseline is in place; proceed with feature-by-feature Kubernetes wiring on top of the shared store/read-model contracts.
