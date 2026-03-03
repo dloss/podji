@@ -372,6 +372,7 @@ func (k *clientGoAPI) listPods(ctx context.Context, client kubernetes.Interface,
 	}
 	out := make([]resources.ResourceItem, 0, len(list.Items))
 	for _, p := range list.Items {
+		controllerKind, controllerName, controllerUID := podControllerRef(p)
 		configRefs, secretRefs, pvcRefs := podRefs(p.Spec)
 		out = append(out, resources.ResourceItem{
 			UID:       string(p.UID),
@@ -383,16 +384,17 @@ func (k *clientGoAPI) listPods(ctx context.Context, client kubernetes.Interface,
 			Age:       ageString(p.CreationTimestamp.Time),
 			Labels:    copyMap(p.Labels),
 			Extra: map[string]string{
-				"node":           p.Spec.NodeName,
-				"ip":             p.Status.PodIP,
-				"qos":            string(p.Status.QOSClass),
-				"controlled-by":  podController(p),
-				"nominated-node": p.Status.NominatedNodeName,
-				"containers":     containerNames(p.Spec.Containers),
-				"images":         containerImages(p.Spec.Containers),
-				"config-refs":    strings.Join(configRefs, ","),
-				"secret-refs":    strings.Join(secretRefs, ","),
-				"pvc-refs":       strings.Join(pvcRefs, ","),
+				"node":              p.Spec.NodeName,
+				"ip":                p.Status.PodIP,
+				"qos":               string(p.Status.QOSClass),
+				"controlled-by":     controllerRefString(controllerKind, controllerName),
+				"controlled-by-uid": controllerUID,
+				"nominated-node":    p.Status.NominatedNodeName,
+				"containers":        containerNames(p.Spec.Containers),
+				"images":            containerImages(p.Spec.Containers),
+				"config-refs":       strings.Join(configRefs, ","),
+				"secret-refs":       strings.Join(secretRefs, ","),
+				"pvc-refs":          strings.Join(pvcRefs, ","),
 			},
 		})
 	}
@@ -908,6 +910,7 @@ func (k *clientGoAPI) listPodsFromInformer(inf *contextInformers, namespace stri
 	}
 	out := make([]resources.ResourceItem, 0, len(pods))
 	for _, p := range pods {
+		controllerKind, controllerName, controllerUID := podControllerRef(*p)
 		configRefs, secretRefs, pvcRefs := podRefs(p.Spec)
 		out = append(out, resources.ResourceItem{
 			UID:       string(p.UID),
@@ -919,16 +922,17 @@ func (k *clientGoAPI) listPodsFromInformer(inf *contextInformers, namespace stri
 			Age:       ageString(p.CreationTimestamp.Time),
 			Labels:    copyMap(p.Labels),
 			Extra: map[string]string{
-				"node":           p.Spec.NodeName,
-				"ip":             p.Status.PodIP,
-				"qos":            string(p.Status.QOSClass),
-				"controlled-by":  podController(*p),
-				"nominated-node": p.Status.NominatedNodeName,
-				"containers":     containerNames(p.Spec.Containers),
-				"images":         containerImages(p.Spec.Containers),
-				"config-refs":    strings.Join(configRefs, ","),
-				"secret-refs":    strings.Join(secretRefs, ","),
-				"pvc-refs":       strings.Join(pvcRefs, ","),
+				"node":              p.Spec.NodeName,
+				"ip":                p.Status.PodIP,
+				"qos":               string(p.Status.QOSClass),
+				"controlled-by":     controllerRefString(controllerKind, controllerName),
+				"controlled-by-uid": controllerUID,
+				"nominated-node":    p.Status.NominatedNodeName,
+				"containers":        containerNames(p.Spec.Containers),
+				"images":            containerImages(p.Spec.Containers),
+				"config-refs":       strings.Join(configRefs, ","),
+				"secret-refs":       strings.Join(secretRefs, ","),
+				"pvc-refs":          strings.Join(pvcRefs, ","),
 			},
 		})
 	}
@@ -1231,13 +1235,22 @@ func totalRestarts(p corev1.Pod) int {
 	return total
 }
 
-func podController(p corev1.Pod) string {
+func podControllerRef(p corev1.Pod) (kind string, name string, uid string) {
 	for _, ref := range p.OwnerReferences {
 		if ref.Controller != nil && *ref.Controller {
-			return string(ref.Kind) + "/" + ref.Name
+			return string(ref.Kind), ref.Name, string(ref.UID)
 		}
 	}
-	return ""
+	return "", "", ""
+}
+
+func controllerRefString(kind, name string) string {
+	kind = strings.TrimSpace(kind)
+	name = strings.TrimSpace(name)
+	if kind == "" || name == "" {
+		return ""
+	}
+	return kind + "/" + name
 }
 
 func ingressHosts(rules []networkingv1.IngressRule) string {
@@ -1278,6 +1291,22 @@ func nodeAddress(addrs []corev1.NodeAddress, kind corev1.NodeAddressType) string
 		}
 	}
 	return ""
+}
+
+func formatNodeConditions(conditions []corev1.NodeCondition) []string {
+	out := make([]string, 0, len(conditions))
+	for _, c := range conditions {
+		out = append(out, fmt.Sprintf("%s: %s", c.Type, c.Status))
+	}
+	return out
+}
+
+func nodeAddressLines(addrs []corev1.NodeAddress) []string {
+	out := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		out = append(out, fmt.Sprintf("%s: %s", a.Type, a.Address))
+	}
+	return out
 }
 
 func nodeLabel(labels map[string]string, key string) string {
@@ -1797,6 +1826,8 @@ func detailFromObject(obj any, resourceName string, item resources.ResourceItem)
 			Labels: labelsFromMap(o.Labels),
 		}
 	case *corev1.Node:
+		conditions := formatNodeConditions(o.Status.Conditions)
+		addresses := nodeAddressLines(o.Status.Addresses)
 		return resources.DetailData{
 			Summary: []resources.SummaryField{
 				{Key: "kind", Label: "Kind", Value: "Node"},
@@ -1804,15 +1835,22 @@ func detailFromObject(obj any, resourceName string, item resources.ResourceItem)
 				{Key: "pod_cidr", Label: "Pod CIDR", Value: valueOr(o.Spec.PodCIDR, "<none>")},
 				{Key: "kubelet", Label: "Kubelet", Value: valueOr(o.Status.NodeInfo.KubeletVersion, "<unknown>")},
 			},
-			Labels: labelsFromMap(o.Labels),
+			Conditions: conditions,
+			Events:     addresses,
+			Labels:     labelsFromMap(o.Labels),
 		}
 	case *corev1.Namespace:
+		conditions := make([]string, 0, len(o.Spec.Finalizers))
+		for _, f := range o.Spec.Finalizers {
+			conditions = append(conditions, "Finalizer: "+string(f))
+		}
 		return resources.DetailData{
 			Summary: []resources.SummaryField{
 				{Key: "kind", Label: "Kind", Value: "Namespace"},
 				{Key: "status", Label: "Status", Value: valueOr(string(o.Status.Phase), "Unknown")},
 			},
-			Labels: labelsFromMap(o.Labels),
+			Conditions: conditions,
+			Labels:     labelsFromMap(o.Labels),
 		}
 	case *corev1.Event:
 		ts := eventTime(*o)

@@ -1,17 +1,34 @@
 package data
 
 import (
+	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dloss/podji/internal/resources"
 )
 
 type readRelationIndex struct {
-	read ReadModel
+	read    ReadModel
+	mu      sync.Mutex
+	ttl     time.Duration
+	now     func() time.Time
+	byScope map[string]relationSnapshot
+}
+
+type relationSnapshot struct {
+	expiresAt time.Time
+	lists     map[string][]resources.ResourceItem
 }
 
 func newReadRelationIndex(read ReadModel) RelationIndex {
-	return &readRelationIndex{read: read}
+	return &readRelationIndex{
+		read:    read,
+		ttl:     2 * time.Second,
+		now:     time.Now,
+		byScope: map[string]relationSnapshot{},
+	}
 }
 
 func (r *readRelationIndex) Related(scope Scope, resourceName string, item resources.ResourceItem) map[string][]resources.ResourceItem {
@@ -19,36 +36,39 @@ func (r *readRelationIndex) Related(scope Scope, resourceName string, item resou
 		return map[string][]resources.ResourceItem{}
 	}
 	name := strings.ToLower(strings.TrimSpace(resourceName))
+	list := func(resource string) []resources.ResourceItem {
+		return r.list(resource, name, scope)
+	}
 	out := map[string][]resources.ResourceItem{}
 
 	switch {
 	case name == "workloads" || name == "deployments":
-		pods := r.list("pods", scope)
-		services := r.list("services", scope)
+		pods := list("pods")
+		services := list("services")
 		out["pods"] = relatedPodsForWorkload(item, pods)
 		out["services"] = relatedServicesForSelector(item.Selector, services)
 		out["config"] = relatedConfigForPods(out["pods"])
 		out["storage"] = relatedPVCForPods(out["pods"])
 	case strings.HasPrefix(name, "pods"):
-		workloads := r.list("workloads", scope)
-		services := r.list("services", scope)
+		workloads := list("workloads")
+		services := list("services")
 		out["owner"] = relatedOwnerForPod(item, workloads)
 		out["services"] = relatedServicesForPod(item, services)
 		out["config"] = relatedConfigForPods([]resources.ResourceItem{item})
 		out["storage"] = relatedPVCForPods([]resources.ResourceItem{item})
 	case strings.HasPrefix(name, "services"):
-		pods := r.list("pods", scope)
-		ingresses := r.list("ingresses", scope)
+		pods := list("pods")
+		ingresses := list("ingresses")
 		out["backends"] = relatedBackendsForService(item, pods)
 		out["ingresses"] = relatedIngressesForService(item, ingresses)
 	case strings.HasPrefix(name, "ingresses"):
-		services := r.list("services", scope)
+		services := list("services")
 		out["services"] = relatedServicesForIngress(item, services)
 	case name == "nodes":
-		pods := r.list("pods", scope)
+		pods := list("pods")
 		out["pods"] = relatedPodsForNode(item, pods)
 	case name == "persistentvolumeclaims":
-		pods := r.list("pods", scope)
+		pods := list("pods")
 		out["mounted-by"] = relatedPodsForPVC(item, pods)
 	default:
 		return map[string][]resources.ResourceItem{}
@@ -56,12 +76,89 @@ func (r *readRelationIndex) Related(scope Scope, resourceName string, item resou
 	return out
 }
 
-func (r *readRelationIndex) list(resourceName string, scope Scope) []resources.ResourceItem {
+func (r *readRelationIndex) list(resourceName, sourceResourceName string, scope Scope) []resources.ResourceItem {
+	resourceName = strings.ToLower(strings.TrimSpace(resourceName))
+	snapshot := r.snapshotFor(sourceResourceName, scope)
+	if items, ok := snapshot.lists[resourceName]; ok {
+		return items
+	}
 	items, err := r.read.List(resourceName, scope)
 	if err != nil {
 		return nil
 	}
 	return items
+}
+
+func (r *readRelationIndex) snapshotFor(sourceResourceName string, scope Scope) relationSnapshot {
+	now := r.now()
+	scopeKey := relationScopeKey(scope)
+	required := relatedListRequirements(sourceResourceName)
+
+	r.mu.Lock()
+	current, ok := r.byScope[scopeKey]
+	if ok && current.expiresAt.After(now) && snapshotHasLists(current, required) {
+		r.mu.Unlock()
+		return current
+	}
+	base := relationSnapshot{
+		expiresAt: now.Add(r.ttl),
+		lists:     map[string][]resources.ResourceItem{},
+	}
+	if ok && current.expiresAt.After(now) {
+		for k, v := range current.lists {
+			base.lists[k] = v
+		}
+	}
+	r.mu.Unlock()
+
+	for _, resourceName := range required {
+		if _, exists := base.lists[resourceName]; exists {
+			continue
+		}
+		items, err := r.read.List(resourceName, scope)
+		if err != nil {
+			continue
+		}
+		base.lists[resourceName] = items
+	}
+
+	r.mu.Lock()
+	r.byScope[scopeKey] = base
+	r.mu.Unlock()
+	return base
+}
+
+func relationScopeKey(scope Scope) string {
+	return fmt.Sprintf("%s|%s", strings.TrimSpace(scope.Context), strings.TrimSpace(scope.Namespace))
+}
+
+func snapshotHasLists(snapshot relationSnapshot, listNames []string) bool {
+	for _, name := range listNames {
+		if _, ok := snapshot.lists[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func relatedListRequirements(resourceName string) []string {
+	name := strings.ToLower(strings.TrimSpace(resourceName))
+	switch {
+	case name == "workloads" || name == "deployments":
+		return []string{"pods", "services"}
+	case strings.HasPrefix(name, "pods"):
+		return []string{"workloads", "services"}
+	case strings.HasPrefix(name, "services"):
+		return []string{"pods", "ingresses"}
+	case strings.HasPrefix(name, "ingresses"):
+		return []string{"services"}
+	case name == "nodes":
+		return []string{"pods"}
+	case name == "persistentvolumeclaims":
+		return []string{"pods"}
+	default:
+		return nil
+	}
 }
 
 func relatedPodsForWorkload(workload resources.ResourceItem, pods []resources.ResourceItem) []resources.ResourceItem {
@@ -85,6 +182,19 @@ func relatedServicesForSelector(selector map[string]string, services []resources
 }
 
 func relatedOwnerForPod(pod resources.ResourceItem, workloads []resources.ResourceItem) []resources.ResourceItem {
+	controllerUID := strings.TrimSpace(pod.Extra["controlled-by-uid"])
+	if controllerUID != "" {
+		out := make([]resources.ResourceItem, 0, 1)
+		for _, w := range workloads {
+			if strings.TrimSpace(w.UID) == controllerUID {
+				out = append(out, w)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+
 	controller := pod.Extra["controlled-by"]
 	if controller == "" {
 		return nil
@@ -94,13 +204,37 @@ func relatedOwnerForPod(pod resources.ResourceItem, workloads []resources.Resour
 		return nil
 	}
 	name := parts[1]
+	kind := strings.ToLower(strings.TrimSpace(parts[0]))
 	out := make([]resources.ResourceItem, 0, 1)
 	for _, w := range workloads {
+		if !ownerKindMatchesWorkload(kind, w.Kind) {
+			continue
+		}
 		if w.Name == name || strings.HasPrefix(name, w.Name+"-") {
 			out = append(out, w)
 		}
 	}
 	return out
+}
+
+func ownerKindMatchesWorkload(ownerKind, workloadKind string) bool {
+	if ownerKind == "" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(workloadKind)) {
+	case "dep":
+		return ownerKind == "deployment" || ownerKind == "replicaset"
+	case "sts":
+		return ownerKind == "statefulset"
+	case "ds":
+		return ownerKind == "daemonset"
+	case "job":
+		return ownerKind == "job"
+	case "cj":
+		return ownerKind == "cronjob"
+	default:
+		return true
+	}
 }
 
 func relatedServicesForPod(pod resources.ResourceItem, services []resources.ResourceItem) []resources.ResourceItem {
