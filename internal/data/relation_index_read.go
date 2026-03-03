@@ -2,6 +2,8 @@ package data
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +100,7 @@ func (r *readRelationIndex) snapshotFor(sourceResourceName string, scope Scope) 
 	current, ok := r.byScope[scopeKey]
 	if ok && current.expiresAt.After(now) && snapshotHasLists(current, required) {
 		r.mu.Unlock()
+		debugRelationf("related source=%s scope=%s snapshot=hit", sourceResourceName, scopeKey)
 		return current
 	}
 	base := relationSnapshot{
@@ -111,10 +114,12 @@ func (r *readRelationIndex) snapshotFor(sourceResourceName string, scope Scope) 
 	}
 	r.mu.Unlock()
 
+	missing := 0
 	for _, resourceName := range required {
 		if _, exists := base.lists[resourceName]; exists {
 			continue
 		}
+		missing++
 		items, err := r.read.List(resourceName, scope)
 		if err != nil {
 			continue
@@ -125,6 +130,7 @@ func (r *readRelationIndex) snapshotFor(sourceResourceName string, scope Scope) 
 	r.mu.Lock()
 	r.byScope[scopeKey] = base
 	r.mu.Unlock()
+	debugRelationf("related source=%s scope=%s snapshot=refresh missing=%d", sourceResourceName, scopeKey, missing)
 	return base
 }
 
@@ -235,6 +241,13 @@ func ownerKindMatchesWorkload(ownerKind, workloadKind string) bool {
 	default:
 		return true
 	}
+}
+
+func debugRelationf(format string, args ...any) {
+	if os.Getenv("PODJI_DEBUG_DATA") != "1" {
+		return
+	}
+	log.Printf("podji:data "+format, args...)
 }
 
 func relatedServicesForPod(pod resources.ResourceItem, services []resources.ResourceItem) []resources.ResourceItem {

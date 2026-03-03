@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -140,6 +142,7 @@ func (k *clientGoAPI) ListResourcesMeta(contextName, namespace, resourceName str
 	key := strings.ToLower(strings.TrimSpace(resourceName))
 	cacheKey := contextName + "|" + namespace + "|" + key
 	if cached, ok := k.listCacheGet(cacheKey); ok {
+		debugDataf("list resource=%s scope=%s/%s source=list-cache", key, contextName, namespace)
 		return cached, true, nil
 	}
 
@@ -242,6 +245,11 @@ func (k *clientGoAPI) ListResourcesMeta(contextName, namespace, resourceName str
 	if err != nil {
 		return nil, false, err
 	}
+	source := "direct-api"
+	if cacheBacked {
+		source = "informer-cache"
+	}
+	debugDataf("list resource=%s scope=%s/%s source=%s", key, contextName, namespace, source)
 	k.listCacheSet(cacheKey, out)
 	return out, cacheBacked, nil
 }
@@ -2280,4 +2288,11 @@ func (k *clientGoAPI) listCacheSet(cacheKey string, items []resources.ResourceIt
 	out := make([]resources.ResourceItem, len(items))
 	copy(out, items)
 	k.list[cacheKey] = listCacheEntry{items: out, expiresAt: time.Now().Add(k.listTTL)}
+}
+
+func debugDataf(format string, args ...any) {
+	if os.Getenv("PODJI_DEBUG_DATA") != "1" {
+		return
+	}
+	log.Printf("podji:data "+format, args...)
 }
