@@ -130,7 +130,7 @@ func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
 	store, err := newKubeStore(fakeKubeAPI{
 		contexts: []string{"dev"},
 		namespaceErr: map[string]error{
-			"dev": errors.New("discovery failed"),
+			"dev": errors.New("connection refused"),
 		},
 	})
 	if err != nil {
@@ -138,11 +138,28 @@ func TestKubeStoreStatusDegradedAfterDiscoveryError(t *testing.T) {
 	}
 	_ = store.NamespaceNames()
 	status := store.Status()
-	if status.State != StoreStateDegraded {
+	if status.State != StoreStateUnreachable {
 		t.Fatalf("expected degraded status, got %#v", status)
 	}
-	if !strings.Contains(status.Message, "discovery failed") {
+	if !strings.Contains(status.Message, "connection refused") {
 		t.Fatalf("expected discovery error in status message, got %#v", status)
+	}
+}
+
+func TestKubeStoreStatusForbiddenOnPermissionError(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		namespaceErr: map[string]error{
+			"dev": errors.New("forbidden: User cannot list namespaces"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_ = store.NamespaceNames()
+	status := store.Status()
+	if status.State != StoreStateForbidden {
+		t.Fatalf("expected forbidden status, got %#v", status)
 	}
 }
 

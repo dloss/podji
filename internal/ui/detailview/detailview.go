@@ -7,6 +7,7 @@ import (
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/eventview"
@@ -56,7 +57,7 @@ func (v *View) View() string {
 	detail := v.resource.Detail(v.item)
 	summary := make([]resources.SummaryField, 0, len(detail.Summary)+1)
 	summary = append(summary, detail.Summary...)
-	if n := relatedview.RelatedCount(v.item, v.resource, v.registry); n > 0 {
+	if n := relatedview.RelatedCount(v.item, v.resource, v.registry, nil, data.Scope{}); n > 0 {
 		summary = append(summary, resources.SummaryField{
 			Key:   "related",
 			Label: "Related",

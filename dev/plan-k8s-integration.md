@@ -14,7 +14,14 @@ Reason:
 
 ## Remaining Work
 
-## 1. Split Read Models from Stub Resource Implementations (In Progress)
+## 1. Complete Read-Model Split for Non-Stub Data Paths (Partially Done)
+
+Done now:
+
+- read-model contract exists for list/detail/logs/events/describe/yaml
+- app list/query/navigation paths are routed through `Store.AdaptResource(...)`
+- `KubeReadModel` now routes pod logs/events through `KubeAPI` instead of stub-only paths
+- related picker can consume `RelationIndex` for category counts (no ad hoc relation counting required)
 
 Scope:
 
@@ -30,10 +37,10 @@ Scope:
 
 Exit criteria:
 
-- app command/query paths can resolve data through read-model abstractions
-- mock adapter and kube adapter satisfy the same interface contract
+- all related-resource list opening paths resolve from read-model/index abstractions (no direct constructor queries)
+- mock adapter and kube adapter satisfy the same interface contract end-to-end
 
-## 2. Replace Kubectl Shelling with Client-Go Store
+## 2. Replace Kubectl Shelling with Client-Go Store (Not Started)
 
 Scope:
 
@@ -46,7 +53,13 @@ Exit criteria:
 - no runtime dependency on external `kubectl` binary for core data flows
 - cache sync/readiness surfaced as explicit app state
 
-## 3. Add Explicit Loading/Error/Permission States in App Flow
+## 3. Add Explicit Loading/Error/Permission States in App Flow (Partially Done)
+
+Done now:
+
+- `StoreStatus` expanded with `loading`, `partial`, `forbidden`, `unreachable`, `degraded`
+- kube error classification maps discovery/log/event failures to explicit states
+- app renders state-qualified store message (`store (<state>): ...`)
 
 Scope:
 
@@ -59,10 +72,10 @@ Scope:
 
 Exit criteria:
 
-- no silent fallback behavior on cluster errors
-- user always gets clear state feedback
+- no silent fallback behavior on cluster errors in main data flows
+- user always gets clear state feedback for startup/scope/discovery failures
 
-## 4. Normalize Object Identity for Navigation and Relations
+## 4. Normalize Object Identity for Navigation and Relations (Done)
 
 Scope:
 
@@ -73,7 +86,12 @@ Exit criteria:
 
 - relation lookups are deterministic and not dependent on fragile display strings
 
-## 5. Tighten Logs/Events Contracts for Streaming and Cancellation
+## 5. Tighten Logs/Events Contracts for Streaming and Cancellation (Partially Done)
+
+Done now:
+
+- pod logs/events are centralized through `KubeReadModel` instead of view-local fetcher wiring
+- kube read errors are surfaced via store status path
 
 Scope:
 
@@ -83,10 +101,16 @@ Scope:
 
 Exit criteria:
 
-- logs/events remain responsive under high volume
+- context-aware streaming APIs exist in read-model contracts
 - cancellation and scope changes do not leak background work
 
-## 6. Integration Test Matrix for Mode and Scope
+## 6. Integration Test Matrix for Mode and Scope (Partially Done)
+
+Done now:
+
+- mode startup/fallback tests exist
+- scope switch tests exist across mock/kube adapters
+- contract tests validate `unhealthy` and `restarts` query consistency across adapters
 
 Scope:
 
@@ -100,7 +124,7 @@ Exit criteria:
 
 - mode switching and scope behavior are contract-tested end-to-end
 
-## 7. Keep Mock Dataset as a Productized Dev Tool
+## 7. Keep Mock Dataset as a Productized Dev Tool (Done/Ongoing)
 
 Scope:
 

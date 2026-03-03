@@ -8,8 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	bubbletea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/filterbar"
 	"github.com/dloss/podji/internal/ui/logview"
@@ -46,7 +47,7 @@ type Picker struct {
 // NewPickerForSelection returns a Picker populated with related categories for
 // the currently selected item in parent.  Returns an empty Picker when no
 // selection is available.
-func NewPickerForSelection(parent interface{}, registry *resources.Registry) *Picker {
+func NewPickerForSelection(parent interface{}, registry *resources.Registry, relations data.RelationIndex, scope data.Scope) *Picker {
 	type selectionProvider interface {
 		SelectedItem() resources.ResourceItem
 	}
@@ -63,7 +64,7 @@ func NewPickerForSelection(parent interface{}, registry *resources.Registry) *Pi
 				resource = &fallbackResource{name: "workloads"}
 			}
 			return &Picker{
-				entries: relatedEntries(item, resource, registry),
+				entries: relatedEntries(item, resource, registry, relations, scope),
 				source:  item.Name,
 			}
 		}
@@ -73,8 +74,8 @@ func NewPickerForSelection(parent interface{}, registry *resources.Registry) *Pi
 
 // RelatedCount returns the number of related-resource categories available for
 // the given item.  It is intentionally cheap (no UI objects allocated).
-func RelatedCount(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) int {
-	return len(relatedEntries(source, resource, registry))
+func RelatedCount(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry, relations data.RelationIndex, scope data.Scope) int {
+	return len(relatedEntries(source, resource, registry, relations, scope))
 }
 
 func (p *Picker) SetSize(w, h int) {
@@ -141,8 +142,8 @@ func (p *Picker) View() string {
 	}
 
 	// Column widths within innerWidth (2 chars used by cursor marker).
-	const nameW = 10  // "mounted-by" is longest common name
-	const countW = 5  // "(12) " max
+	const nameW = 10 // "mounted-by" is longest common name
+	const countW = 5 // "(12) " max
 	descW := innerWidth - nameW - countW - 2
 	if descW < 8 {
 		descW = 8
@@ -353,7 +354,7 @@ func (v *relationList) Footer() string {
 		}
 		return line1 + "\n" + line2
 	}
-	
+
 	indicators := []style.Binding{}
 	if v.findMode {
 		indicators = append(indicators, style.B("f", "…"))
@@ -701,7 +702,14 @@ func (v *relationList) paginationStatus() string {
 	return fmt.Sprintf("Showing %d-%d of %d", start+1, end, totalVisible)
 }
 
-func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
+func relatedEntries(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry, relations data.RelationIndex, scope data.Scope) []entry {
+	if relations != nil {
+		return relatedEntriesWithIndex(source, resource, registry, relations, scope)
+	}
+	return relatedEntriesLegacy(source, resource, registry)
+}
+
+func relatedEntriesLegacy(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry) []entry {
 	name := strings.ToLower(resource.Name())
 	entries := []entry{}
 
@@ -814,6 +822,136 @@ func relatedEntries(source resources.ResourceItem, resource resources.ResourceTy
 	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
 		return []entry{
 			{name: "mounted-by", count: 1, description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
+			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
+		}
+	}
+
+	return []entry{
+		{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+	}
+}
+
+func relatedEntriesWithIndex(source resources.ResourceItem, resource resources.ResourceType, registry *resources.Registry, relations data.RelationIndex, scope data.Scope) []entry {
+	name := strings.ToLower(resource.Name())
+	entries := []entry{}
+	indexed := relations.Related(scope, name, source)
+
+	countFor := func(key string, fallback int) int {
+		items, ok := indexed[key]
+		if !ok {
+			return fallback
+		}
+		return len(items)
+	}
+
+	openResource := func(r resources.ResourceType) func() viewstate.View {
+		return func() viewstate.View { return newRelationList(r, registry) }
+	}
+	openEvents := func(count int) func() viewstate.View {
+		return openResource(resources.NewScopedEvents(source.Name, count))
+	}
+
+	if isPodResource(resource) {
+		entries = append(entries, entry{
+			name:        "events",
+			count:       3,
+			description: "Recent warnings and lifecycle events",
+			open:        openEvents(3),
+		})
+		entries = append(entries, entry{
+			name:        "owner",
+			count:       countFor("owner", 1),
+			description: "Owning workload (Deployment, StatefulSet, etc.)",
+			open:        openResource(resources.NewPodOwner(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "services",
+			count:       countFor("services", 1),
+			description: "Services selecting this pod",
+			open:        openResource(resources.NewPodServices(source, registry)),
+		})
+		entries = append(entries, entry{
+			name:        "config",
+			count:       countFor("config", 2),
+			description: "ConfigMaps and Secrets mounted by this pod",
+			open:        openResource(resources.NewPodConfig(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "storage",
+			count:       countFor("storage", 1),
+			description: "PVCs mounted by this pod",
+			open:        openResource(resources.NewPodStorage(source.Name)),
+		})
+		return entries
+	}
+
+	if name == "workloads" {
+		entries = append(entries, entry{
+			name:        "events",
+			count:       12,
+			description: "Recent warnings and rollout events",
+			open:        openEvents(12),
+		})
+		entries = append(entries, entry{
+			name:        "pods",
+			count:       countFor("pods", 0),
+			description: "Owned pods",
+			open:        openResource(resources.NewWorkloadPods(source, registry)),
+		})
+		if source.Kind == "CJ" {
+			entries = append(entries, entry{
+				name:        "jobs",
+				count:       2,
+				description: "Owned jobs",
+				open:        openResource(resources.NewJobsForCronJob(source.Name)),
+			})
+		}
+		entries = append(entries, entry{
+			name:        "services",
+			count:       countFor("services", 1),
+			description: "Network endpoints",
+			open:        openResource(resources.NewRelatedServices(source, registry)),
+		})
+		entries = append(entries, entry{
+			name:        "config",
+			count:       countFor("config", 2),
+			description: "ConfigMaps and Secrets",
+			open:        openResource(resources.NewRelatedConfig(source.Name)),
+		})
+		entries = append(entries, entry{
+			name:        "storage",
+			count:       countFor("storage", 1),
+			description: "PVC and PV references",
+			open:        openResource(resources.NewRelatedStorage(source.Name)),
+		})
+		return entries
+	}
+
+	if name == "services" {
+		return []entry{
+			{name: "backends", count: countFor("backends", 0), description: "EndpointSlice observed endpoints", open: openResource(resources.NewBackends(source, registry))},
+			{name: "ingresses", count: countFor("ingresses", 0), description: "Ingresses exposing this service", open: openResource(resources.NewRelatedIngresses(source.Name))},
+			{name: "events", count: 4, description: "Service-related events", open: openEvents(4)},
+		}
+	}
+
+	if name == "ingresses" {
+		return []entry{
+			{name: "services", count: countFor("services", 0), description: "Backend services this Ingress routes to", open: openResource(resources.NewIngressServices(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+		}
+	}
+
+	if name == "configmaps" || name == "secrets" {
+		return []entry{
+			{name: "consumers", count: 2, description: "Pods/workloads referencing this object", open: openResource(resources.NewConsumers(source.Name))},
+			{name: "events", count: 3, description: "Recent events", open: openEvents(3)},
+		}
+	}
+
+	if name == "persistentvolumeclaims" || strings.Contains(name, "pvc") {
+		return []entry{
+			{name: "mounted-by", count: countFor("mounted-by", 0), description: "Pods mounting this claim", open: openResource(resources.NewMountedBy(source.Name))},
 			{name: "events", count: 2, description: "Recent events", open: openEvents(2)},
 		}
 	}

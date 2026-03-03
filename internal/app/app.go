@@ -328,7 +328,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.crumbs = []string{"resources"}
 			return m, nil
 		case "r":
-			m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry)
+			m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
 			m.relatedPicker.SetSize(m.width, m.height-1)
 			return m, nil
 		case "?":
@@ -411,7 +411,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.stack[len(m.stack)-1] = update.Next
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
 	case viewstate.OpenRelated:
-		m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry)
+		m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
 		m.relatedPicker.SetSize(m.width, m.height-1)
 	default:
 		m.stack[len(m.stack)-1] = update.Next
@@ -983,11 +983,15 @@ func (m *Model) syncStoreStatus() {
 		return
 	}
 	status := m.store.Status()
-	if status.State == data.StoreStateDegraded {
-		m.errorMsg = "store: " + status.Message
+	if status.State != data.StoreStateReady {
+		msg := strings.TrimSpace(status.Message)
+		if msg == "" {
+			msg = string(status.State)
+		}
+		m.errorMsg = "store (" + string(status.State) + "): " + msg
 		return
 	}
-	if strings.HasPrefix(m.errorMsg, "store: ") {
+	if strings.HasPrefix(m.errorMsg, "store (") {
 		m.errorMsg = ""
 	}
 }

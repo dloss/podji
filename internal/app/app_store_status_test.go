@@ -62,6 +62,9 @@ func TestNamespacePickerSyncsDegradedStoreStatus(t *testing.T) {
 	m := NewWithStore(store)
 	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'N'}})
 	got := updated.(Model)
+	if !strings.Contains(got.errorMsg, "store (degraded):") {
+		t.Fatalf("expected state-prefixed store status, got %q", got.errorMsg)
+	}
 	if !strings.Contains(got.errorMsg, "namespace discovery failed") {
 		t.Fatalf("expected degraded store error message, got %q", got.errorMsg)
 	}
@@ -72,6 +75,9 @@ func TestContextPickerSyncsDegradedStoreStatus(t *testing.T) {
 	m := NewWithStore(store)
 	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'X'}})
 	got := updated.(Model)
+	if !strings.Contains(got.errorMsg, "store (degraded):") {
+		t.Fatalf("expected state-prefixed store status, got %q", got.errorMsg)
+	}
 	if !strings.Contains(got.errorMsg, "context discovery failed") {
 		t.Fatalf("expected degraded store error message, got %q", got.errorMsg)
 	}

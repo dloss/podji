@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/viewstate"
 )
@@ -100,14 +101,36 @@ func TestPickerForSelectionReturnsEntriesForWorkloads(t *testing.T) {
 		item:     workloads.Items()[0],
 		resource: workloads,
 	}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	if len(picker.entries) == 0 {
 		t.Fatal("expected at least one related entry for workloads")
 	}
 }
 
+func TestPickerUsesRelationIndexCountsWhenAvailable(t *testing.T) {
+	workloads := resources.NewWorkloads()
+	parent := &fakeParent{
+		item:     workloads.Items()[0],
+		resource: workloads,
+	}
+	rel := fakeRelationIndex{
+		related: map[string][]resources.ResourceItem{
+			"pods":     {{Name: "a"}, {Name: "b"}, {Name: "c"}},
+			"services": {},
+		},
+	}
+	picker := NewPickerForSelection(parent, nil, rel, data.Scope{Context: "default", Namespace: "default"})
+
+	if got := entryCountByName(picker.entries, "pods"); got != 3 {
+		t.Fatalf("expected pods count 3 from relation index, got %d", got)
+	}
+	if got := entryCountByName(picker.entries, "services"); got != 0 {
+		t.Fatalf("expected services count 0 from relation index, got %d", got)
+	}
+}
+
 func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
-	picker := NewPickerForSelection(struct{}{}, nil)
+	picker := NewPickerForSelection(struct{}{}, nil, nil, data.Scope{})
 	if len(picker.entries) != 0 {
 		t.Fatalf("expected empty picker for non-provider, got %d entries", len(picker.entries))
 	}
@@ -116,7 +139,7 @@ func TestPickerForSelectionReturnsEmptyPickerWhenNoSelection(t *testing.T) {
 func TestPickerEscEmitsPop(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEsc})
@@ -128,7 +151,7 @@ func TestPickerEscEmitsPop(t *testing.T) {
 func TestPickerEnterEmitsSelectedMsg(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
@@ -147,7 +170,7 @@ func TestPickerEnterEmitsSelectedMsg(t *testing.T) {
 func TestPickerSelectedMsgOpenReturnsView(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	update := picker.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
@@ -161,7 +184,7 @@ func TestPickerSelectedMsgOpenReturnsView(t *testing.T) {
 func TestPickerNavigationMovescursor(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	if picker.cursor != 0 {
@@ -180,7 +203,7 @@ func TestPickerNavigationMovescursor(t *testing.T) {
 func TestPickerViewRendersEntries(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	view := picker.View()
@@ -195,7 +218,7 @@ func TestPickerViewRendersEntries(t *testing.T) {
 func TestPickerViewRendersRelatedToTitle(t *testing.T) {
 	workloads := resources.NewWorkloads()
 	parent := &fakeParent{item: workloads.Items()[0], resource: workloads}
-	picker := NewPickerForSelection(parent, nil)
+	picker := NewPickerForSelection(parent, nil, nil, data.Scope{})
 	picker.SetSize(120, 40)
 
 	view := picker.View()
@@ -215,4 +238,21 @@ func (f *fakeParent) Resource() resources.ResourceType     { return f.resource }
 
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
+}
+
+func entryCountByName(entries []entry, name string) int {
+	for _, e := range entries {
+		if e.name == name {
+			return e.count
+		}
+	}
+	return -1
+}
+
+type fakeRelationIndex struct {
+	related map[string][]resources.ResourceItem
+}
+
+func (f fakeRelationIndex) Related(data.Scope, string, resources.ResourceItem) map[string][]resources.ResourceItem {
+	return f.related
 }

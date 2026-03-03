@@ -13,7 +13,7 @@ type KubeStore struct {
 	relations RelationIndex
 	scope     Scope
 	api       KubeAPI
-	lastErr   string
+	status    StoreStatus
 }
 
 func NewKubeStore() (*KubeStore, error) {
@@ -42,11 +42,13 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 
 	store := &KubeStore{
 		registry:  registry,
-		read:      NewMockReadModel(registry),
+		read:      nil,
 		relations: newMockRelationIndex(registry),
 		scope:     scope,
 		api:       api,
+		status:    StoreStatus{State: StoreStateReady},
 	}
+	store.read = NewKubeReadModel(NewMockReadModel(registry), api, store.Scope, store.setStatusForError)
 	store.configurePodFetchers()
 	return store, nil
 }
@@ -75,13 +77,7 @@ func (s *KubeStore) AdaptResource(resource resources.ResourceType) resources.Res
 }
 
 func (s *KubeStore) Status() StoreStatus {
-	if strings.TrimSpace(s.lastErr) != "" {
-		return StoreStatus{
-			State:   StoreStateDegraded,
-			Message: s.lastErr,
-		}
-	}
-	return StoreStatus{State: StoreStateReady}
+	return s.status
 }
 
 func (s *KubeStore) SetScope(scope Scope) {
@@ -97,13 +93,16 @@ func (s *KubeStore) NamespaceNames() []string {
 	namespaces, err := s.api.Namespaces(s.scope.Context)
 	if err != nil || len(namespaces) == 0 {
 		if err != nil {
-			s.lastErr = err.Error()
+			s.setStatusForError(err)
 		} else {
-			s.lastErr = "no namespaces discovered"
+			s.status = StoreStatus{
+				State:   StoreStatePartial,
+				Message: "no namespaces discovered",
+			}
 		}
 		return []string{resources.AllNamespaces, resources.DefaultNamespace}
 	}
-	s.lastErr = ""
+	s.status = StoreStatus{State: StoreStateReady}
 	out := make([]string, 0, len(namespaces)+1)
 	out = append(out, resources.AllNamespaces)
 	out = append(out, namespaces...)
@@ -114,13 +113,16 @@ func (s *KubeStore) ContextNames() []string {
 	contexts, err := s.api.Contexts()
 	if err != nil || len(contexts) == 0 {
 		if err != nil {
-			s.lastErr = err.Error()
+			s.setStatusForError(err)
 		} else {
-			s.lastErr = "no contexts discovered"
+			s.status = StoreStatus{
+				State:   StoreStatePartial,
+				Message: "no contexts discovered",
+			}
 		}
 		return []string{s.scope.Context}
 	}
-	s.lastErr = ""
+	s.status = StoreStatus{State: StoreStateReady}
 	return contexts
 }
 
@@ -143,9 +145,39 @@ func (s *KubeStore) configurePodFetchers() {
 }
 
 func (s *KubeStore) podLogs(namespace, pod string) ([]string, error) {
-	return s.api.PodLogs(s.scope.Context, namespace, pod, 200)
+	lines, err := s.api.PodLogs(s.scope.Context, namespace, pod, 200)
+	if err != nil {
+		s.setStatusForError(err)
+		return nil, err
+	}
+	return lines, nil
 }
 
 func (s *KubeStore) podEvents(namespace, pod string) ([]string, error) {
-	return s.api.PodEvents(s.scope.Context, namespace, pod)
+	lines, err := s.api.PodEvents(s.scope.Context, namespace, pod)
+	if err != nil {
+		s.setStatusForError(err)
+		return nil, err
+	}
+	return lines, nil
+}
+
+func (s *KubeStore) setStatusForError(err error) {
+	msg := strings.TrimSpace(err.Error())
+	lower := strings.ToLower(msg)
+
+	switch {
+	case strings.Contains(lower, "forbidden"), strings.Contains(lower, "permission denied"), strings.Contains(lower, "(403)"):
+		s.status = StoreStatus{State: StoreStateForbidden, Message: msg}
+	case strings.Contains(lower, "connection refused"),
+		strings.Contains(lower, "timed out"),
+		strings.Contains(lower, "timeout"),
+		strings.Contains(lower, "no such host"),
+		strings.Contains(lower, "unreachable"),
+		strings.Contains(lower, "context deadline exceeded"),
+		strings.Contains(lower, "unable to connect"):
+		s.status = StoreStatus{State: StoreStateUnreachable, Message: msg}
+	default:
+		s.status = StoreStatus{State: StoreStateDegraded, Message: msg}
+	}
 }
