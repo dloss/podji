@@ -19,6 +19,7 @@ type fakeKubeAPIMeta struct {
 
 type fakeKubeAPIObjectReader struct {
 	fakeKubeAPI
+	detailByKey   map[string]resources.DetailData
 	yamlByKey     map[string]string
 	describeByKey map[string]string
 }
@@ -34,6 +35,14 @@ func (f fakeKubeAPIObjectReader) ResourceYAML(contextName, namespace, resourceNa
 		return out, nil
 	}
 	return "", ErrObjectReadNotSupported
+}
+
+func (f fakeKubeAPIObjectReader) ResourceDetail(contextName, namespace, resourceName string, item resources.ResourceItem) (resources.DetailData, error) {
+	key := contextName + "/" + namespace + "/" + resourceName + "/" + item.Name
+	if out, ok := f.detailByKey[key]; ok {
+		return out, nil
+	}
+	return resources.DetailData{}, ErrObjectReadNotSupported
 }
 
 func (f fakeKubeAPIObjectReader) ResourceDescribe(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
@@ -227,6 +236,32 @@ func TestKubeReadModelUsesLiveDetailForPods(t *testing.T) {
 	}
 	if len(detail.Containers) != 2 {
 		t.Fatalf("expected container rows from live item metadata, got %#v", detail.Containers)
+	}
+}
+
+func TestKubeReadModelPrefersAPIObjectReaderForDetail(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPIObjectReader{
+			detailByKey: map[string]resources.DetailData{
+				"dev/default/pods/api-1": {
+					Summary: []resources.SummaryField{{Key: "status", Value: "from-object-reader"}},
+				},
+			},
+		},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	got, err := read.Detail("pods", resources.ResourceItem{Name: "api-1"}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(got.Summary) == 0 || got.Summary[0].Value != "from-object-reader" {
+		t.Fatalf("expected detail from object-reader path, got %#v", got.Summary)
 	}
 }
 

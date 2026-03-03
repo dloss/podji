@@ -288,6 +288,14 @@ func (k *clientGoAPI) ResourceYAML(contextName, namespace, resourceName string, 
 	return marshalKubeObjectYAML(obj, resourceName, item)
 }
 
+func (k *clientGoAPI) ResourceDetail(contextName, namespace, resourceName string, item resources.ResourceItem) (resources.DetailData, error) {
+	obj, err := k.resourceObject(contextName, namespace, resourceName, item)
+	if err != nil {
+		return resources.DetailData{}, err
+	}
+	return detailFromObject(obj, resourceName, item), nil
+}
+
 func (k *clientGoAPI) ResourceDescribe(contextName, namespace, resourceName string, item resources.ResourceItem) (string, error) {
 	obj, err := k.resourceObject(contextName, namespace, resourceName, item)
 	if err != nil {
@@ -1524,6 +1532,78 @@ func describeKubeObject(obj any, resourceName string, item resources.ResourceIte
 		lines = append(lines, "List Ready:  "+ready)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func detailFromObject(obj any, resourceName string, item resources.ResourceItem) resources.DetailData {
+	switch o := obj.(type) {
+	case *corev1.Pod:
+		containers := make([]resources.ContainerRow, 0, len(o.Spec.Containers))
+		for _, c := range o.Spec.Containers {
+			state := "Unknown"
+			reason := ""
+			for _, cs := range o.Status.ContainerStatuses {
+				if cs.Name != c.Name {
+					continue
+				}
+				if cs.State.Running != nil {
+					state = "Running"
+				} else if cs.State.Waiting != nil {
+					state = "Waiting"
+					reason = cs.State.Waiting.Reason
+				} else if cs.State.Terminated != nil {
+					state = "Terminated"
+					reason = cs.State.Terminated.Reason
+				}
+				break
+			}
+			containers = append(containers, resources.ContainerRow{
+				Name:     c.Name,
+				Image:    c.Image,
+				State:    state,
+				Restarts: "0",
+				Reason:   reason,
+			})
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "status", Label: "Status", Value: valueOr(string(o.Status.Phase), "Unknown")},
+				{Key: "ready", Label: "Ready", Value: podReady(*o)},
+				{Key: "node", Label: "Node", Value: valueOr(o.Spec.NodeName, "<none>")},
+				{Key: "ip", Label: "IP", Value: valueOr(o.Status.PodIP, "<none>")},
+				{Key: "qos", Label: "QoS", Value: valueOr(string(o.Status.QOSClass), "Unknown")},
+			},
+			Containers: containers,
+			Labels:     labelsFromMap(o.Labels),
+		}
+	case *corev1.Service:
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "status", Label: "Status", Value: "Healthy"},
+				{Key: "type", Label: "Type", Value: valueOr(string(o.Spec.Type), "ClusterIP")},
+				{Key: "selector", Label: "Selector", Value: valueOr(labelSelectorString(o.Spec.Selector), "<none>")},
+				{Key: "cluster_ip", Label: "Cluster IP", Value: valueOr(o.Spec.ClusterIP, "<none>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	case *appsv1.Deployment:
+		desired := int32(1)
+		if o.Spec.Replicas != nil {
+			desired = *o.Spec.Replicas
+		}
+		return resources.DetailData{
+			Summary: []resources.SummaryField{
+				{Key: "kind", Label: "Kind", Value: "Deployment"},
+				{Key: "status", Label: "Status", Value: deploymentStatus(*o)},
+				{Key: "ready", Label: "Ready", Value: strconv.Itoa(int(o.Status.ReadyReplicas)) + "/" + strconv.Itoa(int(desired))},
+				{Key: "strategy", Label: "Strategy", Value: valueOr(string(o.Spec.Strategy.Type), "<none>")},
+				{Key: "selector", Label: "Selector", Value: valueOr(labelSelectorString(o.Spec.Selector.MatchLabels), "<none>")},
+				{Key: "images", Label: "Images", Value: valueOr(containerImages(o.Spec.Template.Spec.Containers), "<unknown>")},
+			},
+			Labels: labelsFromMap(o.Labels),
+		}
+	default:
+		return genericLiveDetail(item)
+	}
 }
 
 func ptrString(v *string) string {

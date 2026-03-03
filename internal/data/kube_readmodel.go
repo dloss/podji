@@ -88,6 +88,18 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 }
 
 func (k *KubeReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
+	if reader, ok := k.api.(KubeObjectReader); ok {
+		ns, contextName := k.resolveScope(scope, item)
+		detail, err := reader.ResourceDetail(contextName, ns, resourceName, item)
+		if err == nil {
+			k.markReady(resourceName)
+			return detail, nil
+		}
+		if !errors.Is(err, ErrObjectReadNotSupported) {
+			k.report(err)
+			return resources.DetailData{}, err
+		}
+	}
 	if detail, ok := liveDetail(resourceName, item); ok {
 		k.markReady(resourceName)
 		return detail, nil

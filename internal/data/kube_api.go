@@ -25,6 +25,7 @@ type KubeAPI interface {
 // KubeObjectReader is an optional extension for typed object fetches used by
 // live YAML/describe rendering paths.
 type KubeObjectReader interface {
+	ResourceDetail(context, namespace, resourceName string, item resources.ResourceItem) (resources.DetailData, error)
 	ResourceYAML(context, namespace, resourceName string, item resources.ResourceItem) (string, error)
 	ResourceDescribe(context, namespace, resourceName string, item resources.ResourceItem) (string, error)
 }
