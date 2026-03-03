@@ -53,6 +53,32 @@ func TestSortPickerHidesDuplicateLeadKeys(t *testing.T) {
 	}
 }
 
+func TestPVCKindUsesExpectedCasing(t *testing.T) {
+	entries := buildEntries(resources.DefaultRegistry(), nil)
+	for _, e := range entries {
+		if strings.EqualFold(e.resource.Name(), "persistentvolumeclaims") {
+			if e.kind != "PersistentVolumeClaims" {
+				t.Fatalf("expected pvc kind casing to be PersistentVolumeClaims, got %q", e.kind)
+			}
+			return
+		}
+	}
+	t.Fatal("expected persistentvolumeclaims entry in resource browser")
+}
+
+func TestIngressKindUsesExpectedCasing(t *testing.T) {
+	entries := buildEntries(resources.DefaultRegistry(), nil)
+	for _, e := range entries {
+		if strings.EqualFold(e.resource.Name(), "ingresses") {
+			if e.kind != "Ingress" {
+				t.Fatalf("expected ingress kind casing to be Ingress, got %q", e.kind)
+			}
+			return
+		}
+	}
+	t.Fatal("expected ingresses entry in resource browser")
+}
+
 func keyRunes(r ...rune) bubbletea.KeyMsg {
 	return bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: r}
 }
