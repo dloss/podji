@@ -1,60 +1,39 @@
 # Podji
 
-A fast, opinionated Kubernetes navigation TUI focused on debugging workflows.
+A fast, opinionated Kubernetes navigation TUI for debugging workflows.
 
-Same scope as k9s for day-to-day exploration, but with instant navigation, calmer visuals, and detail/log flows optimized for finding problems quickly.
+## Experimental Status
 
-## Vision
+Podji is **early-stage experimental software**.
 
-Podji helps engineers move through Kubernetes the way they debug it: fast navigation, predictable keybindings, short paths to logs and relationships.
+- APIs, behavior, and keybindings can still change quickly.
+- Some flows are intentionally incomplete or simulated.
+- Bugs and UX inconsistencies should be expected.
+- Use it for development/testing, not as a production-critical dependency.
 
-It intentionally avoids modeling the full Kubernetes ontology and instead optimizes for practical troubleshooting.
+## What Podji Is
 
-**Non-goals:** exposing every resource as first-class UI, replacing `kubectl` for advanced operations, providing a full graph explorer. Podji is a read-focused navigation and debugging tool.
+- Read-focused Kubernetes navigation and troubleshooting UI
+- Fast drill-down from resources to details/logs/events
+- Deterministic mock mode for demos, tests, and offline development
+- Optional live cluster mode via `client-go`
 
-## UX Principles
+## What Podji Is Not (Yet)
 
-1. One obvious forward path per object.
-2. Graph relationships exist, but are optional and consistent.
-3. Most debugging ends in logs — logs must be extremely fast.
-4. Few concepts, repeated everywhere.
-5. Arrow keys define structure and feel natural.
-6. Color indicates status only (no decorative color).
-7. Whitespace over borders; dim non-essential noise.
+- Not a full `kubectl` replacement
+- Not a complete Kubernetes object browser/graph explorer
+- Not a stable/feature-complete product
 
-## Navigation
-
-| Key | Action |
-|-----|--------|
-| `→` / `Enter` / `l` | Drill down |
-| `←` / `Backspace` / `h` | Back |
-| `o` | Open logs directly from any list |
-| `r` | Related resource panel |
-| `N` | Namespace picker |
-| `X` | Context picker |
-| `/` | Filter current list |
-
-**Drill-down model:** every object has one default next step — Namespace → Workloads → Pods → Logs. Predictable and reversible.
-
-## Success Criteria
-
-Users can:
-
-- reach crash logs in ≤ 4 steps
-- diagnose "Service has no backends" in one view + one drill-down
-- find ConfigMap consumers quickly
-- switch namespace without losing their place in the navigation stack
-
-## Build & Run
+## Build and Run
 
 ```bash
 go build ./cmd/podji
 ./podji
 ```
 
-The app uses stub data — no real Kubernetes cluster needed.
+Default startup is `mock` mode (no cluster required).
 
-## Runtime Mode
+## Runtime Modes
 
 `PODJI_MODE` controls which store backend is used at startup:
 
@@ -73,9 +52,9 @@ CLI flag alternative:
 ./podji --mode kube
 ```
 
-## Mock Scenarios
+## Mock Scenarios (for Testing and Demos)
 
-Mock mode supports deterministic scenarios for development and demos.
+Mock mode supports deterministic scenarios.
 
 Use:
 
@@ -104,25 +83,33 @@ PODJI_MODE=mock PODJI_STRESS=1 ./podji
 go test ./...
 ```
 
-## Architecture
+## Core Navigation
 
-- **Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea)
-- **Entry point**: `cmd/podji/main.go`
-- **Main model**: `internal/app/app.go` — stack-based navigation; Enter/Right pushes, Backspace/Left pops
-- **Views** implement `viewstate.View` (Init, Update, View, Breadcrumb, Footer, SetSize)
-- **Resources**: `internal/resources/` — each resource type registered with a single-letter hotkey
-- **Scope switching**: `N`/`X` open overlay pickers; selecting applies scope without changing stack depth
-- **Related panel**: `r` toggles a persistent side panel; `Tab` switches focus
+| Key | Action |
+|---|---|
+| `→` / `Enter` / `l` | Drill down |
+| `←` / `Backspace` / `h` | Back |
+| `o` | Open logs from list |
+| `r` | Related resources |
+| `N` | Namespace picker |
+| `X` | Context picker |
+| `/` | Filter current list |
+| `:` | Command bar |
 
-**Store/Data layer**:
-- `MockStore`: deterministic datasets for UX work, demos, and tests
-- `KubeStore`: client-go backed reads with explicit store status (`loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`)
-- `ReadModel` adapters: shared contract for list/detail/logs/events/describe/yaml across mock and kube modes
-- client-go informer cache path for core list resources (`pods`, `services`, `deployments`, `workloads`) with direct-list fallback
-- relation index derived from read-model data for related-resource navigation
+## Development Helpers
 
-## v1 Scope
+- Interactive UI helper: `dev/ui.sh`
+- Kube fixture helpers: `dev/kube/tui-fixtures.sh`, `dev/kube/tui-cluster.sh`
+- Startup timing debug:
 
-**In:** pods, deployments, statefulsets, daemonsets, jobs, cronjobs, services, configmaps, secrets, nodes, namespaces, events — full navigation, detail views, log viewer, context/namespace switching.
+```bash
+PODJI_DEBUG_DATA=1 ./podji
+```
 
-**Out:** mutating actions, metrics, CRDs, multi-cluster, config persistence, plugins.
+Look for `podji:app startup_ms=...` in logs.
+
+## Current Scope (Subject to Change)
+
+Working areas include navigation for workloads, pods, services, configmaps, secrets, nodes, namespaces, events, plus detail/log/yaml/describe views.
+
+Still evolving: mutation behavior, CRD command-bar routing, and broader end-to-end kube integration coverage.
