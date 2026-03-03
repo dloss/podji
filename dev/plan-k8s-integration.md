@@ -66,6 +66,7 @@ Done now:
 - `StoreStatus` expanded with `loading`, `partial`, `forbidden`, `unreachable`, `degraded`
 - kube error classification maps discovery/log/event failures to explicit states
 - app renders state-qualified store message (`store (<state>): ...`)
+- kube read-model marks `partial` when list data falls back to mock due unsupported live list paths
 
 Scope:
 
