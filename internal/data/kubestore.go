@@ -17,7 +17,11 @@ type KubeStore struct {
 }
 
 func NewKubeStore() (*KubeStore, error) {
-	return newKubeStore(newKubectlAPI(execRunner{}))
+	api, err := newClientGoAPI()
+	if err != nil {
+		return nil, err
+	}
+	return newKubeStore(api)
 }
 
 func newKubeStore(api KubeAPI) (*KubeStore, error) {
