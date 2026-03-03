@@ -128,6 +128,7 @@ Exit criteria:
 Done now:
 
 - mode startup/fallback tests exist
+- `PODJI_MODE=kube` env startup path is explicitly tested for both success and fallback behavior
 - scope switch tests exist across mock/kube adapters
 - contract tests validate `unhealthy` and `restarts` query consistency across adapters
 - read-relation-index and live list/cache behavior are covered with dedicated data-layer tests
