@@ -70,6 +70,14 @@ func TestWorkloadsScenarioBanner(t *testing.T) {
 	}
 }
 
+func TestWorkloadsEmptyMessageGuidesNamespaceSwitch(t *testing.T) {
+	w := NewWorkloads()
+	msg := w.EmptyMessage(false, "")
+	if !strings.Contains(msg, "Press N to switch namespace") {
+		t.Fatalf("expected namespace switch hint, got %q", msg)
+	}
+}
+
 func TestCronJobPodsNameAndEmptyState(t *testing.T) {
 	pods := NewWorkloadPods(ResourceItem{Name: "sync-reports", Kind: "CJ"}, nil)
 

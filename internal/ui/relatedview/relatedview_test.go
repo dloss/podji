@@ -57,6 +57,18 @@ func TestRelationListSortToggleWorksForScopedEvents(t *testing.T) {
 	}
 }
 
+func TestRelationListShowsUnsupportedActionFeedback(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	related := newRelationList(resources.NewScopedEvents("api", 3), registry)
+	related.SetSize(120, 40)
+
+	related.Update(keyRunes('x'))
+	footer := related.Footer()
+	if !strings.Contains(footer, "x unavailable in this view") {
+		t.Fatalf("expected unsupported-action feedback in footer, got %q", footer)
+	}
+}
+
 func TestRelationColumnWidthsForRowsFitsAvailableWidth(t *testing.T) {
 	columns := []resources.TableColumn{
 		{Name: "RELATED", Width: 18},

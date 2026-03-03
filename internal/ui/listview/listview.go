@@ -37,11 +37,19 @@ type OpenColumnPickerMsg struct {
 }
 
 type clearCopiedMsg struct{}
+type clearActionMsg struct{}
 
 func clearCopiedCmd() bubbletea.Cmd {
 	return func() bubbletea.Msg {
 		time.Sleep(1500 * time.Millisecond)
 		return clearCopiedMsg{}
+	}
+}
+
+func clearActionCmd() bubbletea.Cmd {
+	return func() bubbletea.Msg {
+		time.Sleep(1500 * time.Millisecond)
+		return clearActionMsg{}
 	}
 }
 
@@ -125,6 +133,7 @@ type View struct {
 	findTargets  map[int]bool
 	copyMode     bool
 	copiedMsg    string
+	actionMsg    string
 	execState    executeState
 	execInput    string
 	execResult   string
@@ -168,6 +177,10 @@ func (v *View) Init() bubbletea.Cmd {
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	if _, ok := msg.(clearCopiedMsg); ok {
 		v.copiedMsg = ""
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	}
+	if _, ok := msg.(clearActionMsg); ok {
+		v.actionMsg = ""
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	}
 
@@ -390,6 +403,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   dv,
 				}
 			}
+			v.actionMsg = "action unavailable: no selected item"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "w":
 			// Wide mode toggle (only if resource implements WideResource).
 			if _, ok := v.resource.(resources.WideResource); ok {
@@ -397,6 +412,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.refreshColumns()
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
+			v.actionMsg = "w unavailable in this view"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "p":
 			// Column picker (exit wide mode first if active).
 			if _, ok := v.resource.(resources.TableResource); ok {
@@ -421,9 +438,14 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					},
 				}
 			}
+			v.actionMsg = "p unavailable in this view"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "s":
 			if len(sortKeysForView(v.resource, v.columns)) > 0 {
 				v.sortPickMode = true
+			} else {
+				v.actionMsg = "s unavailable in this view"
+				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "y":
@@ -433,6 +455,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   yamlview.New(selected.data, v.resource),
 				}
 			}
+			v.actionMsg = "action unavailable: no selected item"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "r":
 			// Handled by app.go (opens/closes the side panel).
 		case "e":
@@ -442,6 +466,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   eventview.New(selected.data, v.resource),
 				}
 			}
+			v.actionMsg = "action unavailable: no selected item"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "d":
 			if selected, ok := v.list.SelectedItem().(item); ok {
 				return viewstate.Update{
@@ -449,6 +475,8 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					Next:   describeview.New(selected.data, v.resource),
 				}
 			}
+			v.actionMsg = "action unavailable: no selected item"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		case "f":
 			v.findMode = true
 			v.findTargets = v.computeFindTargets()
@@ -456,11 +484,17 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "c":
 			if selected, ok := v.list.SelectedItem().(item); ok && selected.data.Name != "" {
 				v.copyMode = true
+			} else {
+				v.actionMsg = "c unavailable: no selected item"
+				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		case "x":
 			if selected, ok := v.list.SelectedItem().(item); ok && selected.data.Name != "" {
 				v.execState = execMenu
+			} else {
+				v.actionMsg = "x unavailable: no selected item"
+				return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
@@ -577,6 +611,9 @@ func (v *View) Footer() string {
 	}
 	if v.copiedMsg != "" {
 		indicators = append(indicators, style.B(v.copiedMsg, ""))
+	}
+	if v.actionMsg != "" {
+		indicators = append(indicators, style.B(v.actionMsg, ""))
 	}
 	if v.execResult != "" {
 		indicators = append(indicators, style.B(v.execResult, ""))
@@ -1482,7 +1519,7 @@ func (v *View) emptyMessage() string {
 		if v.list.IsFiltered() {
 			return "No workloads match `" + filter + "`. Press esc to clear."
 		}
-		return "No workloads found in this namespace. Switch namespace or adjust filters."
+		return "No workloads found in this namespace. Press N to switch namespace."
 	}
 
 	if v.list.IsFiltered() {

@@ -382,9 +382,9 @@ func (w *Workloads) EmptyMessage(filtered bool, filter string) string {
 	case "forbidden":
 		return "No workloads visible due to RBAC restrictions."
 	case "empty":
-		return "No workloads found in namespace `" + w.Namespace() + "`. Switch namespace or clear filter."
+		return "No workloads found in namespace `" + w.Namespace() + "`. Press N to switch namespace."
 	default:
-		return "No workloads found in namespace `" + w.Namespace() + "`."
+		return "No workloads found in namespace `" + w.Namespace() + "`. Press N to switch namespace."
 	}
 }
 

@@ -262,6 +262,19 @@ func TestFindModeSuppressesGlobalKeys(t *testing.T) {
 	}
 }
 
+func TestListViewShowsUnsupportedActionFeedbackWhenNoSelection(t *testing.T) {
+	t.Setenv("PODJI_MOCK_SCENARIO", "empty")
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('x'))
+	footer := ansi.Strip(view.Footer())
+	if !strings.Contains(footer, "x unavailable: no selected item") {
+		t.Fatalf("expected unsupported-action feedback in footer, got %q", footer)
+	}
+}
+
 func TestExecMenuIgnoresUnrecognizedKey(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)

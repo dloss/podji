@@ -3,6 +3,7 @@ package relatedview
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -236,6 +237,16 @@ type relationList struct {
 	colWidths   []int
 	findMode    bool
 	findTargets map[int]bool
+	actionMsg   string
+}
+
+type clearActionMsg struct{}
+
+func clearActionCmd() bubbletea.Cmd {
+	return func() bubbletea.Msg {
+		time.Sleep(1500 * time.Millisecond)
+		return clearActionMsg{}
+	}
 }
 
 func newRelationList(resource resources.ResourceType, registry *resources.Registry) *relationList {
@@ -274,6 +285,11 @@ func newRelationList(resource resources.ResourceType, registry *resources.Regist
 func (v *relationList) Init() bubbletea.Cmd { return nil }
 
 func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
+	if _, ok := msg.(clearActionMsg); ok {
+		v.actionMsg = ""
+		return viewstate.Update{Action: viewstate.None, Next: v}
+	}
+
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
@@ -327,6 +343,9 @@ func (v *relationList) Update(msg bubbletea.Msg) viewstate.Update {
 			v.findMode = true
 			v.findTargets = v.computeFindTargets()
 			return viewstate.Update{Action: viewstate.None, Next: v}
+		case "p", "x", "c", "w", "d", "e", "y":
+			v.actionMsg = key.String() + " unavailable in this view"
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearActionCmd()}
 		}
 	}
 
@@ -390,6 +409,9 @@ func (v *relationList) Footer() string {
 	}
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
+	}
+	if v.actionMsg != "" {
+		indicators = append(indicators, style.B(v.actionMsg, ""))
 	}
 	line1 := style.StatusFooter(indicators, v.paginationStatus(), v.list.Width())
 	var actions []style.Binding
