@@ -199,6 +199,30 @@ func TestKubeStoreStatusPartialWhenListFallsBack(t *testing.T) {
 	}
 }
 
+func TestKubeStoreStatusTransitionsToReadyAfterLiveListSuccess(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPI{
+		contexts: []string{"dev"},
+		listsByKey: map[string][]resources.ResourceItem{
+			"dev/default/workloads": {
+				{Name: "api", Kind: "DEP", Status: "Healthy", Ready: "1/1"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	if status := store.Status(); status.State != StoreStateLoading {
+		t.Fatalf("expected initial loading status, got %#v", status)
+	}
+	_, err = store.ReadModel().List("workloads", store.Scope())
+	if err != nil {
+		t.Fatalf("expected live list success, got %v", err)
+	}
+	if status := store.Status(); status.State != StoreStateReady {
+		t.Fatalf("expected ready status after live list, got %#v", status)
+	}
+}
+
 func TestKubeStorePodLogsFetcherWired(t *testing.T) {
 	store, err := newKubeStore(fakeKubeAPI{
 		contexts: []string{"dev"},
