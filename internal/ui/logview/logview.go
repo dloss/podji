@@ -153,7 +153,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "w":
 			v.wrap = !v.wrap
 			v.refreshContent()
-		case "t":
+		case "p":
 			v.previous = !v.previous
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "/":
@@ -171,10 +171,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.matchIndex = (v.matchIndex - 1 + len(v.matchLines)) % len(v.matchLines)
 				v.viewport.SetYOffset(v.matchLines[v.matchIndex])
 			}
-		case "]":
+		case ".":
 			v.sinceIdx = (v.sinceIdx + 1) % len(sinceWindows)
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
-		case "[":
+		case ",":
 			v.sinceIdx = (v.sinceIdx - 1 + len(sinceWindows)) % len(sinceWindows)
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "c":
@@ -250,8 +250,8 @@ func (v *View) Footer() string {
 		}
 	} else {
 		actions := []style.Binding{
-			style.B("t", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
-			style.B("/", "search"), style.B("[ ]", "since"),
+			style.B("p", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
+			style.B("/", "search"), style.B(", .", "since"),
 		}
 		if v.container != "" || v.ContainerViewFactory != nil {
 			actions = append(actions, style.B("c", "container"))

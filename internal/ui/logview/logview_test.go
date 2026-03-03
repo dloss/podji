@@ -106,8 +106,8 @@ func TestFooterShowsSinceAndMatchStatus(t *testing.T) {
 	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'o'}})
 	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
 	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
-	// "]" switches since window away from default 5m.
-	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	// "." switches since window away from default 5m.
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'.'}})
 
 	footer := ansi.Strip(v.Footer())
 	if !strings.Contains(footer, "since") {
@@ -124,13 +124,13 @@ func TestSinceWindowRefetchesWithTailOptions(t *testing.T) {
 	if len(res.tailCalls) != 1 || res.tailCalls[0] != 200 {
 		t.Fatalf("expected initial tail=200 fetch, got %#v", res.tailCalls)
 	}
-	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'.'}})
 	if upd.Cmd == nil {
 		t.Fatal("expected reload cmd after since-window change")
 	}
 	_ = upd.Cmd()
 	if len(res.tailCalls) != 2 || res.tailCalls[1] != 500 {
-		t.Fatalf("expected second tail=500 fetch after ] window switch, got %#v", res.tailCalls)
+		t.Fatalf("expected second tail=500 fetch after . window switch, got %#v", res.tailCalls)
 	}
 }
 
@@ -156,13 +156,56 @@ func TestPreviousToggleRefetchesWithUpdatedPreviousOption(t *testing.T) {
 	if len(res.previous) != 1 || res.previous[0] {
 		t.Fatalf("expected initial previous=false fetch, got %#v", res.previous)
 	}
-	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'p'}})
 	if upd.Cmd == nil {
 		t.Fatal("expected reload cmd after previous toggle")
 	}
 	_ = upd.Cmd()
 	if len(res.previous) != 2 || !res.previous[1] {
 		t.Fatalf("expected previous=true refetch after toggle, got %#v", res.previous)
+	}
+}
+
+func TestSinceWindowCommaDotRefetchWithTailOptions(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'.'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after since-window forward alias")
+	}
+	_ = upd.Cmd()
+	if got := res.tailCalls[len(res.tailCalls)-1]; got != 500 {
+		t.Fatalf("expected tail=500 after '.', got %d", got)
+	}
+
+	upd = v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{','}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after since-window backward alias")
+	}
+	_ = upd.Cmd()
+	if got := res.tailCalls[len(res.tailCalls)-1]; got != 200 {
+		t.Fatalf("expected tail=200 after ',', got %d", got)
+	}
+}
+
+func TestLegacyLogKeysDoNotTriggerModeOrSince(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
+	if upd.Cmd != nil {
+		t.Fatal("expected no reload cmd for legacy mode key t")
+	}
+
+	upd = v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	if upd.Cmd != nil {
+		t.Fatal("expected no reload cmd for legacy since key ]")
+	}
+
+	upd = v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'['}})
+	if upd.Cmd != nil {
+		t.Fatal("expected no reload cmd for legacy since key [")
 	}
 }
 

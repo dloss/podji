@@ -49,10 +49,10 @@ TABLE (filterable lists, including A)
 LOGS (logs view)
   f                    Follow on/off
   w                    Wrap on/off
-  t                    Current/previous
+  p                    Current/previous
   /                    Search
   n / N                Next / previous match
-  [ / ]                Cycle since window
+  , / .                Cycle since window
   c                    Container picker (from container logs)
   up / down / j / k    Scroll
   space / pgup / pgdn  Page up / down
