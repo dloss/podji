@@ -82,3 +82,16 @@ func TestContextPickerSyncsDegradedStoreStatus(t *testing.T) {
 		t.Fatalf("expected degraded store error message, got %q", got.errorMsg)
 	}
 }
+
+func TestModelInitRendersLoadingStoreStatus(t *testing.T) {
+	store := newStatusStore()
+	store.status = data.StoreStatus{
+		State:   data.StoreStateLoading,
+		Message: "connecting to cluster",
+	}
+	m := NewWithStore(store)
+	m.syncStoreStatus()
+	if !strings.Contains(m.errorMsg, "store (loading): connecting to cluster") {
+		t.Fatalf("expected loading store status message, got %q", m.errorMsg)
+	}
+}
