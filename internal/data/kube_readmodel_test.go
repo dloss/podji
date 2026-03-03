@@ -300,6 +300,85 @@ func TestKubeReadModelUsesLiveDescribeForPods(t *testing.T) {
 	}
 }
 
+func TestKubeReadModelUsesLiveDetailForConfigMaps(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	detail, err := read.Detail("configmaps", resources.ResourceItem{
+		Name:   "app-config",
+		Kind:   "ConfigMap",
+		Status: "Available",
+		Ready:  "3 keys",
+		Age:    "2d",
+	}, Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(detail.Summary) == 0 || detail.Summary[0].Value != "ConfigMap" {
+		t.Fatalf("expected live generic detail for configmap, got %#v", detail.Summary)
+	}
+}
+
+func TestKubeReadModelUsesLiveYAMLForConfigMaps(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	yaml, err := read.YAML("configmaps", resources.ResourceItem{
+		Name: "app-config",
+		Kind: "ConfigMap",
+	}, Scope{Namespace: "default"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if yaml == "from-fallback-yaml" {
+		t.Fatalf("expected live yaml renderer, got fallback output %q", yaml)
+	}
+	if !containsAll(yaml, "kind: ConfigMap", "name: app-config") {
+		t.Fatalf("expected live yaml content, got %q", yaml)
+	}
+}
+
+func TestKubeReadModelUsesLiveDescribeForConfigMaps(t *testing.T) {
+	reg := resources.DefaultRegistry()
+	read := NewKubeReadModel(
+		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
+		fakeKubeAPI{},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	describe, err := read.Describe("configmaps", resources.ResourceItem{
+		Name:   "app-config",
+		Kind:   "ConfigMap",
+		Status: "Available",
+	}, Scope{Namespace: "default"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if describe == "from-fallback-describe" {
+		t.Fatalf("expected live describe renderer, got fallback output %q", describe)
+	}
+	if !containsAll(describe, "Kind:        ConfigMap", "Name:        app-config") {
+		t.Fatalf("expected live describe content, got %q", describe)
+	}
+}
+
 func containsAll(text string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(text, p) {

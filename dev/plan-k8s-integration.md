@@ -19,8 +19,8 @@ Reason:
 Current state:
 
 - list/logs/events have kube-backed read paths
-- kube read model now renders live detail/yaml/describe for list-backed core resources (`pods`, `services`, `deployments`, `workloads`) from live item metadata
-- non-core resources still use fallback read-model rendering
+- kube read model now renders live detail/yaml/describe for all current list-backed live resources from item metadata
+- fallback rendering remains only for resources outside the live list-backed set
 
 Scope:
 

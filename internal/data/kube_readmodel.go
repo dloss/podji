@@ -232,6 +232,8 @@ func liveDetail(resourceName string, item resources.ResourceItem) (resources.Det
 		return serviceLiveDetail(item), true
 	case strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
 		return workloadLiveDetail(item), true
+	case isListBackedResource(name):
+		return genericLiveDetail(item), true
 	default:
 		return resources.DetailData{}, false
 	}
@@ -302,6 +304,23 @@ func workloadLiveDetail(item resources.ResourceItem) resources.DetailData {
 	}
 }
 
+func genericLiveDetail(item resources.ResourceItem) resources.DetailData {
+	summary := []resources.SummaryField{
+		{Key: "kind", Label: "Kind", Value: valueOr(item.Kind, "Resource")},
+		{Key: "status", Label: "Status", Value: valueOr(item.Status, "Unknown")},
+	}
+	if ready := strings.TrimSpace(item.Ready); ready != "" {
+		summary = append(summary, resources.SummaryField{Key: "ready", Label: "Ready", Value: ready})
+	}
+	if age := strings.TrimSpace(item.Age); age != "" {
+		summary = append(summary, resources.SummaryField{Key: "age", Label: "Age", Value: age})
+	}
+	return resources.DetailData{
+		Summary: summary,
+		Labels:  labelsFromMap(item.Labels),
+	}
+}
+
 func labelsFromMap(labels map[string]string) []string {
 	if len(labels) == 0 {
 		return nil
@@ -329,7 +348,7 @@ func valueOr(value, fallback string) string {
 func liveYAML(resourceName string, item resources.ResourceItem, scope Scope) (string, bool) {
 	name := strings.ToLower(strings.TrimSpace(resourceName))
 	switch {
-	case strings.HasPrefix(name, "pods"), strings.HasPrefix(name, "services"), strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
+	case isListBackedResource(name):
 		kind := valueOr(item.Kind, singularKindName(name))
 		if strings.EqualFold(kind, "dep") || strings.EqualFold(kind, "deployment") {
 			kind = "Deployment"
@@ -364,7 +383,7 @@ func liveYAML(resourceName string, item resources.ResourceItem, scope Scope) (st
 func liveDescribe(resourceName string, item resources.ResourceItem, scope Scope) (string, bool) {
 	name := strings.ToLower(strings.TrimSpace(resourceName))
 	switch {
-	case strings.HasPrefix(name, "pods"), strings.HasPrefix(name, "services"), strings.HasPrefix(name, "deployments"), strings.HasPrefix(name, "workloads"):
+	case isListBackedResource(name):
 		lines := []string{
 			"Name:        " + valueOr(item.Name, "unknown"),
 			"Namespace:   " + valueOr(item.Namespace, valueOr(scope.Namespace, resources.DefaultNamespace)),
@@ -398,6 +417,10 @@ func liveDescribe(resourceName string, item resources.ResourceItem, scope Scope)
 
 func singularKindName(resourceName string) string {
 	switch strings.TrimSpace(strings.ToLower(resourceName)) {
+	case "contexts":
+		return "Context"
+	case "namespaces":
+		return "Namespace"
 	case "pods":
 		return "Pod"
 	case "services":
@@ -406,7 +429,29 @@ func singularKindName(resourceName string) string {
 		return "Deployment"
 	case "workloads":
 		return "Workload"
+	case "ingresses":
+		return "Ingress"
+	case "configmaps":
+		return "ConfigMap"
+	case "secrets":
+		return "Secret"
+	case "persistentvolumeclaims":
+		return "PersistentVolumeClaim"
+	case "nodes":
+		return "Node"
+	case "events":
+		return "Event"
 	default:
 		return "Resource"
+	}
+}
+
+func isListBackedResource(resourceName string) bool {
+	switch strings.TrimSpace(strings.ToLower(resourceName)) {
+	case "contexts", "namespaces", "pods", "services", "deployments", "workloads",
+		"ingresses", "configmaps", "secrets", "persistentvolumeclaims", "nodes", "events":
+		return true
+	default:
+		return false
 	}
 }
