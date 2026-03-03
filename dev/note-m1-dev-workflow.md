@@ -35,7 +35,7 @@ dev/kube/tui-fixtures.sh up
 dev/kube/tui-fixtures.sh down
 ```
 
-If kube mode cannot initialize, Podji falls back to mock mode with a warning.
+If kube mode cannot initialize, Podji exits with a clear startup error.
 
 For local startup timing checks:
 

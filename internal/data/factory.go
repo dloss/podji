@@ -13,25 +13,24 @@ const (
 
 var newKubeStoreFn = NewKubeStore
 
-func NewStoreForMode(mode string) (Store, string) {
+func NewStoreForMode(mode string) (Store, error) {
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	switch mode {
 	case "", ModeMock:
-		return NewMockStore(), ""
+		return NewMockStore(), nil
 	case ModeKube:
 		store, err := newKubeStoreFn()
 		if err == nil {
-			return store, ""
+			return store, nil
 		}
-		return NewMockStore(), fmt.Sprintf("kube mode unavailable: %v (using mock mode)", err)
+		return nil, fmt.Errorf("kube mode unavailable: %w", err)
 	default:
-		return NewMockStore(), fmt.Sprintf("unknown PODJI_MODE=%q (using mock mode)", mode)
+		return nil, fmt.Errorf("unknown PODJI_MODE=%q", mode)
 	}
 }
 
 // NewStoreFromEnv returns a store based on PODJI_MODE.
 // Supported values: "mock" (default), "kube".
-// When kube mode initialization fails, this falls back to mock and returns a warning.
-func NewStoreFromEnv() (Store, string) {
+func NewStoreFromEnv() (Store, error) {
 	return NewStoreForMode(os.Getenv("PODJI_MODE"))
 }

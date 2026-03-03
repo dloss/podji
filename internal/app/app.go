@@ -39,6 +39,7 @@ type Bookmark struct {
 type Model struct {
 	store             data.Store
 	registry          *resources.Registry
+	mode              string
 	stack             []viewstate.View
 	crumbs            []string
 	overlay           *overlaypicker.Picker
@@ -66,24 +67,36 @@ type bodyRowProvider interface {
 	SelectedBodyRow() int
 }
 
-var newStoreFromEnvFn = data.NewStoreFromEnv
-
 func New() Model {
 	started := time.Now()
-	store, warning := newStoreFromEnvFn()
-	model := NewWithStore(store)
-	if warning != "" {
-		model.statusMsg = warning
-	}
-	model.syncStoreStatus()
+	model := NewWithStore(data.NewMockStore())
 	debugAppf("startup_ms=%d store=%T warning=%t context=%s namespace=%s",
 		time.Since(started).Milliseconds(),
 		model.store,
-		warning != "",
+		false,
 		model.context,
 		model.namespace,
 	)
 	return model
+}
+
+var newStoreFromEnvFn = data.NewStoreFromEnv
+
+func NewFromEnv() (Model, error) {
+	started := time.Now()
+	store, err := newStoreFromEnvFn()
+	if err != nil {
+		return Model{}, err
+	}
+	model := NewWithStore(store)
+	debugAppf("startup_ms=%d store=%T warning=%t context=%s namespace=%s",
+		time.Since(started).Milliseconds(),
+		model.store,
+		false,
+		model.context,
+		model.namespace,
+	)
+	return model, nil
 }
 
 func NewWithStore(store data.Store) Model {
@@ -99,11 +112,21 @@ func NewWithStore(store data.Store) Model {
 	return Model{
 		store:             store,
 		registry:          registry,
+		mode:              storeMode(store),
 		stack:             []viewstate.View{root},
 		crumbs:            []string{rootCrumb},
 		context:           scope.Context,
 		namespace:         scope.Namespace,
 		activeResourceKey: 'W',
+	}
+}
+
+func storeMode(store data.Store) string {
+	switch store.(type) {
+	case *data.KubeStore:
+		return data.ModeKube
+	default:
+		return data.ModeMock
 	}
 }
 
@@ -619,6 +642,13 @@ func contextTier(name string) string {
 
 func (m Model) scopeLine() string {
 	sep := style.NavSep.Render(" > ")
+	modeLabel := style.Scope.Render("Mode: ")
+	modeValue := style.ScopeValue.Render(strings.ToUpper(strings.TrimSpace(m.mode)))
+	if strings.EqualFold(m.mode, data.ModeMock) {
+		modeValue = style.Muted.Render("MOCK")
+	} else if strings.EqualFold(m.mode, data.ModeKube) {
+		modeValue = style.ScopeActiveValue.Render("KUBE")
+	}
 
 	var contextLabel, contextValue string
 	switch contextTier(m.context) {
@@ -641,11 +671,18 @@ func (m Model) scopeLine() string {
 		nsValue = style.ScopeValue.Render(m.namespace)
 	}
 
-	return contextLabel + contextValue + sep + nsLabel + nsValue
+	return modeLabel + modeValue + sep + contextLabel + contextValue + sep + nsLabel + nsValue
 }
 
 // namespaceLabelX returns the visual column where "Namespace:" starts in the scope line.
 func (m Model) namespaceLabelX() int {
+	modeLabel := style.Scope.Render("Mode: ")
+	modeValue := style.ScopeValue.Render(strings.ToUpper(strings.TrimSpace(m.mode)))
+	if strings.EqualFold(m.mode, data.ModeMock) {
+		modeValue = style.Muted.Render("MOCK")
+	} else if strings.EqualFold(m.mode, data.ModeKube) {
+		modeValue = style.ScopeActiveValue.Render("KUBE")
+	}
 	var contextLabel, contextValue string
 	switch contextTier(m.context) {
 	case "prod":
@@ -658,7 +695,7 @@ func (m Model) namespaceLabelX() int {
 		contextLabel = style.Scope.Render("Context: ")
 		contextValue = style.ScopeValue.Render(m.context)
 	}
-	return lipgloss.Width(contextLabel + contextValue + style.NavSep.Render(" > "))
+	return lipgloss.Width(modeLabel + modeValue + style.NavSep.Render(" > ") + contextLabel + contextValue + style.NavSep.Render(" > "))
 }
 
 func (m Model) breadcrumbLine() string {

@@ -38,7 +38,7 @@ Default startup is `mock` mode (no cluster required).
 `PODJI_MODE` controls which store backend is used at startup:
 
 - `mock` (default): deterministic stub data
-- `kube`: client-go backed live cluster reads (with mock fallback if unavailable)
+- `kube`: client-go backed live cluster reads (startup fails if unavailable)
 
 Example:
 

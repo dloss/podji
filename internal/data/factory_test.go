@@ -2,7 +2,6 @@ package data
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/dloss/podji/internal/resources"
@@ -10,39 +9,33 @@ import (
 
 func TestNewStoreFromEnvDefaultsToMock(t *testing.T) {
 	t.Setenv("PODJI_MODE", "")
-	store, warning := NewStoreFromEnv()
+	store, err := NewStoreFromEnv()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if _, ok := store.(*MockStore); !ok {
 		t.Fatalf("expected mock store, got %T", store)
 	}
-	if warning != "" {
-		t.Fatalf("expected no warning, got %q", warning)
-	}
 }
 
-func TestNewStoreFromEnvUnknownModeFallsBackToMock(t *testing.T) {
+func TestNewStoreFromEnvUnknownModeReturnsError(t *testing.T) {
 	t.Setenv("PODJI_MODE", "wat")
-	store, warning := NewStoreFromEnv()
-	if _, ok := store.(*MockStore); !ok {
-		t.Fatalf("expected mock store, got %T", store)
-	}
-	if !strings.Contains(warning, "unknown PODJI_MODE") {
-		t.Fatalf("expected unknown-mode warning, got %q", warning)
+	_, err := NewStoreFromEnv()
+	if err == nil {
+		t.Fatal("expected unknown-mode error")
 	}
 }
 
-func TestNewStoreForModeKubeFallbackOnError(t *testing.T) {
+func TestNewStoreForModeKubeReturnsErrorOnFailure(t *testing.T) {
 	prev := newKubeStoreFn
 	newKubeStoreFn = func() (*KubeStore, error) {
 		return nil, errors.New("kube unavailable")
 	}
 	t.Cleanup(func() { newKubeStoreFn = prev })
 
-	store, warning := NewStoreForMode(ModeKube)
-	if _, ok := store.(*MockStore); !ok {
-		t.Fatalf("expected mock store fallback, got %T", store)
-	}
-	if !strings.Contains(warning, "kube mode unavailable") {
-		t.Fatalf("expected kube fallback warning, got %q", warning)
+	_, err := NewStoreForMode(ModeKube)
+	if err == nil {
+		t.Fatal("expected kube init error")
 	}
 }
 
@@ -66,16 +59,16 @@ func TestNewStoreForModeKubeSuccess(t *testing.T) {
 	}
 	t.Cleanup(func() { newKubeStoreFn = prev })
 
-	store, warning := NewStoreForMode(ModeKube)
+	store, err := NewStoreForMode(ModeKube)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if _, ok := store.(*KubeStore); !ok {
 		t.Fatalf("expected kube store, got %T", store)
 	}
-	if warning != "" {
-		t.Fatalf("expected no warning, got %q", warning)
-	}
 }
 
-func TestNewStoreFromEnvKubeFallbackOnError(t *testing.T) {
+func TestNewStoreFromEnvKubeReturnsErrorOnFailure(t *testing.T) {
 	prev := newKubeStoreFn
 	newKubeStoreFn = func() (*KubeStore, error) {
 		return nil, errors.New("kube unavailable")
@@ -83,12 +76,9 @@ func TestNewStoreFromEnvKubeFallbackOnError(t *testing.T) {
 	t.Cleanup(func() { newKubeStoreFn = prev })
 
 	t.Setenv("PODJI_MODE", "kube")
-	store, warning := NewStoreFromEnv()
-	if _, ok := store.(*MockStore); !ok {
-		t.Fatalf("expected mock store fallback, got %T", store)
-	}
-	if !strings.Contains(warning, "kube mode unavailable") {
-		t.Fatalf("expected kube fallback warning, got %q", warning)
+	_, err := NewStoreFromEnv()
+	if err == nil {
+		t.Fatal("expected kube error")
 	}
 }
 
@@ -113,11 +103,11 @@ func TestNewStoreFromEnvKubeSuccess(t *testing.T) {
 	t.Cleanup(func() { newKubeStoreFn = prev })
 
 	t.Setenv("PODJI_MODE", "kube")
-	store, warning := NewStoreFromEnv()
+	store, err := NewStoreFromEnv()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if _, ok := store.(*KubeStore); !ok {
 		t.Fatalf("expected kube store, got %T", store)
-	}
-	if warning != "" {
-		t.Fatalf("expected no warning, got %q", warning)
 	}
 }

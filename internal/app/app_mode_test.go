@@ -1,60 +1,64 @@
 package app
 
 import (
-	"strings"
+	"errors"
 	"testing"
 
 	"github.com/dloss/podji/internal/data"
 )
 
-func TestNewUnknownModeSetsStatusMessage(t *testing.T) {
+func TestNewFromEnvUnknownModeReturnsError(t *testing.T) {
 	prev := newStoreFromEnvFn
-	newStoreFromEnvFn = func() (data.Store, string) {
-		return data.NewMockStore(), "unknown PODJI_MODE=\"unknown\" (using mock mode)"
+	newStoreFromEnvFn = func() (data.Store, error) {
+		return nil, errors.New("unknown PODJI_MODE")
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
-	m := New()
-	if !strings.Contains(m.statusMsg, "unknown PODJI_MODE") {
-		t.Fatalf("expected unknown mode status message, got %q", m.statusMsg)
+	if _, err := NewFromEnv(); err == nil {
+		t.Fatal("expected error")
 	}
 }
 
-func TestNewKubeFallbackWarningSetsStatusMessage(t *testing.T) {
+func TestNewFromEnvKubeErrorReturnsError(t *testing.T) {
 	prev := newStoreFromEnvFn
-	newStoreFromEnvFn = func() (data.Store, string) {
-		return data.NewMockStore(), "kube mode unavailable: boom (using mock mode)"
+	newStoreFromEnvFn = func() (data.Store, error) {
+		return nil, errors.New("kube mode unavailable")
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
 
-	m := New()
-	if !strings.Contains(m.statusMsg, "kube mode unavailable") {
-		t.Fatalf("expected kube fallback warning in statusMsg, got %q", m.statusMsg)
+	if _, err := NewFromEnv(); err == nil {
+		t.Fatal("expected error")
 	}
 }
 
-func TestNewKubeModeWithoutWarningKeepsStatusMessageEmpty(t *testing.T) {
+func TestNewFromEnvSuccess(t *testing.T) {
 	prev := newStoreFromEnvFn
-	newStoreFromEnvFn = func() (data.Store, string) {
-		return data.NewMockStore(), ""
+	newStoreFromEnvFn = func() (data.Store, error) {
+		return data.NewMockStore(), nil
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
 
-	m := New()
-	if m.statusMsg != "" {
-		t.Fatalf("expected empty statusMsg for warning-free startup, got %q", m.statusMsg)
+	m, err := NewFromEnv()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if m.mode != data.ModeMock {
+		t.Fatalf("expected mock mode label, got %q", m.mode)
 	}
 }
 
 func TestNewUsesStoreScopeFromFactory(t *testing.T) {
 	prev := newStoreFromEnvFn
-	newStoreFromEnvFn = func() (data.Store, string) {
+	newStoreFromEnvFn = func() (data.Store, error) {
 		store := data.NewMockStore()
 		store.SetScope(data.Scope{Context: "prod-cluster", Namespace: "staging"})
-		return store, ""
+		return store, nil
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
 
-	m := New()
+	m, err := NewFromEnv()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if m.context != "prod-cluster" {
 		t.Fatalf("expected context from startup store, got %q", m.context)
 	}
@@ -68,12 +72,15 @@ func TestNewUsesStoreScopeFromFactory(t *testing.T) {
 
 func TestNewStartupStackUsesWorkloadsRoot(t *testing.T) {
 	prev := newStoreFromEnvFn
-	newStoreFromEnvFn = func() (data.Store, string) {
-		return data.NewMockStore(), ""
+	newStoreFromEnvFn = func() (data.Store, error) {
+		return data.NewMockStore(), nil
 	}
 	t.Cleanup(func() { newStoreFromEnvFn = prev })
 
-	m := New()
+	m, err := NewFromEnv()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
 	if len(m.stack) == 0 {
 		t.Fatal("expected non-empty startup stack")
 	}
