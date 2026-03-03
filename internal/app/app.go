@@ -137,53 +137,73 @@ func (m Model) Init() bubbletea.Cmd {
 }
 
 func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
-	routedMsg := msg
+	if handled, cmd := m.routeActiveOverlays(msg); handled {
+		return m, cmd
+	}
+	if handled, cmd := m.routeCommandBar(msg); handled {
+		return m, cmd
+	}
 
-	// Route all input to the overlay pickers when active.
+	routedMsg, handled, cmd := m.handleTopLevelMsg(msg)
+	if handled {
+		return m, cmd
+	}
+
+	update := m.top().Update(routedMsg)
+	return m, m.applyViewUpdate(update)
+}
+
+func (m *Model) routeActiveOverlays(msg bubbletea.Msg) (bool, bubbletea.Cmd) {
+	if _, ok := msg.(bubbletea.KeyMsg); !ok {
+		return false, nil
+	}
 	if m.overlay != nil {
-		if _, ok := msg.(bubbletea.KeyMsg); ok {
-			update := m.overlay.Update(msg)
-			if update.Action == viewstate.Pop {
-				m.overlay = nil
-			}
-			return m, update.Cmd
+		update := m.overlay.Update(msg)
+		if update.Action == viewstate.Pop {
+			m.overlay = nil
 		}
+		return true, update.Cmd
 	}
 	if m.relatedPicker != nil {
-		if _, ok := msg.(bubbletea.KeyMsg); ok {
-			update := m.relatedPicker.Update(msg)
-			if update.Action == viewstate.Pop {
-				m.relatedPicker = nil
-			}
-			return m, update.Cmd
+		update := m.relatedPicker.Update(msg)
+		if update.Action == viewstate.Pop {
+			m.relatedPicker = nil
 		}
+		return true, update.Cmd
 	}
 	if m.colPicker != nil {
-		if _, ok := msg.(bubbletea.KeyMsg); ok {
-			update := m.colPicker.Update(msg)
-			if update.Action == viewstate.Pop {
-				m.colPicker = nil
-			}
-			return m, update.Cmd
+		update := m.colPicker.Update(msg)
+		if update.Action == viewstate.Pop {
+			m.colPicker = nil
 		}
+		return true, update.Cmd
 	}
-	if m.cmdBar != nil {
-		if key, ok := msg.(bubbletea.KeyMsg); ok {
-			if key.String() == "tab" {
-				m.cmdBar.Complete(m.commandSuggestion())
-				return m, nil
-			}
-			_, cmd, closeBar := m.cmdBar.Update(key)
-			if closeBar {
-				if key.String() == "enter" {
-					return m, cmd
-				}
-				m.cmdBar = nil
-			}
-			return m, cmd
-		}
-	}
+	return false, nil
+}
 
+func (m *Model) routeCommandBar(msg bubbletea.Msg) (bool, bubbletea.Cmd) {
+	if m.cmdBar == nil {
+		return false, nil
+	}
+	key, ok := msg.(bubbletea.KeyMsg)
+	if !ok {
+		return false, nil
+	}
+	if key.String() == "tab" {
+		m.cmdBar.Complete(m.commandSuggestion())
+		return true, nil
+	}
+	_, cmd, closeBar := m.cmdBar.Update(key)
+	if closeBar {
+		if key.String() == "enter" {
+			return true, cmd
+		}
+		m.cmdBar = nil
+	}
+	return true, cmd
+}
+
+func (m *Model) handleTopLevelMsg(msg bubbletea.Msg) (bubbletea.Msg, bool, bubbletea.Cmd) {
 	switch msg := msg.(type) {
 	case bubbletea.WindowSizeMsg:
 		m.width = msg.Width
@@ -201,37 +221,37 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		if m.cmdBar != nil {
 			m.cmdBar.SetSize(m.width)
 		}
-		return m, nil
+		return msg, true, nil
 
 	case commandbar.SubmitMsg:
 		trimmed := strings.TrimSpace(msg.Value)
 		if trimmed == "" {
 			m.cmdBar = nil
-			return m, nil
+			return msg, true, nil
 		}
 		switch strings.ToLower(trimmed) {
 		case "q", "quit":
 			m.cmdBar = nil
-			return m, bubbletea.Quit
+			return msg, true, bubbletea.Quit
 		}
 		if err := m.runCommand(msg.Value); err != "" {
 			m.cmdBar.SetError(err)
-			return m, nil
+			return msg, true, nil
 		}
 		m.cmdBar = nil
-		return m, nil
+		return msg, true, nil
 
 	case listview.OpenColumnPickerMsg:
 		picker := columnpicker.New(msg.ResourceName, msg.Pool, msg.LabelPool, msg.Current)
 		picker.SetSize(m.width, m.height-1)
 		m.colPicker = picker
-		return m, nil
+		return msg, true, nil
 
 	case columnpicker.PickedMsg:
 		if lv, ok := m.top().(*listview.View); ok {
 			lv.ApplyColumnConfig(msg.ResourceName, msg.Visible)
 		}
-		return m, nil
+		return msg, true, nil
 
 	case overlaypicker.SelectedMsg:
 		m.overlay = nil
@@ -264,7 +284,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 			m.activeResourceKey = res.Key()
 		}
-		return m, nil
+		return msg, true, nil
 
 	case relatedview.SelectedMsg:
 		m.relatedPicker = nil
@@ -281,152 +301,137 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		}
 		m.stack = append(m.stack, next)
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(next.Breadcrumb()))
-		return m, nil
+		return msg, true, nil
 
 	case bubbletea.KeyMsg:
-		m.statusMsg = ""
-		if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
-			break
-		}
-		msg = normalizeGlobalKey(msg)
-		routedMsg = msg
+		return m.handleGlobalKeyMsg(msg)
+	}
+	return msg, false, nil
+}
 
-		// Handle bookmark-set mode: next digit sets the slot.
-		if m.bookmarkMode {
-			m.bookmarkMode = false
-			runes := []rune(msg.String())
-			if len(runes) == 1 && runes[0] >= '1' && runes[0] <= '9' {
-				slot := int(runes[0] - '1')
-				m.bookmarks[slot] = &Bookmark{
-					stack:     append([]viewstate.View{}, m.stack...),
-					crumbs:    append([]string{}, m.crumbs...),
-					namespace: m.namespace,
-					context:   m.context,
-				}
-				m.statusMsg = fmt.Sprintf("Bookmark %d set", slot+1)
-			}
-			return m, nil
-		}
+func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, bubbletea.Cmd) {
+	m.statusMsg = ""
+	if suppresser, ok := m.top().(globalKeySuppresser); ok && suppresser.SuppressGlobalKeys() && msg.String() != "ctrl+c" {
+		return msg, false, nil
+	}
+	msg = normalizeGlobalKey(msg)
 
-		switch msg.String() {
-		case ":":
-			if _, ok := m.top().(*listview.View); ok {
-				m.cmdBar = commandbar.New()
-				m.cmdBar.SetSize(m.width)
+	// Handle bookmark-set mode: next digit sets the slot.
+	if m.bookmarkMode {
+		m.bookmarkMode = false
+		runes := []rune(msg.String())
+		if len(runes) == 1 && runes[0] >= '1' && runes[0] <= '9' {
+			slot := int(runes[0] - '1')
+			m.bookmarks[slot] = &Bookmark{
+				stack:     append([]viewstate.View{}, m.stack...),
+				crumbs:    append([]string{}, m.crumbs...),
+				namespace: m.namespace,
+				context:   m.context,
 			}
-			return m, nil
-		case "q", "ctrl+c":
-			return m, bubbletea.Quit
-		case "esc":
-			if len(m.stack) > 1 {
-				m.disposeView(m.stack[len(m.stack)-1])
-				m.stack = m.stack[:len(m.stack)-1]
-				m.crumbs = m.crumbs[:len(m.crumbs)-1]
-				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			}
-			return m, nil
-		case "backspace":
-			if len(m.stack) > 1 {
-				m.disposeView(m.stack[len(m.stack)-1])
-				m.stack = m.stack[:len(m.stack)-1]
-				m.crumbs = m.crumbs[:len(m.crumbs)-1]
-				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			}
-			return m, nil
-		case "h", "left":
-			if len(m.stack) > 1 {
-				m.disposeView(m.stack[len(m.stack)-1])
-				m.stack = m.stack[:len(m.stack)-1]
-				m.crumbs = m.crumbs[:len(m.crumbs)-1]
-				m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-			}
-			return m, nil
-		case "N":
-			items := resources.NamespaceNames()
-			if m.store != nil {
-				items = m.store.NamespaceNames()
-				m.syncStoreStatus()
-			}
-			m.overlay = overlaypicker.New("namespace", items)
-			m.overlay.SetAnchor(m.namespaceLabelX())
-			m.overlay.SetSize(m.width, m.height-1)
-			return m, nil
-		case "X":
-			items := resources.ContextNames()
-			if m.store != nil {
-				items = m.store.ContextNames()
-				m.syncStoreStatus()
-			}
-			m.overlay = overlaypicker.New("context", items)
-			m.overlay.SetAnchor(0)
-			m.overlay.SetSize(m.width, m.height-1)
-			return m, nil
-		case "A":
-			browser := resourcebrowser.New(m.registry, resources.StubCRDs())
-			browser.SetSize(m.width, m.availableHeight())
-			m.disposeStack(m.stack)
-			m.stack = []viewstate.View{browser}
-			m.crumbs = []string{"resources"}
-			return m, nil
-		case "r":
-			m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
-			m.relatedPicker.SetSize(m.width, m.height-1)
-			return m, nil
-		case "?":
-			if _, isHelp := m.top().(*helpview.View); !isHelp {
-				help := helpview.New()
-				help.SetSize(m.width, m.availableHeight())
-				m.stack = append(m.stack, help)
-				m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
-			}
-			return m, nil
-		case "m":
-			m.bookmarkMode = true
-			m.statusMsg = "Set bookmark: press 1–9"
-			return m, nil
-		default:
-			runes := []rune(msg.String())
-			if len(runes) == 1 {
-				key := runes[0]
-				if key >= '1' && key <= '9' {
-					slot := int(key - '1')
-					if m.bookmarks[slot] == nil {
-						m.statusMsg = fmt.Sprintf("Bookmark %d not set", slot+1)
-					} else {
-						b := m.bookmarks[slot]
-						m.context = b.context
-						m.namespace = b.namespace
-						if m.store != nil {
-							scope := m.store.Scope()
-							scope.Context = b.context
-							scope.Namespace = b.namespace
-							m.store.SetScope(scope)
-						} else {
-							m.registry.SetNamespace(b.namespace)
-						}
-						m.disposeStack(m.stack)
-						m.stack = append([]viewstate.View{}, b.stack...)
-						m.crumbs = append([]string{}, b.crumbs...)
-						m.top().SetSize(m.width, m.availableHeight())
-						m.activeResourceKey = m.rootResourceKey()
-						m.statusMsg = fmt.Sprintf("Bookmark %d", slot+1)
-					}
-					return m, nil
-				}
-				if res := m.registry.ResourceByKey(key); res != nil {
-					view := listview.New(m.adaptResource(res), m.registry)
-					view.SetSize(m.width, m.availableHeight())
-					m.disposeStack(m.stack)
-					m.stack = []viewstate.View{view}
-					m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
-					m.activeResourceKey = key
-					return m, nil
-				}
-			}
+			m.statusMsg = fmt.Sprintf("Bookmark %d set", slot+1)
 		}
+		return msg, true, nil
 	}
 
-	update := m.top().Update(routedMsg)
+	switch msg.String() {
+	case ":":
+		if _, ok := m.top().(*listview.View); ok {
+			m.cmdBar = commandbar.New()
+			m.cmdBar.SetSize(m.width)
+		}
+		return msg, true, nil
+	case "q", "ctrl+c":
+		return msg, true, bubbletea.Quit
+	case "esc", "backspace", "h", "left":
+		m.popView()
+		return msg, true, nil
+	case "N":
+		items := resources.NamespaceNames()
+		if m.store != nil {
+			items = m.store.NamespaceNames()
+			m.syncStoreStatus()
+		}
+		m.overlay = overlaypicker.New("namespace", items)
+		m.overlay.SetAnchor(m.namespaceLabelX())
+		m.overlay.SetSize(m.width, m.height-1)
+		return msg, true, nil
+	case "X":
+		items := resources.ContextNames()
+		if m.store != nil {
+			items = m.store.ContextNames()
+			m.syncStoreStatus()
+		}
+		m.overlay = overlaypicker.New("context", items)
+		m.overlay.SetAnchor(0)
+		m.overlay.SetSize(m.width, m.height-1)
+		return msg, true, nil
+	case "A":
+		browser := resourcebrowser.New(m.registry, resources.StubCRDs())
+		browser.SetSize(m.width, m.availableHeight())
+		m.disposeStack(m.stack)
+		m.stack = []viewstate.View{browser}
+		m.crumbs = []string{"resources"}
+		return msg, true, nil
+	case "r":
+		m.openRelatedPicker()
+		return msg, true, nil
+	case "?":
+		if _, isHelp := m.top().(*helpview.View); !isHelp {
+			help := helpview.New()
+			help.SetSize(m.width, m.availableHeight())
+			m.stack = append(m.stack, help)
+			m.crumbs = append(m.crumbs, m.crumbs[len(m.crumbs)-1])
+		}
+		return msg, true, nil
+	case "m":
+		m.bookmarkMode = true
+		m.statusMsg = "Set bookmark: press 1–9"
+		return msg, true, nil
+	default:
+		runes := []rune(msg.String())
+		if len(runes) != 1 {
+			return msg, false, nil
+		}
+		key := runes[0]
+		if key >= '1' && key <= '9' {
+			slot := int(key - '1')
+			if m.bookmarks[slot] == nil {
+				m.statusMsg = fmt.Sprintf("Bookmark %d not set", slot+1)
+			} else {
+				b := m.bookmarks[slot]
+				m.context = b.context
+				m.namespace = b.namespace
+				if m.store != nil {
+					scope := m.store.Scope()
+					scope.Context = b.context
+					scope.Namespace = b.namespace
+					m.store.SetScope(scope)
+				} else {
+					m.registry.SetNamespace(b.namespace)
+				}
+				m.disposeStack(m.stack)
+				m.stack = append([]viewstate.View{}, b.stack...)
+				m.crumbs = append([]string{}, b.crumbs...)
+				m.top().SetSize(m.width, m.availableHeight())
+				m.activeResourceKey = m.rootResourceKey()
+				m.statusMsg = fmt.Sprintf("Bookmark %d", slot+1)
+			}
+			return msg, true, nil
+		}
+		if res := m.registry.ResourceByKey(key); res != nil {
+			view := listview.New(m.adaptResource(res), m.registry)
+			view.SetSize(m.width, m.availableHeight())
+			m.disposeStack(m.stack)
+			m.stack = []viewstate.View{view}
+			m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+			m.activeResourceKey = key
+			return msg, true, nil
+		}
+	}
+	return msg, false, nil
+}
+
+func (m *Model) applyViewUpdate(update viewstate.Update) bubbletea.Cmd {
 	resultCmd := update.Cmd
 	switch update.Action {
 	case viewstate.Push:
@@ -446,12 +451,7 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(update.Next.Breadcrumb()))
 		resultCmd = batchCmds(update.Cmd, update.Next.Init())
 	case viewstate.Pop:
-		if len(m.stack) > 1 {
-			m.disposeView(m.stack[len(m.stack)-1])
-			m.stack = m.stack[:len(m.stack)-1]
-			m.crumbs = m.crumbs[:len(m.crumbs)-1]
-			m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
-		}
+		m.popView()
 	case viewstate.Replace:
 		update.Next.SetSize(m.width, m.availableHeight())
 		m.disposeView(m.stack[len(m.stack)-1])
@@ -459,13 +459,26 @@ func (m Model) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 		m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(update.Next.Breadcrumb())
 		resultCmd = batchCmds(update.Cmd, update.Next.Init())
 	case viewstate.OpenRelated:
-		m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
-		m.relatedPicker.SetSize(m.width, m.height-1)
+		m.openRelatedPicker()
 	default:
 		m.stack[len(m.stack)-1] = update.Next
 	}
+	return resultCmd
+}
 
-	return m, resultCmd
+func (m *Model) popView() {
+	if len(m.stack) <= 1 {
+		return
+	}
+	m.disposeView(m.stack[len(m.stack)-1])
+	m.stack = m.stack[:len(m.stack)-1]
+	m.crumbs = m.crumbs[:len(m.crumbs)-1]
+	m.crumbs[len(m.crumbs)-1] = normalizeBreadcrumbPart(m.top().Breadcrumb())
+}
+
+func (m *Model) openRelatedPicker() {
+	m.relatedPicker = relatedview.NewPickerForSelection(m.top(), m.registry, m.store.RelationIndex(), m.store.Scope())
+	m.relatedPicker.SetSize(m.width, m.height-1)
 }
 
 func (m Model) renderHeader() string {
