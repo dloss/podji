@@ -39,6 +39,7 @@ Current state:
 
 - store status already supports `loading`, `partial`, `forbidden`, `unreachable`, `degraded`, `ready`
 - informer-backed list reads have direct-list fallback
+- kube list reads now signal cache-backed vs direct-list paths; direct-list paths surface `loading` with a cache-warming message
 
 Scope:
 

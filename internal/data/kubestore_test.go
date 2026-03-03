@@ -21,6 +21,16 @@ type fakeKubeAPI struct {
 	eventErrByKey   map[string]error
 }
 
+type fakeKubeAPIWithMeta struct {
+	fakeKubeAPI
+	cacheBacked bool
+}
+
+func (f fakeKubeAPIWithMeta) ListResourcesMeta(context, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
+	items, err := f.fakeKubeAPI.ListResources(context, namespace, resourceName)
+	return items, f.cacheBacked, err
+}
+
 func (f fakeKubeAPI) Contexts() ([]string, error) {
 	if f.contextErr != nil {
 		return nil, f.contextErr
@@ -343,5 +353,31 @@ func TestKubeStorePodsByRestartsSetsStatusOnLiveQueryError(t *testing.T) {
 	status := store.Status()
 	if status.State != StoreStateUnreachable {
 		t.Fatalf("expected unreachable status on restarts live query error, got %#v", status)
+	}
+}
+
+func TestKubeStoreStatusShowsCacheWarmingOnDirectListPath(t *testing.T) {
+	store, err := newKubeStore(fakeKubeAPIWithMeta{
+		fakeKubeAPI: fakeKubeAPI{
+			contexts: []string{"dev"},
+			listsByKey: map[string][]resources.ResourceItem{
+				"dev/default/pods": {{Name: "pod-a", Status: "Running"}},
+			},
+		},
+		cacheBacked: false,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating kube store: %v", err)
+	}
+	_, err = store.ReadModel().List("pods", store.Scope())
+	if err != nil {
+		t.Fatalf("expected list success, got %v", err)
+	}
+	status := store.Status()
+	if status.State != StoreStateLoading {
+		t.Fatalf("expected loading status for cache warming path, got %#v", status)
+	}
+	if !strings.Contains(status.Message, "warming cache for pods") {
+		t.Fatalf("expected cache warming message, got %#v", status)
 	}
 }

@@ -18,6 +18,7 @@ type KubeReadModel struct {
 	scope     func() Scope
 	onError   func(error)
 	onPartial func(string)
+	onWarming func(string)
 	onReady   func()
 }
 
@@ -27,6 +28,7 @@ func NewKubeReadModel(
 	scope func() Scope,
 	onError func(error),
 	onPartial func(string),
+	onWarming func(string),
 	onReady func(),
 ) *KubeReadModel {
 	return &KubeReadModel{
@@ -35,6 +37,7 @@ func NewKubeReadModel(
 		scope:     scope,
 		onError:   onError,
 		onPartial: onPartial,
+		onWarming: onWarming,
 		onReady:   onReady,
 	}
 }
@@ -44,6 +47,26 @@ func (k *KubeReadModel) List(resourceName string, scope Scope) ([]resources.Reso
 		active := scope
 		if k.scope != nil {
 			active = k.scope()
+		}
+		if withMeta, ok := k.api.(interface {
+			ListResourcesMeta(contextName, namespace, resourceName string) ([]resources.ResourceItem, bool, error)
+		}); ok {
+			items, cacheBacked, err := withMeta.ListResourcesMeta(active.Context, active.Namespace, resourceName)
+			if err == nil {
+				if cacheBacked {
+					k.markReady()
+				} else if k.onWarming != nil {
+					k.onWarming(resourceName)
+				}
+				return items, nil
+			}
+			if !errors.Is(err, ErrListNotSupported) {
+				k.report(err)
+				return nil, err
+			}
+			if k.onPartial != nil {
+				k.onPartial(resourceName)
+			}
 		}
 		items, err := k.api.ListResources(active.Context, active.Namespace, resourceName)
 		if err == nil {

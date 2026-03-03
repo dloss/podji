@@ -11,6 +11,16 @@ type fallbackDetailReadModel struct {
 	*MockReadModel
 }
 
+type fakeKubeAPIMeta struct {
+	fakeKubeAPI
+	cacheBacked bool
+}
+
+func (f fakeKubeAPIMeta) ListResourcesMeta(contextName, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
+	items, err := f.fakeKubeAPI.ListResources(contextName, namespace, resourceName)
+	return items, f.cacheBacked, err
+}
+
 func (f fallbackDetailReadModel) Detail(resourceName string, item resources.ResourceItem, scope Scope) (resources.DetailData, error) {
 	return resources.DetailData{
 		Summary: []resources.SummaryField{{Key: "status", Value: "from-fallback"}},
@@ -27,6 +37,7 @@ func TestKubeReadModelUsesAPIForPodLogs(t *testing.T) {
 		NewMockReadModel(resources.DefaultRegistry()),
 		api,
 		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
 		nil,
 		nil,
 		nil,
@@ -54,6 +65,7 @@ func TestKubeReadModelLogsWithContextCancelled(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -70,6 +82,7 @@ func TestKubeReadModelFallsBackForNonPodLogs(t *testing.T) {
 		NewMockReadModel(reg),
 		fakeKubeAPI{},
 		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
 		nil,
 		nil,
 		nil,
@@ -114,6 +127,7 @@ func TestKubeReadModelUsesAPIForPodList(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	got, err := read.List("pods", Scope{})
@@ -138,6 +152,7 @@ func TestKubeReadModelFallsBackWhenListUnsupported(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	got, err := read.List("configmaps", Scope{})
@@ -155,6 +170,7 @@ func TestKubeReadModelUsesLiveDetailForPods(t *testing.T) {
 		fallbackDetailReadModel{MockReadModel: NewMockReadModel(reg)},
 		fakeKubeAPI{},
 		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
 		nil,
 		nil,
 		nil,
@@ -180,5 +196,36 @@ func TestKubeReadModelUsesLiveDetailForPods(t *testing.T) {
 	}
 	if len(detail.Containers) != 2 {
 		t.Fatalf("expected container rows from live item metadata, got %#v", detail.Containers)
+	}
+}
+
+func TestKubeReadModelMarksWarmingWhenListIsDirectAPIBacked(t *testing.T) {
+	called := false
+	read := NewKubeReadModel(
+		NewMockReadModel(resources.DefaultRegistry()),
+		fakeKubeAPIMeta{
+			fakeKubeAPI: fakeKubeAPI{
+				listsByKey: map[string][]resources.ResourceItem{
+					"dev/default/pods": {{Name: "api-1"}},
+				},
+			},
+			cacheBacked: false,
+		},
+		func() Scope { return Scope{Context: "dev", Namespace: "default"} },
+		nil,
+		nil,
+		func(resourceName string) {
+			if resourceName == "pods" {
+				called = true
+			}
+		},
+		nil,
+	)
+	_, err := read.List("pods", Scope{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected warming callback for direct API list path")
 	}
 }

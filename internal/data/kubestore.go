@@ -61,6 +61,7 @@ func newKubeStore(api KubeAPI) (*KubeStore, error) {
 		store.Scope,
 		store.setStatusForError,
 		store.setStatusPartialForUnsupportedList,
+		store.setStatusWarmingCacheForList,
 		store.markStatusReady,
 	)
 	store.relations = newReadRelationIndex(store.read)
@@ -269,6 +270,13 @@ func (s *KubeStore) setStatusPartialForUnsupportedList(resourceName string) {
 	s.status = StoreStatus{
 		State:   StoreStatePartial,
 		Message: fmt.Sprintf("live %s list unavailable; using mock fallback", resourceName),
+	}
+}
+
+func (s *KubeStore) setStatusWarmingCacheForList(resourceName string) {
+	s.status = StoreStatus{
+		State:   StoreStateLoading,
+		Message: fmt.Sprintf("warming cache for %s", resourceName),
 	}
 }
 

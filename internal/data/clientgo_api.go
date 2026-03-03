@@ -123,16 +123,22 @@ func (k *clientGoAPI) Namespaces(contextName string) ([]string, error) {
 }
 
 func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string) ([]resources.ResourceItem, error) {
+	out, _, err := k.ListResourcesMeta(contextName, namespace, resourceName)
+	return out, err
+}
+
+func (k *clientGoAPI) ListResourcesMeta(contextName, namespace, resourceName string) ([]resources.ResourceItem, bool, error) {
 	key := strings.ToLower(strings.TrimSpace(resourceName))
 	cacheKey := contextName + "|" + namespace + "|" + key
 	if cached, ok := k.listCacheGet(cacheKey); ok {
-		return cached, nil
+		return cached, true, nil
 	}
 
 	var (
-		out    []resources.ResourceItem
-		err    error
-		client kubernetes.Interface
+		out         []resources.ResourceItem
+		err         error
+		client      kubernetes.Interface
+		cacheBacked bool
 	)
 
 	switch key {
@@ -143,7 +149,7 @@ func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string)
 	default:
 		client, err = k.clientForContext(contextName)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
@@ -151,24 +157,28 @@ func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string)
 		switch key {
 		case "pods":
 			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				cacheBacked = true
 				out, err = k.listPodsFromInformer(inf, namespace)
 				break
 			}
 			out, err = k.listPods(ctx, client, namespace)
 		case "services":
 			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				cacheBacked = true
 				out, err = k.listServicesFromInformer(inf, namespace)
 				break
 			}
 			out, err = k.listServices(ctx, client, namespace)
 		case "deployments":
 			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				cacheBacked = true
 				out, err = k.listDeploymentsFromInformer(inf, namespace)
 				break
 			}
 			out, err = k.listDeployments(ctx, client, namespace)
 		case "workloads":
 			if inf := k.ensureInformers(contextName, client); inf != nil && inf.synced {
+				cacheBacked = true
 				out, err = k.listWorkloadsFromInformer(inf, namespace)
 				break
 			}
@@ -186,15 +196,15 @@ func (k *clientGoAPI) ListResources(contextName, namespace, resourceName string)
 		case "events":
 			out, err = k.listEvents(ctx, client, namespace)
 		default:
-			return nil, fmt.Errorf("%w: %s", ErrListNotSupported, resourceName)
+			return nil, false, fmt.Errorf("%w: %s", ErrListNotSupported, resourceName)
 		}
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	k.listCacheSet(cacheKey, out)
-	return out, nil
+	return out, cacheBacked, nil
 }
 
 func (k *clientGoAPI) PodLogs(contextName, namespace, pod string, tail int) ([]string, error) {
