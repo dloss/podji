@@ -87,8 +87,13 @@ jobs:
           if [[ "${GOOS}" == "windows" ]]; then
             BIN_NAME="podji.exe"
           fi
+          VERSION="${{ needs.verify-tag.outputs.version }}"
+          COMMIT="${GITHUB_SHA::7}"
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           GOOS="${GOOS}" GOARCH="${GOARCH}" CGO_ENABLED="${CGO_ENABLED}" \
-            go build -trimpath -ldflags="-s -w" -o "dist/${BIN_NAME}" ./cmd/podji
+            go build -trimpath \
+              -ldflags="-s -w -X github.com/dloss/podji/internal/buildinfo.Version=${VERSION} -X github.com/dloss/podji/internal/buildinfo.Commit=${COMMIT} -X github.com/dloss/podji/internal/buildinfo.Date=${DATE}" \
+              -o "dist/${BIN_NAME}" ./cmd/podji
 
           ARTIFACT_BASE="podji-${{ needs.verify-tag.outputs.version }}-${GOOS}-${GOARCH}"
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
