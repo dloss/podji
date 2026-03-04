@@ -241,10 +241,11 @@ func (s *KubeStore) podLogs(namespace, pod string) ([]string, error) {
 func (s *KubeStore) podLogsWithOptions(namespace, pod string, opts resources.LogOptions) ([]string, error) {
 	if reader, ok := s.api.(KubeAPILogOptionsReader); ok {
 		lines, err := reader.PodLogsWithOptions(context.Background(), s.scope.Context, namespace, pod, LogOptions{
-			Tail:      opts.Tail,
-			Follow:    opts.Follow,
-			Previous:  opts.Previous,
-			Container: opts.Container,
+			Tail:       opts.Tail,
+			Follow:     opts.Follow,
+			Previous:   opts.Previous,
+			Container:  opts.Container,
+			Timestamps: opts.Timestamps,
 		})
 		if err != nil {
 			s.setStatusForError(err)

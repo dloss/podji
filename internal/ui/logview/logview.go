@@ -37,16 +37,17 @@ type logStreamDoneMsg struct {
 }
 
 type View struct {
-	item      resources.ResourceItem
-	resource  resources.ResourceType
-	container string
-	allLines  []string
-	lines     []string
-	viewport  viewport.Model
-	follow    bool
-	wrap      bool
-	previous  bool
-	sinceIdx  int
+	item       resources.ResourceItem
+	resource   resources.ResourceType
+	container  string
+	allLines   []string
+	lines      []string
+	viewport   viewport.Model
+	follow     bool
+	wrap       bool
+	previous   bool
+	timestamps bool
+	sinceIdx   int
 
 	searchActive bool
 	searchQuery  string
@@ -75,13 +76,14 @@ func New(item resources.ResourceItem, resource resources.ResourceType) *View {
 func NewWithContainer(item resources.ResourceItem, resource resources.ResourceType, container string) *View {
 	vp := viewport.New(0, 0)
 	v := &View{
-		item:      item,
-		resource:  resource,
-		container: container,
-		viewport:  vp,
-		follow:    true,
-		wrap:      true,
-		sinceIdx:  1, // default to 5m
+		item:       item,
+		resource:   resource,
+		container:  container,
+		viewport:   vp,
+		follow:     true,
+		wrap:       true,
+		timestamps: true,
+		sinceIdx:   1, // default to 5m
 	}
 	v.filterInput = newPromptInput("& ")
 	v.searchInput = newPromptInput("/ ")
@@ -191,6 +193,11 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "w":
 			v.wrap = !v.wrap
 			v.refreshContent()
+		case "t":
+			v.timestamps = !v.timestamps
+			v.refreshWindow()
+			v.refreshContent()
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "p":
 			v.previous = !v.previous
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
@@ -300,6 +307,9 @@ func (v *View) Footer() string {
 	if !v.wrap {
 		indicators = append(indicators, style.B("wrap", "off"))
 	}
+	if !v.timestamps {
+		indicators = append(indicators, style.B("ts", "off"))
+	}
 	if sinceWindows[v.sinceIdx] != "5m" {
 		indicators = append(indicators, style.B("since", sinceWindows[v.sinceIdx]))
 	}
@@ -316,6 +326,7 @@ func (v *View) Footer() string {
 
 	actions := []style.Binding{
 		style.B("p", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
+		style.B("t", "timestamps"),
 		style.B("/", "search"), style.B("&", "filter"),
 	}
 	if v.container != "" || v.ContainerViewFactory != nil {
@@ -362,16 +373,19 @@ func (v *View) refreshContent() {
 }
 
 func (v *View) refreshWindow() {
-	v.lines = applyFilter(applySinceWindow(v.allLines, sinceWindows[v.sinceIdx]), v.filterValue)
+	lines := applySinceWindow(v.allLines, sinceWindows[v.sinceIdx])
+	lines = applyTimestampVisibility(lines, v.timestamps)
+	v.lines = applyFilter(lines, v.filterValue)
 }
 
 func (v *View) reloadLogs() {
 	// Keep constructor path synchronous to render immediate content.
 	opts := resources.LogOptions{
-		Tail:      tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow:    v.follow,
-		Previous:  v.previous,
-		Container: v.container,
+		Tail:       tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:     v.follow,
+		Previous:   v.previous,
+		Container:  v.container,
+		Timestamps: v.timestamps,
 	}
 	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -389,10 +403,11 @@ func (v *View) reloadLogsCmd() bubbletea.Cmd {
 	v.cancelReload()
 	v.streamErr = ""
 	opts := resources.LogOptions{
-		Tail:      tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow:    v.follow,
-		Previous:  v.previous,
-		Container: v.container,
+		Tail:       tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:     v.follow,
+		Previous:   v.previous,
+		Container:  v.container,
+		Timestamps: v.timestamps,
 	}
 	if streamer, ok := v.resource.(resources.LogStreamReader); ok && opts.Follow {
 		v.requestID++
@@ -573,6 +588,33 @@ func applyFilter(lines []string, query string) []string {
 		}
 	}
 	return out
+}
+
+func applyTimestampVisibility(lines []string, show bool) []string {
+	out := make([]string, len(lines))
+	if show {
+		copy(out, lines)
+		return out
+	}
+	for i, line := range lines {
+		out[i] = stripTimestampPrefix(line)
+	}
+	return out
+}
+
+func stripTimestampPrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" {
+		return line
+	}
+	end := strings.IndexAny(trimmed, " \t")
+	if end <= 0 {
+		return line
+	}
+	if _, err := time.Parse(time.RFC3339Nano, trimmed[:end]); err != nil {
+		return line
+	}
+	return strings.TrimLeft(trimmed[end:], " \t")
 }
 
 func pageStep(height int) int {

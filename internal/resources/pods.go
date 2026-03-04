@@ -191,18 +191,11 @@ func (p *Pods) Detail(item ResourceItem) DetailData {
 }
 
 func (p *Pods) Logs(item ResourceItem) []string {
-	lines, err := p.LogsWithOptions(nil, item, LogOptions{Tail: 200})
+	lines, err := p.LogsWithOptions(nil, item, LogOptions{Tail: 200, Timestamps: true})
 	if err == nil && len(lines) > 0 {
 		return lines
 	}
-	return expandMockLogs([]string{
-		"2025-06-15T12:03:01Z  Starting envoy proxy...",
-		"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
-		"2025-06-15T12:03:02Z  Listener 0.0.0.0:8080 created",
-		"2025-06-15T12:03:02Z  Allocating buffer pool (128Mi limit)",
-		"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
-		"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
-	}, 120)
+	return expandMockLogs(podMockLogs(true), 120)
 }
 
 func (p *Pods) LogsWithOptions(_ context.Context, item ResourceItem, opts LogOptions) ([]string, error) {
@@ -215,14 +208,28 @@ func (p *Pods) LogsWithOptions(_ context.Context, item ResourceItem, opts LogOpt
 			return lines, nil
 		}
 	}
-	return expandMockLogs([]string{
-		"2025-06-15T12:03:01Z  Starting envoy proxy...",
-		"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
-		"2025-06-15T12:03:02Z  Listener 0.0.0.0:8080 created",
-		"2025-06-15T12:03:02Z  Allocating buffer pool (128Mi limit)",
-		"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
-		"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
-	}, 120), nil
+	return expandMockLogs(podMockLogs(opts.Timestamps), 120), nil
+}
+
+func podMockLogs(timestamps bool) []string {
+	if timestamps {
+		return []string{
+			"2025-06-15T12:03:01Z  Starting envoy proxy...",
+			"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
+			"2025-06-15T12:03:02Z  Listener 0.0.0.0:8080 created",
+			"2025-06-15T12:03:02Z  Allocating buffer pool (128Mi limit)",
+			"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
+			"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
+		}
+	}
+	return []string{
+		"Starting envoy proxy...",
+		"Loading configuration from /etc/envoy/config.yaml",
+		"Listener 0.0.0.0:8080 created",
+		"Allocating buffer pool (128Mi limit)",
+		"ERROR: buffer allocation failed: OOM",
+		"Fatal: cannot start with current memory limits",
+	}
 }
 
 func (p *Pods) LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error {

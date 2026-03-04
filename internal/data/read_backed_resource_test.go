@@ -136,10 +136,11 @@ func TestReadBackedResourceOptionReadersPropagateOptions(t *testing.T) {
 		t.Fatalf("expected adapted resource to implement EventOptionsReader, got %T", adapter)
 	}
 	lines, err := logReader.LogsWithOptions(context.Background(), resources.ResourceItem{Name: "api"}, resources.LogOptions{
-		Tail:      42,
-		Follow:    true,
-		Previous:  true,
-		Container: "sidecar",
+		Tail:       42,
+		Follow:     true,
+		Previous:   true,
+		Container:  "sidecar",
+		Timestamps: true,
 	})
 	if err != nil {
 		t.Fatalf("expected no log error, got %v", err)
@@ -147,7 +148,7 @@ func TestReadBackedResourceOptionReadersPropagateOptions(t *testing.T) {
 	if len(lines) != 1 || lines[0] != "streaming-log" {
 		t.Fatalf("expected streaming log result, got %#v", lines)
 	}
-	if streaming.lastLogOptions.Tail != 42 || !streaming.lastLogOptions.Follow || !streaming.lastLogOptions.Previous || streaming.lastLogOptions.Container != "sidecar" {
+	if streaming.lastLogOptions.Tail != 42 || !streaming.lastLogOptions.Follow || !streaming.lastLogOptions.Previous || streaming.lastLogOptions.Container != "sidecar" || !streaming.lastLogOptions.Timestamps {
 		t.Fatalf("expected propagated log options, got %#v", streaming.lastLogOptions)
 	}
 	events, err := eventReader.EventsWithOptions(context.Background(), resources.ResourceItem{Name: "api"}, resources.EventOptions{Limit: 7})
@@ -175,10 +176,11 @@ func TestReadBackedResourceLogStreamerPropagatesOptions(t *testing.T) {
 	}
 	var got []string
 	err := streamer.LogsStream(context.Background(), resources.ResourceItem{Name: "api"}, resources.LogOptions{
-		Tail:      99,
-		Follow:    true,
-		Previous:  true,
-		Container: "sidecar",
+		Tail:       99,
+		Follow:     true,
+		Previous:   true,
+		Container:  "sidecar",
+		Timestamps: true,
 	}, func(line string) {
 		got = append(got, line)
 	})
@@ -188,7 +190,7 @@ func TestReadBackedResourceLogStreamerPropagatesOptions(t *testing.T) {
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected streamed lines, got %#v", got)
 	}
-	if streaming.lastLogOptions.Tail != 99 || !streaming.lastLogOptions.Follow || !streaming.lastLogOptions.Previous || streaming.lastLogOptions.Container != "sidecar" {
+	if streaming.lastLogOptions.Tail != 99 || !streaming.lastLogOptions.Follow || !streaming.lastLogOptions.Previous || streaming.lastLogOptions.Container != "sidecar" || !streaming.lastLogOptions.Timestamps {
 		t.Fatalf("expected propagated stream log options, got %#v", streaming.lastLogOptions)
 	}
 }

@@ -78,10 +78,11 @@ type ResourceType interface {
 }
 
 type LogOptions struct {
-	Tail      int
-	Follow    bool
-	Previous  bool
-	Container string
+	Tail       int
+	Follow     bool
+	Previous   bool
+	Container  string
+	Timestamps bool
 }
 
 type EventOptions struct {

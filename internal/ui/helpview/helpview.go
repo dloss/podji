@@ -52,6 +52,7 @@ TABLE (filterable lists, including A)
 LOGS (logs view)
   f                    Follow on/off
   w                    Wrap on/off
+  t                    Timestamps on/off
   p                    Current/previous
   /                    Search
   &                    Filter

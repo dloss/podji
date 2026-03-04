@@ -14,11 +14,12 @@ import (
 )
 
 type optionsLogsResource struct {
-	base      resources.ResourceType
-	tailCalls []int
-	follow    []bool
-	previous  []bool
-	container []string
+	base       resources.ResourceType
+	tailCalls  []int
+	follow     []bool
+	previous   []bool
+	container  []string
+	timestamps []bool
 }
 
 func (o *optionsLogsResource) Name() string                        { return o.base.Name() }
@@ -42,6 +43,7 @@ func (o *optionsLogsResource) LogsWithOptions(ctx context.Context, item resource
 	o.follow = append(o.follow, opts.Follow)
 	o.previous = append(o.previous, opts.Previous)
 	o.container = append(o.container, opts.Container)
+	o.timestamps = append(o.timestamps, opts.Timestamps)
 	return []string{"line-a", "line-b"}, nil
 }
 
@@ -191,16 +193,31 @@ func TestSinceWindowCommaDotRefetchWithTailOptions(t *testing.T) {
 	}
 }
 
-func TestLegacyLogKeysDoNotTriggerModeOrSince(t *testing.T) {
+func TestTimestampToggleRefetchesWithUpdatedTimestampOption(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	if len(res.timestamps) != 1 || !res.timestamps[0] {
+		t.Fatalf("expected initial timestamps=true fetch, got %#v", res.timestamps)
+	}
+
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after timestamp toggle")
+	}
+	_ = upd.Cmd()
+	if len(res.timestamps) != 2 || res.timestamps[1] {
+		t.Fatalf("expected timestamps=false refetch after toggle, got %#v", res.timestamps)
+	}
+	if got := ansi.Strip(v.Footer()); !strings.Contains(got, "ts") || !strings.Contains(got, "off") {
+		t.Fatalf("expected footer to show timestamp-off indicator, got %q", got)
+	}
+}
+
+func TestLegacySinceKeysDoNotTriggerModeOrSince(t *testing.T) {
 	res := &optionsLogsResource{base: resources.NewPods()}
 	v := New(resources.ResourceItem{Name: "api"}, res)
 
-	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
-	if upd.Cmd != nil {
-		t.Fatal("expected no reload cmd for legacy mode key t")
-	}
-
-	upd = v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{']'}})
 	if upd.Cmd != nil {
 		t.Fatal("expected no reload cmd for legacy since key ]")
 	}
@@ -208,6 +225,22 @@ func TestLegacyLogKeysDoNotTriggerModeOrSince(t *testing.T) {
 	upd = v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'['}})
 	if upd.Cmd != nil {
 		t.Fatal("expected no reload cmd for legacy since key [")
+	}
+}
+
+func TestTimestampToggleHidesTimestampPrefixes(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(120, 20)
+	if len(v.lines) == 0 {
+		t.Fatal("expected logs to be present")
+	}
+	if strings.HasPrefix(v.lines[0], "Starting envoy proxy") {
+		t.Fatalf("expected initial line with timestamp prefix, got %q", v.lines[0])
+	}
+
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'t'}})
+	if !strings.HasPrefix(v.lines[0], "Starting envoy proxy") {
+		t.Fatalf("expected timestamp prefix to be hidden after toggle, got %q", v.lines[0])
 	}
 }
 
