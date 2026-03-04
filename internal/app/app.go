@@ -377,6 +377,9 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 		m.stack = []viewstate.View{browser}
 		m.crumbs = []string{"resources"}
 		return msg, true, nil
+	case "J":
+		m.jumpToPodOwner()
+		return msg, true, nil
 	case "r":
 		m.openRelatedPicker()
 		return msg, true, nil
@@ -468,6 +471,73 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 		}
 	}
 	return msg, false, nil
+}
+
+func (m *Model) jumpToPodOwner() {
+	type resourceProvider interface {
+		Resource() resources.ResourceType
+	}
+	selected, ok := m.top().(viewstate.SelectionProvider)
+	if !ok {
+		m.statusMsg = "Owner jump is only available from list selections."
+		return
+	}
+	current, ok := m.top().(resourceProvider)
+	if !ok || current.Resource() == nil {
+		m.statusMsg = "Owner jump is unavailable in this view."
+		return
+	}
+
+	resourceName := strings.ToLower(strings.TrimSpace(current.Resource().Name()))
+	if !strings.HasPrefix(resourceName, "pods") {
+		m.statusMsg = "Owner jump works from pod lists."
+		return
+	}
+
+	item := selected.SelectedItem()
+	if strings.TrimSpace(item.Name) == "" {
+		m.statusMsg = "Select a pod first."
+		return
+	}
+
+	owners := m.relatedOwnersForPod(item)
+	if len(owners) == 0 {
+		m.statusMsg = "No owner workload found for selected pod."
+		return
+	}
+
+	base := m.registry.ByName("workloads")
+	if base == nil {
+		m.statusMsg = "Owner jump unavailable: workloads resource is not registered."
+		return
+	}
+	adaptedBase := m.adaptResource(base)
+
+	if len(owners) == 1 {
+		detail := detailViewFor(owners[0], adaptedBase, m.registry)
+		detail.SetSize(m.width, m.availableHeight())
+		m.stack = append(m.stack, detail)
+		m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(detail.Breadcrumb()))
+		return
+	}
+
+	ownerList := listview.New(resources.NewQueryResource("workloads", owners, adaptedBase), m.registry)
+	ownerList.SetSize(m.width, m.availableHeight())
+	m.stack = append(m.stack, ownerList)
+	m.crumbs = append(m.crumbs, normalizeBreadcrumbPart(ownerList.Breadcrumb()))
+}
+
+func (m *Model) relatedOwnersForPod(pod resources.ResourceItem) []resources.ResourceItem {
+	if m.store != nil {
+		index := m.store.RelationIndex()
+		if index != nil {
+			owners := index.Related(m.store.Scope(), "pods", pod)["owner"]
+			if len(owners) > 0 {
+				return owners
+			}
+		}
+	}
+	return resources.NewPodOwner(pod.Name).Items()
 }
 
 func (m *Model) applyViewUpdate(update viewstate.Update) bubbletea.Cmd {

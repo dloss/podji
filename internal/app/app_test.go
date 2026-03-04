@@ -451,6 +451,39 @@ func TestRKeyInResourceBrowserShowsStatusWithoutPicker(t *testing.T) {
 	}
 }
 
+func TestJKeyFromPodsOpensOwnerDetail(t *testing.T) {
+	m := New()
+
+	onPodsMsg, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'P'}})
+	onPods := onPodsMsg.(Model)
+	before := len(onPods.stack)
+
+	updated, _ := onPods.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'J'}})
+	got := updated.(Model)
+
+	if len(got.stack) != before+1 {
+		t.Fatalf("expected J to push owner view, stack %d -> %d", before, len(got.stack))
+	}
+	if _, ok := got.top().(*detailview.View); !ok {
+		t.Fatalf("expected top view to be detailview after J, got %T", got.top())
+	}
+}
+
+func TestJKeyOutsidePodsShowsStatusWithoutNavigation(t *testing.T) {
+	m := New()
+	before := len(m.stack)
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'J'}})
+	got := updated.(Model)
+
+	if len(got.stack) != before {
+		t.Fatalf("expected J outside pods to keep stack len %d, got %d", before, len(got.stack))
+	}
+	if got.statusMsg == "" {
+		t.Fatal("expected status message when J is used outside pod lists")
+	}
+}
+
 func TestRelatedPickerEscClosesOverlay(t *testing.T) {
 	m := New()
 
