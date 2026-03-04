@@ -205,10 +205,10 @@ func TestViewAddsSeparatorLinesWhenSized(t *testing.T) {
 	if got := ansi.StringWidth(lines[len(lines)-3]); got != m.width {
 		t.Fatalf("expected footer separator width %d, got %d", m.width, got)
 	}
-	if !strings.Contains(lines[2], "─") {
+	if !strings.Contains(lines[2], "┈") {
 		t.Fatalf("expected header separator line, got %q", lines[2])
 	}
-	if !strings.Contains(lines[len(lines)-3], "─") {
+	if !strings.Contains(lines[len(lines)-3], "┈") {
 		t.Fatalf("expected footer separator line, got %q", lines[len(lines)-3])
 	}
 	if got := strings.TrimRight(ansi.Strip(lines[len(lines)-2]), " "); got != "status" {

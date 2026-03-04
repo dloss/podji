@@ -8,7 +8,7 @@ import (
 
 var (
 	Header           = lipgloss.NewStyle().Bold(true)
-	Separator        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	Separator        = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
 	Scope            = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 	ScopeValue       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 	ScopeActive      = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
@@ -31,9 +31,9 @@ var (
 
 func SeparatorLine(width int) string {
 	if width <= 0 {
-		return Separator.Render("─")
+		return Separator.Render("┈")
 	}
-	return Separator.Render(strings.Repeat("─", width))
+	return Separator.Render(strings.Repeat("┈", width))
 }
 
 type statusSeverity int
