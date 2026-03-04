@@ -20,7 +20,7 @@ GLOBAL (app navigation)
   1-9                  Jump to bookmark
   0                    Toggle all / last namespace
   A                    All resource types (built-ins + CRDs)
-  J                    Jump to pod owner workload
+  J                    Jump to owner workload (pods)
   W                    Workloads
   P                    Pods
   D                    Deployments
