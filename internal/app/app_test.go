@@ -6,6 +6,7 @@ import (
 
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/dloss/podji/internal/data"
+	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/commandbar"
 	"github.com/dloss/podji/internal/ui/describeview"
 	"github.com/dloss/podji/internal/ui/detailview"
@@ -550,6 +551,63 @@ func TestCommandBarLogsSubviewPushesDetailAndLogs(t *testing.T) {
 	}
 	if _, ok := model.stack[len(model.stack)-1].(*listview.View); !ok {
 		t.Fatalf("expected top view to be listview for deployment log target, got %T", model.stack[len(model.stack)-1])
+	}
+}
+
+func TestCommandResourceResolvesCRDByKindAndQualifiedName(t *testing.T) {
+	m := New()
+	m.namespace = "staging"
+
+	byKind := m.commandResource("certificate")
+	if byKind == nil {
+		t.Fatal("expected certificate CRD resource to resolve")
+	}
+	if byKind.Name() != "certificates.cert-manager.io" {
+		t.Fatalf("expected cert-manager certificate resource, got %q", byKind.Name())
+	}
+	if scoped, ok := byKind.(resources.NamespaceScoped); ok {
+		if scoped.Namespace() != "staging" {
+			t.Fatalf("expected namespaced CRD to inherit model namespace, got %q", scoped.Namespace())
+		}
+	}
+
+	byQualified := m.commandResource("certificates.cert-manager.io")
+	if byQualified == nil {
+		t.Fatal("expected qualified CRD token to resolve")
+	}
+	if byQualified.Name() != "certificates.cert-manager.io" {
+		t.Fatalf("expected qualified token to resolve cert-manager certificate resource, got %q", byQualified.Name())
+	}
+}
+
+func TestCommandBarCRDSingleMatchPushesListAndDetail(t *testing.T) {
+	m := New()
+	m.width = 120
+	m.height = 40
+
+	err := m.runCommand("certificate api-tls")
+	if err != "" {
+		t.Fatalf("expected no error running CRD command, got %q", err)
+	}
+	if len(m.stack) != 3 {
+		t.Fatalf("expected stack len 3 (workloads->crd list->detail), got %d", len(m.stack))
+	}
+	if _, ok := m.stack[1].(*listview.View); !ok {
+		t.Fatalf("expected second stack view to be listview, got %T", m.stack[1])
+	}
+	if _, ok := m.stack[2].(*detailview.View); !ok {
+		t.Fatalf("expected third stack view to be detailview, got %T", m.stack[2])
+	}
+}
+
+func TestCommandSuggestionIncludesCRDKindToken(t *testing.T) {
+	m := New()
+	m.cmdBar = commandbar.New()
+	_, _, _ = m.cmdBar.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune("certi")})
+
+	got := m.commandSuggestion()
+	if got != "ficate" {
+		t.Fatalf("expected CRD token completion suffix 'ficate', got %q", got)
 	}
 }
 

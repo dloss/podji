@@ -986,10 +986,60 @@ func nameMatches(items []resources.ResourceItem, frag string) []resources.Resour
 func (m Model) commandResource(token string) resources.ResourceType {
 	aliases := map[string]string{"po": "pods", "pods": "pods", "deploy": "deployments", "deployments": "deployments", "svc": "services", "services": "services", "cm": "configmaps", "configmaps": "configmaps", "secret": "secrets", "sec": "secrets", "secrets": "secrets", "node": "nodes", "nodes": "nodes", "ing": "ingresses", "ingresses": "ingresses", "pvc": "pvcs", "pvcs": "pvcs", "ev": "events", "events": "events", "ns": "namespaces", "namespaces": "namespaces"}
 	name := aliases[token]
-	if name == "" {
-		return nil
+	if name != "" {
+		if res := m.registry.ByName(name); res != nil {
+			return res
+		}
 	}
-	return m.registry.ByName(name)
+	for _, meta := range resources.StubCRDs() {
+		if matchesCRDToken(token, meta) {
+			crd := resources.NewCRDResource(meta)
+			if meta.Namespaced {
+				crd.SetNamespace(m.namespace)
+			}
+			return crd
+		}
+	}
+	return nil
+}
+
+func matchesCRDToken(token string, meta resources.CRDMeta) bool {
+	kind := strings.ToLower(meta.Kind)
+	group := strings.ToLower(strings.TrimSpace(meta.Group))
+
+	plural := kind + "s"
+	if token == kind || token == plural {
+		return true
+	}
+	if group == "" {
+		return false
+	}
+	qualifiedPlural := plural + "." + group
+	qualifiedSingular := kind + "." + group
+	return token == qualifiedPlural || token == qualifiedSingular
+}
+
+func commandKindTokens() []string {
+	base := []string{"po", "deploy", "svc", "cm", "sec", "node", "ing", "pvc", "ev", "ns", "unhealthy", "restarts"}
+	seen := make(map[string]bool, len(base))
+	out := make([]string, 0, len(base)+len(resources.StubCRDs()))
+	for _, token := range base {
+		if token == "" || seen[token] {
+			continue
+		}
+		seen[token] = true
+		out = append(out, token)
+	}
+	for _, meta := range resources.StubCRDs() {
+		kind := strings.ToLower(strings.TrimSpace(meta.Kind))
+		if kind == "" || seen[kind] {
+			continue
+		}
+		seen[kind] = true
+		out = append(out, kind)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (m Model) commandSuggestion() string {
@@ -1002,7 +1052,7 @@ func (m Model) commandSuggestion() string {
 	}
 	endsSpace := strings.HasSuffix(input, " ")
 	tokens := strings.Fields(input)
-	kinds := []string{"po", "deploy", "svc", "cm", "sec", "node", "ing", "pvc", "ev", "ns", "unhealthy", "restarts"}
+	kinds := commandKindTokens()
 
 	if len(tokens) == 1 && !endsSpace {
 		sort.Strings(kinds)
