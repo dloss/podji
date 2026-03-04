@@ -94,10 +94,10 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		}
 		return viewstate.Update{Action: viewstate.Pop}
-	case "up", "k":
+	case "up":
 		p.cursor--
 		p.clampCursor(filtered)
-	case "down", "j":
+	case "down":
 		p.cursor++
 		p.clampCursor(filtered)
 	case "backspace", "ctrl+h":

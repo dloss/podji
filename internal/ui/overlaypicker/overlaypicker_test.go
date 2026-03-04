@@ -72,6 +72,16 @@ func TestBackspaceRemovesLastFilterChar(t *testing.T) {
 	}
 }
 
+func TestJKAreSearchableCharacters(t *testing.T) {
+	p := New("namespace", []string{"kube-system", "jobs", "default"})
+
+	p.Update(keyRunes('j', 'k'))
+
+	if p.filter != "jk" {
+		t.Fatalf("expected filter=jk, got %q", p.filter)
+	}
+}
+
 func TestEnterEmitsSelectedMsg(t *testing.T) {
 	p := New("namespace", []string{"default", "staging"})
 	p.SetSize(120, 40)
