@@ -274,6 +274,7 @@ func (k *clientGoAPI) PodLogsWithOptions(ctx context.Context, contextName, names
 	req := client.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{
 		TailLines: &tail64,
 		Previous:  opts.Previous,
+		Container: opts.Container,
 	})
 	stream, err := req.Stream(reqCtx)
 	if err != nil {
@@ -309,6 +310,7 @@ func (k *clientGoAPI) PodLogsStreamWithOptions(ctx context.Context, contextName,
 		TailLines: &tail64,
 		Follow:    opts.Follow,
 		Previous:  opts.Previous,
+		Container: opts.Container,
 	})
 	stream, err := req.Stream(ctx)
 	if err != nil {

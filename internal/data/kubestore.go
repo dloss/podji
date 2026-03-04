@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -224,11 +225,35 @@ func (s *KubeStore) configurePodFetchers() {
 	if !ok {
 		return
 	}
-	pods.SetLiveFetchers(s.podLogs, s.podEvents)
+	pods.SetLiveFetchers(s.podLogsWithOptions, s.podEvents)
 }
 
 func (s *KubeStore) podLogs(namespace, pod string) ([]string, error) {
 	lines, err := s.api.PodLogs(s.scope.Context, namespace, pod, 200)
+	if err != nil {
+		s.setStatusForError(err)
+		return nil, err
+	}
+	s.setStatus(StoreStateReady, "", true, StoreDataSourceLive)
+	return lines, nil
+}
+
+func (s *KubeStore) podLogsWithOptions(namespace, pod string, opts resources.LogOptions) ([]string, error) {
+	if reader, ok := s.api.(KubeAPILogOptionsReader); ok {
+		lines, err := reader.PodLogsWithOptions(context.Background(), s.scope.Context, namespace, pod, LogOptions{
+			Tail:      opts.Tail,
+			Follow:    opts.Follow,
+			Previous:  opts.Previous,
+			Container: opts.Container,
+		})
+		if err != nil {
+			s.setStatusForError(err)
+			return nil, err
+		}
+		s.setStatus(StoreStateReady, "", true, StoreDataSourceLive)
+		return lines, nil
+	}
+	lines, err := s.api.PodLogs(s.scope.Context, namespace, pod, opts.Tail)
 	if err != nil {
 		s.setStatusForError(err)
 		return nil, err

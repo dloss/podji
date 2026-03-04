@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -303,23 +304,66 @@ func (w *WorkloadPods) Items() []ResourceItem {
 
 func (w *WorkloadPods) Sort(items []ResourceItem) { defaultSort(items) }
 func (w *WorkloadPods) Detail(item ResourceItem) DetailData {
+	containers := []ContainerRow{
+		{Name: "app", Image: "ghcr.io/example/" + w.workload.Name + ":latest", State: "Running", Restarts: "0"},
+		{Name: "sidecar", Image: "busybox:stable", State: "Running", Restarts: "0"},
+	}
+	rawContainers := strings.TrimSpace(item.Extra["containers"])
+	if rawContainers != "" {
+		names := strings.Split(rawContainers, ",")
+		images := strings.Split(strings.TrimSpace(item.Extra["images"]), ",")
+		containers = make([]ContainerRow, 0, len(names))
+		state := strings.TrimSpace(item.Status)
+		if state == "" {
+			state = "Unknown"
+		}
+		restarts := strings.TrimSpace(item.Restarts)
+		if restarts == "" {
+			restarts = "0"
+		}
+		for i := range names {
+			name := strings.TrimSpace(names[i])
+			if name == "" {
+				continue
+			}
+			image := "<unknown>"
+			if i < len(images) && strings.TrimSpace(images[i]) != "" {
+				image = strings.TrimSpace(images[i])
+			}
+			containers = append(containers, ContainerRow{
+				Name:     name,
+				Image:    image,
+				State:    state,
+				Restarts: restarts,
+			})
+		}
+		if len(containers) == 0 {
+			containers = []ContainerRow{{Name: "app", Image: "<unknown>", State: state, Restarts: restarts}}
+		}
+	}
+
 	return DetailData{
 		Summary: []SummaryField{
 			{Key: "status", Label: "Status", Value: item.Status},
 			{Key: "ready", Label: "Ready", Value: item.Ready},
 			{Key: "workload", Label: "Workload", Value: w.workload.Name},
 		},
-		Containers: []ContainerRow{
-			{Name: "app", Image: "ghcr.io/example/" + w.workload.Name + ":latest", State: "Running", Restarts: "0"},
-			{Name: "sidecar", Image: "busybox:stable", State: "Running", Restarts: "0"},
-		},
-		Events: []string{"2m ago   Normal   Pulled   Pulled container image"},
+		Containers: containers,
+		Events:     []string{"2m ago   Normal   Pulled   Pulled container image"},
 	}
 }
 func (w *WorkloadPods) Logs(item ResourceItem) []string {
+	lines, _ := w.LogsWithOptions(context.Background(), item, LogOptions{Tail: 200})
+	return lines
+}
+
+func (w *WorkloadPods) LogsWithOptions(ctx context.Context, item ResourceItem, opts LogOptions) ([]string, error) {
 	if w.registry != nil {
-		if podRes, ok := w.registry.ByName("pods").(*Pods); ok {
-			return podRes.Logs(item)
+		if podRes, ok := w.registry.ByName("pods").(LogOptionsReader); ok {
+			lines, err := podRes.LogsWithOptions(ctx, item, opts)
+			if err == nil && len(lines) > 0 {
+				return lines, nil
+			}
 		}
 	}
 	switch item.Status {
@@ -331,20 +375,36 @@ func (w *WorkloadPods) Logs(item ResourceItem) []string {
 			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  main.run(0xc0001a6000)",
 			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  \t/app/main.go:42 +0x1c4",
 			"2026-02-20T15:03:12Z  pod=" + item.Name + "  container=app  exit status 2",
-		}, 120)
+		}, 120), nil
 	case "Completed":
 		return expandMockLogs([]string{
 			"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Starting job",
 			"2026-02-20T15:01:04Z  pod=" + item.Name + "  container=app  Processed 1420 records",
 			"2026-02-20T15:01:05Z  pod=" + item.Name + "  container=app  Done. Exiting 0.",
-		}, 120)
+		}, 120), nil
 	default:
 		return expandMockLogs([]string{
 			"2026-02-20T15:01:00Z  pod=" + item.Name + "  container=app  Booting",
 			"2026-02-20T15:01:02Z  pod=" + item.Name + "  container=app  Ready",
 			"2026-02-20T15:01:09Z  pod=" + item.Name + "  container=sidecar  Sync complete",
-		}, 120)
+		}, 120), nil
 	}
+}
+
+func (w *WorkloadPods) LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error {
+	if w.registry != nil {
+		if podRes, ok := w.registry.ByName("pods").(LogStreamReader); ok {
+			return podRes.LogsStream(ctx, item, opts, onLine)
+		}
+	}
+	lines, err := w.LogsWithOptions(ctx, item, opts)
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		onLine(line)
+	}
+	return nil
 }
 func (w *WorkloadPods) Events(item ResourceItem) []string {
 	if w.registry != nil {

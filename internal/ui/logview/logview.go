@@ -296,9 +296,10 @@ func (v *View) refreshWindow() {
 func (v *View) reloadLogs() {
 	// Keep constructor path synchronous to render immediate content.
 	opts := resources.LogOptions{
-		Tail:     tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow:   v.follow,
-		Previous: v.previous,
+		Tail:      tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:    v.follow,
+		Previous:  v.previous,
+		Container: v.container,
 	}
 	if reader, ok := v.resource.(resources.LogOptionsReader); ok {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -316,9 +317,10 @@ func (v *View) reloadLogsCmd() bubbletea.Cmd {
 	v.cancelReload()
 	v.streamErr = ""
 	opts := resources.LogOptions{
-		Tail:     tailForWindow(sinceWindows[v.sinceIdx]),
-		Follow:   v.follow,
-		Previous: v.previous,
+		Tail:      tailForWindow(sinceWindows[v.sinceIdx]),
+		Follow:    v.follow,
+		Previous:  v.previous,
+		Container: v.container,
 	}
 	if streamer, ok := v.resource.(resources.LogStreamReader); ok && opts.Follow {
 		v.requestID++

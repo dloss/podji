@@ -1,12 +1,15 @@
 package resources
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 type Pods struct {
 	namespaceScope
 	sortMode         string
 	sortDesc         bool
-	liveLogsFetcher  func(namespace, pod string) ([]string, error)
+	liveLogsFetcher  func(namespace, pod string, opts LogOptions) ([]string, error)
 	liveEventFetcher func(namespace, pod string) ([]string, error)
 }
 
@@ -146,7 +149,7 @@ func (p *Pods) SortKeys() []SortKey {
 }
 
 func (p *Pods) SetLiveFetchers(
-	logs func(namespace, pod string) ([]string, error),
+	logs func(namespace, pod string, opts LogOptions) ([]string, error),
 	events func(namespace, pod string) ([]string, error),
 ) {
 	p.liveLogsFetcher = logs
@@ -188,14 +191,9 @@ func (p *Pods) Detail(item ResourceItem) DetailData {
 }
 
 func (p *Pods) Logs(item ResourceItem) []string {
-	ns := item.Namespace
-	if ns == "" {
-		ns = p.Namespace()
-	}
-	if p.liveLogsFetcher != nil {
-		if lines, err := p.liveLogsFetcher(ns, item.Name); err == nil && len(lines) > 0 {
-			return lines
-		}
+	lines, err := p.LogsWithOptions(nil, item, LogOptions{Tail: 200})
+	if err == nil && len(lines) > 0 {
+		return lines
 	}
 	return expandMockLogs([]string{
 		"2025-06-15T12:03:01Z  Starting envoy proxy...",
@@ -205,6 +203,37 @@ func (p *Pods) Logs(item ResourceItem) []string {
 		"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
 		"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
 	}, 120)
+}
+
+func (p *Pods) LogsWithOptions(_ context.Context, item ResourceItem, opts LogOptions) ([]string, error) {
+	ns := item.Namespace
+	if ns == "" {
+		ns = p.Namespace()
+	}
+	if p.liveLogsFetcher != nil {
+		if lines, err := p.liveLogsFetcher(ns, item.Name, opts); err == nil && len(lines) > 0 {
+			return lines, nil
+		}
+	}
+	return expandMockLogs([]string{
+		"2025-06-15T12:03:01Z  Starting envoy proxy...",
+		"2025-06-15T12:03:01Z  Loading configuration from /etc/envoy/config.yaml",
+		"2025-06-15T12:03:02Z  Listener 0.0.0.0:8080 created",
+		"2025-06-15T12:03:02Z  Allocating buffer pool (128Mi limit)",
+		"2025-06-15T12:03:03Z  ERROR: buffer allocation failed: OOM",
+		"2025-06-15T12:03:03Z  Fatal: cannot start with current memory limits",
+	}, 120), nil
+}
+
+func (p *Pods) LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error {
+	lines, err := p.LogsWithOptions(ctx, item, opts)
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		onLine(line)
+	}
+	return nil
 }
 
 func (p *Pods) Events(item ResourceItem) []string {

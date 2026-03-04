@@ -180,9 +180,10 @@ func TestKubeReadModelLogsWithContextUsesOptionsReader(t *testing.T) {
 		nil,
 	)
 	lines, err := read.LogsWithContext(context.Background(), "pods", resources.ResourceItem{Name: "api-1"}, Scope{}, LogOptions{
-		Tail:     123,
-		Follow:   false,
-		Previous: true,
+		Tail:      123,
+		Follow:    false,
+		Previous:  true,
+		Container: "sidecar",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -190,7 +191,7 @@ func TestKubeReadModelLogsWithContextUsesOptionsReader(t *testing.T) {
 	if len(lines) != 1 || lines[0] != "from-options-reader" {
 		t.Fatalf("expected options reader result, got %#v", lines)
 	}
-	if api.lastOpts.Tail != 123 || api.lastOpts.Follow || !api.lastOpts.Previous {
+	if api.lastOpts.Tail != 123 || api.lastOpts.Follow || !api.lastOpts.Previous || api.lastOpts.Container != "sidecar" {
 		t.Fatalf("expected options to propagate, got %#v", api.lastOpts)
 	}
 }

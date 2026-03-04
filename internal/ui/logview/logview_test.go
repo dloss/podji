@@ -18,6 +18,7 @@ type optionsLogsResource struct {
 	tailCalls []int
 	follow    []bool
 	previous  []bool
+	container []string
 }
 
 func (o *optionsLogsResource) Name() string                        { return o.base.Name() }
@@ -40,6 +41,7 @@ func (o *optionsLogsResource) LogsWithOptions(ctx context.Context, item resource
 	o.tailCalls = append(o.tailCalls, opts.Tail)
 	o.follow = append(o.follow, opts.Follow)
 	o.previous = append(o.previous, opts.Previous)
+	o.container = append(o.container, opts.Container)
 	return []string{"line-a", "line-b"}, nil
 }
 
@@ -513,5 +515,21 @@ func TestFooterShowsContainerKeyWhenFactorySet(t *testing.T) {
 	footer := ansi.Strip(v.Footer())
 	if !strings.Contains(footer, "container") {
 		t.Fatalf("expected footer to show 'c container' when factory is set, got %q", footer)
+	}
+}
+
+func TestContainerSelectionPropagatesToLogOptions(t *testing.T) {
+	res := &optionsLogsResource{base: resources.NewPods()}
+	v := NewWithContainer(resources.ResourceItem{Name: "api"}, res, "sidecar")
+	if len(res.container) != 1 || res.container[0] != "sidecar" {
+		t.Fatalf("expected initial container option to be propagated, got %#v", res.container)
+	}
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'.'}})
+	if upd.Cmd == nil {
+		t.Fatal("expected reload cmd after since-window change")
+	}
+	_ = upd.Cmd()
+	if len(res.container) < 2 || res.container[len(res.container)-1] != "sidecar" {
+		t.Fatalf("expected refetch to keep container option, got %#v", res.container)
 	}
 }

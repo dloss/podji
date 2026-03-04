@@ -18,9 +18,10 @@ type ReadModel interface {
 }
 
 type LogOptions struct {
-	Tail     int
-	Follow   bool
-	Previous bool
+	Tail      int
+	Follow    bool
+	Previous  bool
+	Container string
 }
 
 type EventOptions struct {

@@ -92,17 +92,19 @@ func (r *ReadBackedResource) LogsWithOptions(ctx context.Context, item resources
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return ReadLogs(reqCtx, r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{
-		Tail:     opts.Tail,
-		Follow:   opts.Follow,
-		Previous: opts.Previous,
+		Tail:      opts.Tail,
+		Follow:    opts.Follow,
+		Previous:  opts.Previous,
+		Container: opts.Container,
 	})
 }
 
 func (r *ReadBackedResource) LogsStream(ctx context.Context, item resources.ResourceItem, opts resources.LogOptions, onLine func(string)) error {
 	return StreamLogs(ctx, r.read, r.base.Name(), item, r.scopeFunc(), LogOptions{
-		Tail:     opts.Tail,
-		Follow:   opts.Follow,
-		Previous: opts.Previous,
+		Tail:      opts.Tail,
+		Follow:    opts.Follow,
+		Previous:  opts.Previous,
+		Container: opts.Container,
 	}, onLine)
 }
 

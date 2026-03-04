@@ -1,5 +1,7 @@
 package resources
 
+import "context"
+
 // QueryResource is a synthetic list backed by a fixed item set.
 type QueryResource struct {
 	name  string
@@ -22,6 +24,27 @@ func (r *QueryResource) Logs(item ResourceItem) []string     { return r.base.Log
 func (r *QueryResource) Events(item ResourceItem) []string   { return r.base.Events(item) }
 func (r *QueryResource) YAML(item ResourceItem) string       { return r.base.YAML(item) }
 func (r *QueryResource) Describe(item ResourceItem) string   { return r.base.Describe(item) }
+
+func (r *QueryResource) LogsWithOptions(ctx context.Context, item ResourceItem, opts LogOptions) ([]string, error) {
+	if reader, ok := r.base.(LogOptionsReader); ok {
+		return reader.LogsWithOptions(ctx, item, opts)
+	}
+	return r.base.Logs(item), nil
+}
+
+func (r *QueryResource) LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error {
+	if streamer, ok := r.base.(LogStreamReader); ok {
+		return streamer.LogsStream(ctx, item, opts, onLine)
+	}
+	lines, err := r.LogsWithOptions(ctx, item, opts)
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		onLine(line)
+	}
+	return nil
+}
 
 func (r *QueryResource) TableColumns() []TableColumn {
 	if tr, ok := r.base.(TableResource); ok {
