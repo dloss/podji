@@ -17,16 +17,16 @@ go test ./...
 
 Podji supports both live Kubernetes clusters (`kube` mode) and deterministic mock mode.
 
-For repeatable interactive UI testing, run in mock mode:
-
-```bash
-PODJI_MOCK=1 dev/ui.sh start
-```
-
-For live-cluster exploration, use default `kube` mode:
+`dev/ui.sh start` currently launches Podji in mock mode (`PODJI_MOCK=1`) for deterministic runs:
 
 ```bash
 dev/ui.sh start
+```
+
+For live-cluster exploration (`kube` mode), run Podji directly:
+
+```bash
+./podji
 ```
 
 Use `dev/ui.sh` to interact with the running TUI:
