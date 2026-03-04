@@ -244,6 +244,20 @@ func TestTimestampToggleHidesTimestampPrefixes(t *testing.T) {
 	}
 }
 
+func TestTimestampPrefixIsStyledWhenVisible(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(120, 20)
+	if len(v.lines) == 0 {
+		t.Fatal("expected logs to be present")
+	}
+	if !strings.Contains(v.lines[0], "\x1b[") {
+		t.Fatalf("expected ANSI styling for visible timestamp prefix, got %q", v.lines[0])
+	}
+	if got := ansi.Strip(v.lines[0]); !strings.HasPrefix(got, "2025-06-15T12:03:01Z  Starting envoy proxy") {
+		t.Fatalf("expected stripped line to retain timestamp + message, got %q", got)
+	}
+}
+
 type blockingLogsResource struct {
 	base      resources.ResourceType
 	ctxSeen   chan context.Context

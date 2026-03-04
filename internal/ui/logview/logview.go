@@ -20,6 +20,9 @@ import (
 
 var sinceWindows = []string{"1m", "5m", "15m", "1h", "all"}
 
+const timestampPrefixSGR = "\x1b[38;5;109m"
+const timestampPrefixReset = "\x1b[0m"
+
 type logReloadResultMsg struct {
 	requestID int
 	lines     []string
@@ -375,6 +378,9 @@ func (v *View) refreshContent() {
 func (v *View) refreshWindow() {
 	lines := applySinceWindow(v.allLines, sinceWindows[v.sinceIdx])
 	lines = applyTimestampVisibility(lines, v.timestamps)
+	if v.timestamps {
+		lines = styleTimestampPrefixes(lines)
+	}
 	v.lines = applyFilter(lines, v.filterValue)
 }
 
@@ -615,6 +621,32 @@ func stripTimestampPrefix(line string) string {
 		return line
 	}
 	return strings.TrimLeft(trimmed[end:], " \t")
+}
+
+func styleTimestampPrefixes(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = styleTimestampPrefix(line)
+	}
+	return out
+}
+
+func styleTimestampPrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" {
+		return line
+	}
+	end := strings.IndexAny(trimmed, " \t")
+	if end <= 0 {
+		return line
+	}
+	prefix := trimmed[:end]
+	if _, err := time.Parse(time.RFC3339Nano, prefix); err != nil {
+		return line
+	}
+	leading := line[:len(line)-len(trimmed)]
+	rest := strings.TrimLeft(trimmed[end:], " \t")
+	return leading + timestampPrefixSGR + prefix + timestampPrefixReset + "  " + rest
 }
 
 func pageStep(height int) int {
