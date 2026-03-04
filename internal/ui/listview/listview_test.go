@@ -608,8 +608,8 @@ func TestAllNamespacesDefaultNameSortArrowOnNameColumn(t *testing.T) {
 	if strings.Contains(rendered, "↑NAMESPACE") {
 		t.Fatalf("expected default name sort arrow not to be on namespace column, got: %s", rendered)
 	}
-	if !strings.Contains(rendered, "↑NAME") {
-		t.Fatalf("expected default name sort arrow on name column, got: %s", rendered)
+	if !strings.Contains(rendered, "↑WORKLOAD") {
+		t.Fatalf("expected default name sort arrow on resource type column, got: %s", rendered)
 	}
 }
 

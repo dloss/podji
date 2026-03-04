@@ -994,7 +994,7 @@ func headerRowWithHint(
 			width = widths[idx]
 		}
 		name := col.Name
-		if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+		if isNameColumn(col) {
 			label := strings.ToUpper(firstLabel)
 			if childHint != "" {
 				hint := " → " + titleCase(childHint)
@@ -1187,7 +1187,7 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 		}
 
 		headerName := strings.TrimSpace(col.Name)
-		if idx == 0 && firstHeader != "" && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+		if firstHeader != "" && isNameColumn(col) {
 			headerName = firstHeader
 		}
 		headerWidth := len([]rune(headerName))
@@ -1263,16 +1263,23 @@ func columnWidthsForRows(columns []resources.TableColumn, rows [][]string, avail
 }
 
 // displayedColHeader returns the column header as shown in the table header row.
-// Column 0 with Name "NAME" shows the resource's singular label instead.
+// Any NAME column shows the resource's singular label instead.
 func displayedColHeader(columns []resources.TableColumn, idx int, resourceLabel string) string {
 	if idx < 0 || idx >= len(columns) {
 		return ""
 	}
 	col := columns[idx]
-	if idx == 0 && strings.EqualFold(strings.TrimSpace(col.Name), "name") {
+	if isNameColumn(col) {
 		return strings.ToUpper(resourceLabel)
 	}
 	return col.Name
+}
+
+func isNameColumn(col resources.TableColumn) bool {
+	if strings.EqualFold(strings.TrimSpace(col.ID), "name") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(col.Name), "name")
 }
 
 // sortDisplayedChars computes sort key characters for all keys, derived from
