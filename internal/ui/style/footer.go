@@ -71,8 +71,8 @@ func ActionFooter(actions []Binding, width int) string {
 		parts = append(parts, FormatBindings(actions))
 	}
 	parts = append(parts, FormatBindings([]Binding{
-		B("X", "context"),
-		B("N", "namespace"),
+		B("X", "ctx"),
+		B("N", "ns"),
 	}))
 	parts = append(parts, FormatKeys(NavKeys)+" "+FooterLabel.Render("nav"))
 	parts = append(parts, FormatBindings([]Binding{B("?", "help")}))

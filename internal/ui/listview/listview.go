@@ -724,7 +724,7 @@ func (v *View) Footer() string {
 			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
 		}
 	} else if v.execState == execMenu {
-		execLabel := style.FooterKey.Render("execute")
+		execLabel := style.FooterKey.Render("exec")
 		var opts []style.Binding
 		opts = append(opts, style.B("d", "delete"))
 		if v.supportsRestart() {
@@ -832,7 +832,7 @@ func (v *View) Footer() string {
 			actions = append(actions, style.B("r", "related"))
 		}
 		if _, ok := v.resource.(resources.TableResource); ok {
-			actions = append(actions, style.B("p", "columns"))
+			actions = append(actions, style.B("p", "cols"))
 		}
 		if _, ok := v.resource.(resources.WideResource); ok {
 			if v.wideMode {
@@ -842,7 +842,7 @@ func (v *View) Footer() string {
 			}
 		}
 		actions = append(actions, style.B("c", "copy"))
-		actions = append(actions, style.B("x", "execute"))
+		actions = append(actions, style.B("x", "exec"))
 		line2 = style.ActionFooter(actions, v.list.Width())
 	}
 
