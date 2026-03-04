@@ -27,11 +27,32 @@ Podji is **early-stage experimental software**.
 ## Build and Run
 
 ```bash
-go build ./cmd/podji
+just build
 ./podji
 ```
 
 Default startup is `kube` mode.
+
+## Versioning
+
+The binary embeds version metadata at build time:
+
+```bash
+./podji --version
+./podji -v
+```
+
+Output includes:
+
+- tag/describe version
+- git commit short SHA
+- UTC build timestamp
+
+For consistent releases:
+
+1. Create and push a semver tag (for example `v0.0.2`).
+2. Build from that tagged commit via `just build`.
+3. Verify `./podji --version` reports that exact tag before publishing artifacts.
 
 ## Runtime Modes
 

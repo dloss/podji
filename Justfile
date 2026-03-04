@@ -6,7 +6,12 @@ default:
   just --list
 
 build:
-  go build -o {{binary}} ./cmd/podji
+  @version=$(git describe --tags --always --dirty 2>/dev/null || echo dev); \
+  commit=$(git rev-parse --short HEAD 2>/dev/null || echo none); \
+  date=$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+  go build \
+    -ldflags "-X github.com/dloss/podji/internal/buildinfo.Version=$version -X github.com/dloss/podji/internal/buildinfo.Commit=$commit -X github.com/dloss/podji/internal/buildinfo.Date=$date" \
+    -o {{binary}} ./cmd/podji
 
 run: build
   ./{{binary}}

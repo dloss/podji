@@ -25,7 +25,7 @@ auto_capture() {
 
 cmd_start() {
     cd "$DIR"
-    go build ./cmd/podji || die "build failed"
+    just build || die "build failed"
     has_session && tmux kill-session -t "$SESSION" 2>/dev/null
     tmux new-session -d -s "$SESSION" -x 120 -y 40 "PODJI_MOCK=1 $DIR/podji"
     sleep 1
