@@ -17,7 +17,7 @@ func TestWorkloadsFooterContainsSpecHints(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 
 	footer := ansi.Strip(view.Footer())
-	wants := []string{"/ filter", "s sort", "r related", "X context", "N namespace", "nav", "? help", "W", "P", "D", "S", "E"}
+	wants := []string{"/ search", "& filter", "s sort", "r related", "X context", "N namespace", "nav", "? help", "W", "P", "D", "S", "E"}
 	for _, want := range wants {
 		if !strings.Contains(footer, want) {
 			t.Fatalf("footer missing %q: %s", want, footer)
@@ -80,7 +80,7 @@ func TestSortPickerHidesDuplicateLeadKeys(t *testing.T) {
 	view.Update(keyRunes('s'))
 	footer := ansi.Strip(view.Footer())
 	if got := strings.Count(footer, "n/N"); got != 1 {
-		t.Fatalf("expected one n/N binding in sort picker for duplicated key, got %d: %s", got, footer)
+		t.Fatalf("expected one n/N binding in sort picker labels for duplicated key, got %d: %s", got, footer)
 	}
 }
 
@@ -136,7 +136,7 @@ func TestFilterEnterAppliesFilterWithoutOpeningSelection(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
 
-	view.Update(keyRunes('/'))
+	view.Update(keyRunes('&'))
 	view.Update(keyRunes('a'))
 	result := view.Update(keyEnter())
 
@@ -152,7 +152,7 @@ func TestFilterDownAppliesFilterWithoutOpeningSelection(t *testing.T) {
 	registry := resources.DefaultRegistry()
 	view := New(resources.NewWorkloads(), registry)
 
-	view.Update(keyRunes('/'))
+	view.Update(keyRunes('&'))
 	view.Update(keyRunes('a'))
 	result := view.Update(keyDown())
 
@@ -356,11 +356,11 @@ func TestFilterModeFooterIndicator(t *testing.T) {
 	view := New(resources.NewWorkloads(), registry)
 	view.SetSize(120, 40)
 
-	view.Update(keyRunes('/'))
+	view.Update(keyRunes('&'))
 	// Add some text to trigger cursor display
 	view.Update(keyRunes('t', 'e', 's', 't'))
 	footer := ansi.Strip(view.Footer())
-	if !strings.Contains(footer, "/") {
+	if !strings.Contains(footer, "&") {
 		t.Fatalf("expected filter input in footer, got: %s", footer)
 	}
 	if !strings.Contains(footer, "test") {
@@ -368,6 +368,68 @@ func TestFilterModeFooterIndicator(t *testing.T) {
 	}
 	if !strings.Contains(footer, "esc") {
 		t.Fatalf("expected esc cancel hint in filter footer, got: %s", footer)
+	}
+}
+
+func TestSearchModeFooterIndicator(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('/'))
+	view.Update(keyRunes('a', 'p', 'i'))
+	footer := ansi.Strip(view.Footer())
+	if !strings.Contains(footer, "search") {
+		t.Fatalf("expected search indicator in footer, got: %s", footer)
+	}
+	if !strings.Contains(footer, "/ api") {
+		t.Fatalf("expected search text in footer, got: %s", footer)
+	}
+	if !strings.Contains(footer, "esc") {
+		t.Fatalf("expected esc cancel hint in search footer, got: %s", footer)
+	}
+}
+
+func TestSearchEnterFindsMatchesWithoutFiltering(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('/'))
+	view.Update(keyRunes('a', 'p', 'i'))
+	view.Update(keyEnter())
+
+	if view.list.IsFiltered() {
+		t.Fatal("expected search to avoid list filtering")
+	}
+	if len(view.matchRows) == 0 {
+		t.Fatal("expected search to produce matches")
+	}
+}
+
+func TestSearchBackKeyMovesToPreviousMatch(t *testing.T) {
+	registry := resources.DefaultRegistry()
+	view := New(resources.NewWorkloads(), registry)
+	view.SetSize(120, 40)
+
+	view.Update(keyRunes('/'))
+	view.Update(keyRunes('e'))
+	view.Update(keyEnter())
+	if len(view.matchRows) < 2 {
+		t.Fatalf("expected at least 2 matches for test, got %d", len(view.matchRows))
+	}
+
+	first := view.matchRows[0]
+	view.Update(keyRunes('n'))
+	second := view.matchRows[view.matchIndex]
+	if second == first {
+		t.Fatal("expected n to advance to a different match")
+	}
+
+	view.Update(keyRunes('b'))
+	got := view.matchRows[view.matchIndex]
+	if got != first {
+		t.Fatalf("expected b to return to first match index %d, got %d", first, got)
 	}
 }
 

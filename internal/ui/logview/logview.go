@@ -50,6 +50,9 @@ type View struct {
 	searchQuery  string
 	matchLines   []int
 	matchIndex   int
+	filterActive bool
+	filterQuery  string
+	filterValue  string
 	requestID    int
 	cancel       context.CancelFunc
 	streamCh     <-chan bubbletea.Msg
@@ -119,6 +122,33 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		}
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	case bubbletea.KeyMsg:
+		if v.filterActive {
+			switch msg.String() {
+			case "enter":
+				v.filterActive = false
+				v.filterValue = strings.TrimSpace(v.filterQuery)
+				v.refreshWindow()
+				v.refreshContent()
+			case "esc":
+				v.filterActive = false
+				v.filterQuery = v.filterValue
+			case "backspace", "ctrl+h":
+				r := []rune(v.filterQuery)
+				if len(r) > 0 {
+					v.filterQuery = string(r[:len(r)-1])
+				}
+			default:
+				if msg.Type == bubbletea.KeyRunes && len(msg.Runes) > 0 {
+					for _, r := range msg.Runes {
+						if r >= 32 {
+							v.filterQuery += string(r)
+						}
+					}
+				}
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
 		if v.searchActive {
 			switch msg.String() {
 			case "enter":
@@ -139,14 +169,26 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 					v.searchQuery = string(r[:len(r)-1])
 				}
 			default:
-				if msg.Type == bubbletea.KeyRunes && len(msg.Runes) == 1 && msg.Runes[0] >= 32 {
-					v.searchQuery += string(msg.Runes[0])
+				if msg.Type == bubbletea.KeyRunes && len(msg.Runes) > 0 {
+					for _, r := range msg.Runes {
+						if r >= 32 {
+							v.searchQuery += string(r)
+						}
+					}
 				}
 			}
 			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
 
 		switch msg.String() {
+		case "esc":
+			if strings.TrimSpace(v.filterValue) != "" {
+				v.filterValue = ""
+				v.filterQuery = ""
+				v.refreshWindow()
+				v.refreshContent()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
 		case "f":
 			v.follow = !v.follow
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
@@ -156,6 +198,9 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "p":
 			v.previous = !v.previous
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
+		case "&":
+			v.filterActive = true
+			v.filterQuery = v.filterValue
 		case "/":
 			v.searchActive = true
 			v.searchQuery = ""
@@ -166,7 +211,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				v.matchIndex = (v.matchIndex + 1) % len(v.matchLines)
 				v.viewport.SetYOffset(v.matchLines[v.matchIndex])
 			}
-		case "N":
+		case "b":
 			if len(v.matchLines) > 0 {
 				v.matchIndex = (v.matchIndex - 1 + len(v.matchLines)) % len(v.matchLines)
 				v.viewport.SetYOffset(v.matchLines[v.matchIndex])
@@ -213,6 +258,39 @@ func (v *View) Breadcrumb() string {
 }
 
 func (v *View) Footer() string {
+	if v.filterActive {
+		filterLabel := style.FooterKey.Render("filter")
+		filterVal := style.FooterKey.Render("& " + v.filterQuery + "▌")
+		line1 := filterLabel + "  " + filterVal
+		if v.viewport.Width > 0 {
+			line1 = ansi.Truncate(line1, v.viewport.Width-2, "…")
+		}
+		line2 := style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		if v.viewport.Width > 0 {
+			line2 = ansi.Truncate(line2, v.viewport.Width-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
+	if v.searchActive {
+		searchLabel := style.FooterKey.Render("search")
+		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
+		line1 := searchLabel + "  " + searchVal
+		if v.viewport.Width > 0 {
+			line1 = ansi.Truncate(line1, v.viewport.Width-2, "…")
+		}
+		line2 := style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		if v.viewport.Width > 0 {
+			line2 = ansi.Truncate(line2, v.viewport.Width-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
+
 	// Line 1: status indicators (non-default only).
 	var indicators []style.Binding
 	if v.previous {
@@ -227,6 +305,9 @@ func (v *View) Footer() string {
 	if sinceWindows[v.sinceIdx] != "5m" {
 		indicators = append(indicators, style.B("since", sinceWindows[v.sinceIdx]))
 	}
+	if v.filterValue != "" {
+		indicators = append(indicators, style.B("filter", v.filterValue))
+	}
 	if len(v.matchLines) > 0 && !v.searchActive {
 		indicators = append(indicators, style.B("match", matchSummary(v.matchIndex, len(v.matchLines))))
 	}
@@ -235,30 +316,19 @@ func (v *View) Footer() string {
 	}
 	line1 := style.FormatBindings(indicators)
 
-	// Line 2: search mode prompt or normal actions.
-	var line2 string
-	if v.searchActive {
-		searchLabel := style.FooterKey.Render("search")
-		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
-		opts := "  " + style.FormatBindings([]style.Binding{
-			style.B("enter", "confirm"),
-			style.B("esc", "cancel"),
-		})
-		line2 = searchLabel + "  " + searchVal + opts
-		if v.viewport.Width > 0 {
-			line2 = ansi.Truncate(line2, v.viewport.Width-2, "…")
-		}
-	} else {
-		actions := []style.Binding{
-			style.B("p", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
-			style.B("/", "search"), style.B(", .", "since"),
-		}
-		if v.container != "" || v.ContainerViewFactory != nil {
-			actions = append(actions, style.B("c", "container"))
-		}
-		actions = append(actions, style.B("pgup/pgdn", "page"))
-		line2 = style.ActionFooter(actions, v.viewport.Width)
+	actions := []style.Binding{
+		style.B("p", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
+		style.B("/", "search"), style.B("&", "filter"),
 	}
+	if v.container != "" || v.ContainerViewFactory != nil {
+		actions = append(actions, style.B("c", "container"))
+	}
+	if len(v.matchLines) > 0 {
+		actions = append(actions, style.B("n/b", "next/prev"))
+	}
+	actions = append(actions, style.B(", .", "since"))
+	actions = append(actions, style.B("pgup/pgdn", "page"))
+	line2 := style.ActionFooter(actions, v.viewport.Width)
 	return line1 + "\n" + line2
 }
 
@@ -270,6 +340,10 @@ func (v *View) SetSize(width, height int) {
 	v.viewport.Height = height
 	v.refreshWindow()
 	v.refreshContent()
+}
+
+func (v *View) SuppressGlobalKeys() bool {
+	return v.searchActive || v.filterActive || strings.TrimSpace(v.filterValue) != "" || len(v.matchLines) > 0
 }
 
 func (v *View) refreshContent() {
@@ -290,7 +364,7 @@ func (v *View) refreshContent() {
 }
 
 func (v *View) refreshWindow() {
-	v.lines = applySinceWindow(v.allLines, sinceWindows[v.sinceIdx])
+	v.lines = applyFilter(applySinceWindow(v.allLines, sinceWindows[v.sinceIdx]), v.filterValue)
 }
 
 func (v *View) reloadLogs() {
@@ -475,6 +549,22 @@ func matchSummary(index, total int) string {
 		return "0/0"
 	}
 	return strconv.Itoa(index+1) + "/" + strconv.Itoa(total)
+}
+
+func applyFilter(lines []string, query string) []string {
+	query = strings.TrimSpace(strings.ToLower(query))
+	if query == "" {
+		out := make([]string, len(lines))
+		copy(out, lines)
+		return out
+	}
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.Contains(strings.ToLower(ansi.Strip(line)), query) {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 func pageStep(height int) int {

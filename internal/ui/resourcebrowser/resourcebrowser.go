@@ -319,7 +319,7 @@ func (v *View) Footer() string {
 		}
 	} else {
 		line2 = style.ActionFooter([]style.Binding{
-			style.B("/", "filter"),
+			style.B("&", "filter"),
 			style.B("f", "find"),
 			style.B("s", "sort"),
 		}, v.list.Width())

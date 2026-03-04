@@ -132,6 +132,10 @@ type View struct {
 	sortDesc     bool
 	findMode     bool
 	findTargets  map[int]bool
+	searchActive bool
+	searchQuery  string
+	matchRows    []int
+	matchIndex   int
 	copyMode     bool
 	copiedMsg    string
 	actionMsg    string
@@ -208,9 +212,41 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 	}
 
 	if key, ok := msg.(bubbletea.KeyMsg); ok {
+		if v.searchActive {
+			switch key.String() {
+			case "enter":
+				v.searchActive = false
+				v.recomputeMatches()
+				if len(v.matchRows) > 0 {
+					v.matchIndex = 0
+					v.list.Select(v.matchRows[v.matchIndex])
+				}
+			case "esc":
+				v.searchActive = false
+				v.searchQuery = ""
+				v.matchRows = nil
+				v.matchIndex = 0
+			case "backspace", "ctrl+h":
+				r := []rune(v.searchQuery)
+				if len(r) > 0 {
+					v.searchQuery = string(r[:len(r)-1])
+				}
+			default:
+				if key.Type == bubbletea.KeyRunes && len(key.Runes) > 0 {
+					for _, r := range key.Runes {
+						if r >= 32 {
+							v.searchQuery += string(r)
+						}
+					}
+				}
+			}
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		}
+
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
 			v.list = updated
+			v.recomputeMatches()
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 		}
 
@@ -394,6 +430,25 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "esc":
 			if v.list.SettingFilter() || v.list.IsFiltered() {
 				v.list.ResetFilter()
+				v.recomputeMatches()
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+		case "/":
+			v.searchActive = true
+			v.searchQuery = ""
+			v.matchRows = nil
+			v.matchIndex = 0
+			return viewstate.Update{Action: viewstate.None, Next: v}
+		case "n":
+			if len(v.matchRows) > 0 {
+				v.matchIndex = (v.matchIndex + 1) % len(v.matchRows)
+				v.list.Select(v.matchRows[v.matchIndex])
+				return viewstate.Update{Action: viewstate.None, Next: v}
+			}
+		case "b":
+			if len(v.matchRows) > 0 {
+				v.matchIndex = (v.matchIndex - 1 + len(v.matchRows)) % len(v.matchRows)
+				v.list.Select(v.matchRows[v.matchIndex])
 				return viewstate.Update{Action: viewstate.None, Next: v}
 			}
 		case "enter", "l", "right", "o":
@@ -516,6 +571,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 
 	updated, cmd := v.list.Update(msg)
 	v.list = updated
+	v.recomputeMatches()
 	return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
 }
 
@@ -608,6 +664,22 @@ func (v *View) Footer() string {
 		}
 		return line1 + "\n" + line2
 	}
+	if v.searchActive {
+		searchLabel := style.FooterKey.Render("search")
+		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
+		line1 := searchLabel + "  " + searchVal
+		if v.list.Width() > 0 {
+			line1 = ansi.Truncate(line1, v.list.Width()-2, "…")
+		}
+		line2 := style.FormatBindings([]style.Binding{
+			style.B("enter", "confirm"),
+			style.B("esc", "cancel"),
+		})
+		if v.list.Width() > 0 {
+			line2 = ansi.Truncate(line2, v.list.Width()-2, "…")
+		}
+		return line1 + "\n" + line2
+	}
 
 	// Line 1: status indicators + pagination right-aligned.
 	var indicators []style.Binding
@@ -622,6 +694,9 @@ func (v *View) Footer() string {
 	}
 	if v.list.IsFiltered() {
 		indicators = append(indicators, style.B("filter", strings.TrimSpace(v.list.FilterValue())))
+	}
+	if len(v.matchRows) > 0 {
+		indicators = append(indicators, style.B("match", matchSummary(v.matchIndex, len(v.matchRows))))
 	}
 	if v.copiedMsg != "" {
 		indicators = append(indicators, style.B(v.copiedMsg, ""))
@@ -745,7 +820,11 @@ func (v *View) Footer() string {
 		var actions []style.Binding
 		isContainers := strings.EqualFold(v.resource.Name(), "containers")
 
-		actions = append(actions, style.B("/", "filter"))
+		actions = append(actions, style.B("/", "search"))
+		actions = append(actions, style.B("&", "filter"))
+		if len(v.matchRows) > 0 {
+			actions = append(actions, style.B("n/b", "next/prev"))
+		}
 		if len(sortKeysForView(v.resource, v.columns)) > 0 {
 			actions = append(actions, style.B("s", "sort"))
 		}
@@ -779,7 +858,7 @@ func (v *View) SetSize(width, height int) {
 }
 
 func (v *View) SuppressGlobalKeys() bool {
-	return v.list.SettingFilter() || v.list.IsFiltered() || v.findMode || v.copyMode || v.execState != execNone || v.sortPickMode
+	return v.list.SettingFilter() || v.list.IsFiltered() || v.findMode || v.searchActive || len(v.matchRows) > 0 || v.copyMode || v.execState != execNone || v.sortPickMode
 }
 
 // SelectedItem returns the currently highlighted resource item.
@@ -1462,6 +1541,7 @@ func (v *View) refreshItems() {
 	if selected >= 0 && selected < len(listItems) {
 		v.list.Select(selected)
 	}
+	v.recomputeMatches()
 }
 
 // columnIDs returns the IDs of the given columns in order.
@@ -1586,6 +1666,42 @@ func (v *View) computeFindTargets() map[int]bool {
 		}
 	}
 	return targets
+}
+
+func (v *View) recomputeMatches() {
+	if strings.TrimSpace(v.searchQuery) == "" {
+		v.matchRows = nil
+		v.matchIndex = 0
+		return
+	}
+	query := strings.ToLower(strings.TrimSpace(v.searchQuery))
+	visible := v.list.VisibleItems()
+	matches := make([]int, 0, len(visible))
+	for i, li := range visible {
+		it, ok := li.(item)
+		if !ok {
+			continue
+		}
+		rowText := strings.ToLower(strings.Join(it.row, " "))
+		if strings.Contains(rowText, query) {
+			matches = append(matches, i)
+		}
+	}
+	v.matchRows = matches
+	if len(v.matchRows) == 0 {
+		v.matchIndex = 0
+		return
+	}
+	if v.matchIndex >= len(v.matchRows) {
+		v.matchIndex = len(v.matchRows) - 1
+	}
+}
+
+func matchSummary(index, total int) string {
+	if total <= 0 {
+		return "0/0"
+	}
+	return strconv.Itoa(index+1) + "/" + strconv.Itoa(total)
 }
 
 func (v *View) forwardView(selected resources.ResourceItem, key string) (viewstate.Action, viewstate.View) {

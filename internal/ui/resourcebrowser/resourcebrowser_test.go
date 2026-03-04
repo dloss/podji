@@ -16,8 +16,8 @@ func TestFooterShowsFilterAndFind(t *testing.T) {
 	v.SetSize(120, 40)
 
 	footer := ansi.Strip(v.Footer())
-	if !strings.Contains(footer, "/ filter") {
-		t.Fatalf("expected / filter hint, got: %s", footer)
+	if !strings.Contains(footer, "& filter") {
+		t.Fatalf("expected & filter hint, got: %s", footer)
 	}
 	if !strings.Contains(footer, "f find") {
 		t.Fatalf("expected f find hint, got: %s", footer)

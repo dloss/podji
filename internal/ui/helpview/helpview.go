@@ -31,7 +31,9 @@ GLOBAL (app navigation)
   E                    Events (global)
 
 TABLE (filterable lists, including A)
-  / (slash)            Filter
+  / (slash)            Search
+  &                    Filter
+  n / b                Next / previous match
   esc                  Clear filter
   s                    Sort (name/problem)
   w                    Wide columns on/off
@@ -51,7 +53,8 @@ LOGS (logs view)
   w                    Wrap on/off
   p                    Current/previous
   /                    Search
-  n / N                Next / previous match
+  &                    Filter
+  n / b                Next / previous match
   , / .                Cycle since window
   c                    Container picker (from container logs)
   up / down / j / k    Scroll

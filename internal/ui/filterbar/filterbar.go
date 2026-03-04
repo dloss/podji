@@ -2,6 +2,7 @@ package filterbar
 
 import (
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/ui/style"
 )
@@ -10,7 +11,11 @@ import (
 // restyle the filter input for status row rendering with a muted "/ " prompt.
 func Setup(model *list.Model) {
 	model.SetShowFilter(false)
-	model.FilterInput.Prompt = "/ "
+	model.KeyMap.Filter = key.NewBinding(
+		key.WithKeys("&"),
+		key.WithHelp("&", "filter"),
+	)
+	model.FilterInput.Prompt = "& "
 	model.FilterInput.PromptStyle = style.FilterPrompt
 	model.FilterInput.TextStyle = lipgloss.NewStyle()
 	model.Styles.FilterPrompt = style.FilterPrompt

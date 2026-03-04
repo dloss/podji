@@ -15,8 +15,8 @@ func TestFilterInputView(t *testing.T) {
 		t.Fatal("expected filter input view, got empty string")
 	}
 
-	if !strings.HasPrefix(filterInput, "/") {
-		t.Fatalf("expected filter input to start with '/', got %q", filterInput)
+	if !strings.HasPrefix(filterInput, "&") {
+		t.Fatalf("expected filter input to start with '&', got %q", filterInput)
 	}
 
 	if !strings.Contains(filterInput, "zzz") {

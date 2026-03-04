@@ -456,6 +456,72 @@ func TestSearchModeFooterIndicator(t *testing.T) {
 	}
 }
 
+func TestFilterModeFooterIndicator(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(80, 20)
+
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'&'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'e'}})
+	footer := ansi.Strip(v.Footer())
+	if !strings.Contains(footer, "filter") {
+		t.Fatalf("expected filter mode indicator in footer, got: %q", footer)
+	}
+	if !strings.Contains(footer, "& e") {
+		t.Fatalf("expected filter prompt value in footer, got: %q", footer)
+	}
+	if !strings.Contains(footer, "enter") || !strings.Contains(footer, "esc") {
+		t.Fatalf("expected confirm/cancel hints in filter footer, got: %q", footer)
+	}
+}
+
+func TestFilterAppliesAndNarrowsLines(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(80, 20)
+
+	before := len(v.lines)
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'&'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'e'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'o'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'r'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+
+	if strings.TrimSpace(v.filterValue) != "error" {
+		t.Fatalf("expected committed filter value to be error, got %q", v.filterValue)
+	}
+	if len(v.lines) == 0 {
+		t.Fatal("expected filtered logs to retain matching lines")
+	}
+	if len(v.lines) >= before {
+		t.Fatalf("expected filtered logs to narrow line set, got before=%d after=%d", before, len(v.lines))
+	}
+}
+
+func TestSearchBackKeyMovesToPreviousMatch(t *testing.T) {
+	v := New(resources.ResourceItem{Name: "api"}, resources.NewPods())
+	v.SetSize(80, 20)
+
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'/'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'e'}})
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyEnter})
+	if len(v.matchLines) < 2 {
+		t.Fatalf("expected at least 2 matches for test, got %d", len(v.matchLines))
+	}
+
+	first := v.matchLines[0]
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'n'}})
+	second := v.matchLines[v.matchIndex]
+	if second == first {
+		t.Fatal("expected n to advance to a different match")
+	}
+
+	v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'b'}})
+	if got := v.matchLines[v.matchIndex]; got != first {
+		t.Fatalf("expected b to return to first match line %d, got %d", first, got)
+	}
+}
+
 func TestContainerKeyPopsWhenContainerSelected(t *testing.T) {
 	v := NewWithContainer(resources.ResourceItem{Name: "api"}, resources.NewPods(), "api")
 	update := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'c'}})
