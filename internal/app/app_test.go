@@ -705,6 +705,31 @@ func TestZeroKeySwitchesToAllNamespaces(t *testing.T) {
 	}
 }
 
+func TestZeroKeyTogglesBackToLastSingleNamespace(t *testing.T) {
+	m := New()
+
+	// Pick a non-default namespace first so we can verify it is remembered.
+	m1, _ := m.Update(overlaypicker.SelectedMsg{Kind: "namespace", Value: "staging"})
+	onStaging := m1.(Model)
+	if onStaging.namespace != "staging" {
+		t.Fatalf("expected namespace=staging, got %q", onStaging.namespace)
+	}
+
+	// First 0 goes to all namespaces.
+	m2, _ := onStaging.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'0'}})
+	onAll := m2.(Model)
+	if onAll.namespace != resources.AllNamespaces {
+		t.Fatalf("expected namespace=%q, got %q", resources.AllNamespaces, onAll.namespace)
+	}
+
+	// Second 0 should toggle back to the last single namespace.
+	m3, _ := onAll.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'0'}})
+	back := m3.(Model)
+	if back.namespace != "staging" {
+		t.Fatalf("expected namespace=staging after toggling back, got %q", back.namespace)
+	}
+}
+
 func TestMergeLinePadsToAnchorWhenBackgroundIsShort(t *testing.T) {
 	got := mergeLine("short", "BOX", 10)
 	if got != "short     BOX" {

@@ -48,6 +48,7 @@ type Model struct {
 	cmdBar            *commandbar.Model
 	context           string
 	namespace         string
+	lastSingleNS      string
 	storeStatus       data.StoreStatus
 	errorMsg          string
 	statusMsg         string
@@ -118,6 +119,7 @@ func NewWithStore(store data.Store) Model {
 		crumbs:            []string{rootCrumb},
 		context:           scope.Context,
 		namespace:         scope.Namespace,
+		lastSingleNS:      initialSingleNamespace(scope.Namespace),
 		storeStatus:       store.Status(),
 		activeResourceKey: 'W',
 	}
@@ -265,10 +267,12 @@ func (m *Model) handleTopLevelMsg(msg bubbletea.Msg) (bubbletea.Msg, bool, bubbl
 			m.store.SetScope(scope)
 			m.context = scope.Context
 			m.namespace = scope.Namespace
+			m.rememberSingleNamespace(m.namespace)
 		} else {
 			if msg.Kind == "namespace" {
 				m.namespace = msg.Value
 				m.registry.SetNamespace(msg.Value)
+				m.rememberSingleNamespace(m.namespace)
 			} else {
 				m.context = msg.Value
 			}
@@ -395,15 +399,23 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 		}
 		key := runes[0]
 		if key == '0' {
-			m.namespace = resources.AllNamespaces
+			targetNS := resources.AllNamespaces
+			if m.namespace == resources.AllNamespaces {
+				targetNS = m.preferredSingleNamespace()
+			} else {
+				m.rememberSingleNamespace(m.namespace)
+			}
+			m.namespace = targetNS
 			if m.store != nil {
 				scope := m.store.Scope()
-				scope.Namespace = resources.AllNamespaces
+				scope.Namespace = targetNS
 				m.store.SetScope(scope)
 				m.context = scope.Context
+				m.namespace = scope.Namespace
 			} else {
-				m.registry.SetNamespace(resources.AllNamespaces)
+				m.registry.SetNamespace(targetNS)
 			}
+			m.rememberSingleNamespace(m.namespace)
 			m.syncStoreStatus()
 			if res := m.bestResourceForScope(); res != nil {
 				view := listview.New(m.adaptResource(res), m.registry)
@@ -413,6 +425,7 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 				m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
 				m.activeResourceKey = res.Key()
 			}
+			m.statusMsg = "Namespace: " + m.namespace
 			return msg, true, nil
 		}
 		if key >= '1' && key <= '9' {
@@ -423,11 +436,15 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 				b := m.bookmarks[slot]
 				m.context = b.context
 				m.namespace = b.namespace
+				m.rememberSingleNamespace(m.namespace)
 				if m.store != nil {
 					scope := m.store.Scope()
 					scope.Context = b.context
 					scope.Namespace = b.namespace
 					m.store.SetScope(scope)
+					m.context = scope.Context
+					m.namespace = scope.Namespace
+					m.rememberSingleNamespace(m.namespace)
 				} else {
 					m.registry.SetNamespace(b.namespace)
 				}
@@ -827,6 +844,26 @@ func fitViewLines(view string, targetLines int) string {
 		lines = append(lines, make([]string, targetLines-len(lines))...)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func initialSingleNamespace(namespace string) string {
+	if namespace != "" && namespace != resources.AllNamespaces {
+		return namespace
+	}
+	return resources.DefaultNamespace
+}
+
+func (m *Model) rememberSingleNamespace(namespace string) {
+	if namespace != "" && namespace != resources.AllNamespaces {
+		m.lastSingleNS = namespace
+	}
+}
+
+func (m Model) preferredSingleNamespace() string {
+	if m.lastSingleNS != "" && m.lastSingleNS != resources.AllNamespaces {
+		return m.lastSingleNS
+	}
+	return resources.DefaultNamespace
 }
 
 func titleCase(value string) string {
