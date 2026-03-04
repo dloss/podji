@@ -8,8 +8,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/style"
@@ -48,11 +50,13 @@ type View struct {
 
 	searchActive bool
 	searchQuery  string
+	searchInput  textinput.Model
 	matchLines   []int
 	matchIndex   int
 	filterActive bool
 	filterQuery  string
 	filterValue  string
+	filterInput  textinput.Model
 	requestID    int
 	cancel       context.CancelFunc
 	streamCh     <-chan bubbletea.Msg
@@ -79,6 +83,8 @@ func NewWithContainer(item resources.ResourceItem, resource resources.ResourceTy
 		wrap:      true,
 		sinceIdx:  1, // default to 5m
 	}
+	v.filterInput = newPromptInput("& ")
+	v.searchInput = newPromptInput("/ ")
 	v.reloadLogs()
 	v.refreshContent()
 	return v
@@ -92,6 +98,54 @@ func (v *View) Init() bubbletea.Cmd {
 }
 
 func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
+	if v.filterActive {
+		updated, cmd := v.filterInput.Update(msg)
+		v.filterInput = updated
+		v.filterQuery = v.filterInput.Value()
+		if key, ok := msg.(bubbletea.KeyMsg); ok {
+			switch key.String() {
+			case "enter":
+				v.filterActive = false
+				v.filterInput.Blur()
+				v.filterValue = strings.TrimSpace(v.filterQuery)
+				v.refreshWindow()
+				v.refreshContent()
+			case "esc":
+				v.filterActive = false
+				v.filterInput.Blur()
+				v.filterQuery = v.filterValue
+				v.filterInput.SetValue(v.filterValue)
+			}
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+	}
+
+	if v.searchActive {
+		updated, cmd := v.searchInput.Update(msg)
+		v.searchInput = updated
+		v.searchQuery = v.searchInput.Value()
+		if key, ok := msg.(bubbletea.KeyMsg); ok {
+			switch key.String() {
+			case "enter":
+				v.searchActive = false
+				v.searchInput.Blur()
+				v.recomputeMatches()
+				if len(v.matchLines) > 0 {
+					v.matchIndex = 0
+					v.viewport.SetYOffset(v.matchLines[v.matchIndex])
+				}
+			case "esc":
+				v.searchActive = false
+				v.searchInput.Blur()
+				v.searchInput.SetValue("")
+				v.searchQuery = ""
+				v.matchLines = nil
+				v.matchIndex = 0
+			}
+		}
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+	}
+
 	switch msg := msg.(type) {
 	case logReloadResultMsg:
 		if msg.requestID != v.requestID {
@@ -122,64 +176,6 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		}
 		return viewstate.Update{Action: viewstate.None, Next: v}
 	case bubbletea.KeyMsg:
-		if v.filterActive {
-			switch msg.String() {
-			case "enter":
-				v.filterActive = false
-				v.filterValue = strings.TrimSpace(v.filterQuery)
-				v.refreshWindow()
-				v.refreshContent()
-			case "esc":
-				v.filterActive = false
-				v.filterQuery = v.filterValue
-			case "backspace", "ctrl+h":
-				r := []rune(v.filterQuery)
-				if len(r) > 0 {
-					v.filterQuery = string(r[:len(r)-1])
-				}
-			default:
-				if msg.Type == bubbletea.KeyRunes && len(msg.Runes) > 0 {
-					for _, r := range msg.Runes {
-						if r >= 32 {
-							v.filterQuery += string(r)
-						}
-					}
-				}
-			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
-		}
-
-		if v.searchActive {
-			switch msg.String() {
-			case "enter":
-				v.searchActive = false
-				v.recomputeMatches()
-				if len(v.matchLines) > 0 {
-					v.matchIndex = 0
-					v.viewport.SetYOffset(v.matchLines[v.matchIndex])
-				}
-			case "esc":
-				v.searchActive = false
-				v.searchQuery = ""
-				v.matchLines = nil
-				v.matchIndex = 0
-			case "backspace", "ctrl+h":
-				r := []rune(v.searchQuery)
-				if len(r) > 0 {
-					v.searchQuery = string(r[:len(r)-1])
-				}
-			default:
-				if msg.Type == bubbletea.KeyRunes && len(msg.Runes) > 0 {
-					for _, r := range msg.Runes {
-						if r >= 32 {
-							v.searchQuery += string(r)
-						}
-					}
-				}
-			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
-		}
-
 		switch msg.String() {
 		case "esc":
 			if strings.TrimSpace(v.filterValue) != "" {
@@ -201,11 +197,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "&":
 			v.filterActive = true
 			v.filterQuery = v.filterValue
+			v.filterInput.SetValue(v.filterValue)
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.filterInput.Focus()}
 		case "/":
 			v.searchActive = true
 			v.searchQuery = ""
+			v.searchInput.SetValue("")
 			v.matchLines = nil
 			v.matchIndex = 0
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.searchInput.Focus()}
 		case "n":
 			if len(v.matchLines) > 0 {
 				v.matchIndex = (v.matchIndex + 1) % len(v.matchLines)
@@ -260,8 +260,7 @@ func (v *View) Breadcrumb() string {
 func (v *View) Footer() string {
 	if v.filterActive {
 		filterLabel := style.FooterKey.Render("filter")
-		filterVal := style.FooterKey.Render("& " + v.filterQuery + "▌")
-		line1 := filterLabel + "  " + filterVal
+		line1 := filterLabel + "  " + v.filterInput.View()
 		if v.viewport.Width > 0 {
 			line1 = ansi.Truncate(line1, v.viewport.Width-2, "…")
 		}
@@ -276,8 +275,7 @@ func (v *View) Footer() string {
 	}
 	if v.searchActive {
 		searchLabel := style.FooterKey.Render("search")
-		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
-		line1 := searchLabel + "  " + searchVal
+		line1 := searchLabel + "  " + v.searchInput.View()
 		if v.viewport.Width > 0 {
 			line1 = ansi.Truncate(line1, v.viewport.Width-2, "…")
 		}
@@ -549,6 +547,16 @@ func matchSummary(index, total int) string {
 		return "0/0"
 	}
 	return strconv.Itoa(index+1) + "/" + strconv.Itoa(total)
+}
+
+func newPromptInput(prompt string) textinput.Model {
+	input := textinput.New()
+	input.Prompt = prompt
+	input.PromptStyle = style.FilterPrompt
+	input.TextStyle = lipgloss.NewStyle()
+	input.SetValue("")
+	input.Blur()
+	return input
 }
 
 func applyFilter(lines []string, query string) []string {

@@ -445,8 +445,8 @@ func TestSearchModeFooterIndicator(t *testing.T) {
 	if !strings.Contains(footer, "search") {
 		t.Fatalf("expected search mode indicator in footer, got: %q", footer)
 	}
-	if !strings.Contains(footer, "▌") {
-		t.Fatalf("expected cursor in footer when search active, got: %q", footer)
+	if !strings.Contains(footer, "/ ") {
+		t.Fatalf("expected search prompt in footer when search active, got: %q", footer)
 	}
 	if !strings.Contains(footer, "enter") {
 		t.Fatalf("expected enter confirm hint in search footer, got: %q", footer)
