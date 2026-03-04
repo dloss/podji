@@ -1,8 +1,8 @@
 package filterbar
 
 import (
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dloss/podji/internal/ui/style"
 )
