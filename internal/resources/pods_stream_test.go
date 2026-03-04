@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -34,22 +35,20 @@ func TestPodsLogsStreamFollowAppendsUntilContextDone(t *testing.T) {
 	item := ResourceItem{Name: "api"}
 	opts := LogOptions{Follow: true, Timestamps: true}
 
-	initial, err := pods.LogsWithOptions(context.Background(), item, opts)
-	if err != nil {
-		t.Fatalf("LogsWithOptions() error = %v", err)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Millisecond)
 	defer cancel()
 
 	var got []string
-	err = pods.LogsStream(ctx, item, opts, func(line string) {
+	err := pods.LogsStream(ctx, item, opts, func(line string) {
 		got = append(got, line)
 	})
 	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context cancellation, got %v", err)
 	}
-	if len(got) <= len(initial) {
-		t.Fatalf("expected streamed follow lines beyond initial snapshot (%d), got %d", len(initial), len(got))
+	if len(got) < 1 {
+		t.Fatalf("expected at least one follow line, got %d", len(got))
+	}
+	if !strings.Contains(got[0], "T") {
+		t.Fatalf("expected RFC3339 timestamp prefix in streamed line, got %q", got[0])
 	}
 }

@@ -234,6 +234,23 @@ func podMockLogs(timestamps bool) []string {
 }
 
 func (p *Pods) LogsStream(ctx context.Context, item ResourceItem, opts LogOptions, onLine func(string)) error {
+	if opts.Follow && p.liveLogsFetcher == nil {
+		// In mock mode, follow should feel like a live tail. The log view already
+		// loads the current snapshot, so streaming only emits incremental lines.
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for i := 0; ; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case ts := <-ticker.C:
+				if onLine != nil {
+					onLine(mockFollowLogLine(ts, opts.Timestamps, i))
+				}
+			}
+		}
+	}
+
 	lines, err := p.LogsWithOptions(ctx, item, opts)
 	if err != nil {
 		return err
@@ -243,22 +260,7 @@ func (p *Pods) LogsStream(ctx context.Context, item ResourceItem, opts LogOption
 			onLine(line)
 		}
 	}
-	if !opts.Follow || p.liveLogsFetcher != nil {
-		return nil
-	}
-
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	for i := 0; ; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ts := <-ticker.C:
-			if onLine != nil {
-				onLine(mockFollowLogLine(ts, opts.Timestamps, i))
-			}
-		}
-	}
+	return nil
 }
 
 func mockFollowLogLine(ts time.Time, timestamps bool, idx int) string {

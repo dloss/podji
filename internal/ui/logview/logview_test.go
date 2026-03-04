@@ -154,6 +154,18 @@ func TestFollowToggleRefetchesWithUpdatedFollowOption(t *testing.T) {
 	}
 }
 
+func TestFollowToggleOffPausesStreamWithoutReload(t *testing.T) {
+	res := &streamingLogsResource{
+		base:     resources.NewPods(),
+		streamed: []string{"stream-a"},
+	}
+	v := New(resources.ResourceItem{Name: "api"}, res)
+	upd := v.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'f'}})
+	if upd.Cmd != nil {
+		t.Fatal("expected no reload cmd when pausing stream follow")
+	}
+}
+
 func TestPreviousToggleRefetchesWithUpdatedPreviousOption(t *testing.T) {
 	res := &optionsLogsResource{base: resources.NewPods()}
 	v := New(resources.ResourceItem{Name: "api"}, res)

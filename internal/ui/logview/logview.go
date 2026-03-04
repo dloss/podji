@@ -192,6 +192,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 			}
 		case "f":
 			v.follow = !v.follow
+			if !v.follow {
+				if _, ok := v.resource.(resources.LogStreamReader); ok {
+					// Pause follow without replacing on-screen content. This
+					// avoids visible vertical jumps when toggling follow off.
+					v.cancelReload()
+					v.streamErr = ""
+					return viewstate.Update{Action: viewstate.None, Next: v}
+				}
+			}
 			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.reloadLogsCmd()}
 		case "w":
 			v.wrap = !v.wrap
