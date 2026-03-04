@@ -246,10 +246,10 @@ func (v *View) View() string {
 	for i := range out {
 		out[i] = ""
 	}
-	if len(out) > 1 {
-		out[1] = header
+	if len(out) > 0 {
+		out[0] = header
 	}
-	dst := 2
+	dst := 1
 	for _, line := range lines[dataStart:] {
 		if dst >= len(out) {
 			break

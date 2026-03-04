@@ -8,6 +8,7 @@ import (
 
 var (
 	Header           = lipgloss.NewStyle().Bold(true)
+	Separator        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	Scope            = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 	ScopeValue       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 	ScopeActive      = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
@@ -27,6 +28,13 @@ var (
 	Healthy          = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	FilterPrompt     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )
+
+func SeparatorLine(width int) string {
+	if width <= 0 {
+		return Separator.Render("─")
+	}
+	return Separator.Render(strings.Repeat("─", width))
+}
 
 type statusSeverity int
 

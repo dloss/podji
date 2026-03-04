@@ -606,11 +606,10 @@ func (v *View) View() string {
 	for i := range out {
 		out[i] = ""
 	}
-	out[0] = ""
-	if len(out) > 1 {
-		out[1] = header
+	if len(out) > 0 {
+		out[0] = header
 	}
-	dst := 2
+	dst := 1
 	hasVisibleItems := len(v.list.VisibleItems()) > 0
 	for _, line := range lines[dataStart:] {
 		if !hasVisibleItems && strings.TrimSpace(ansi.Strip(line)) == "No items." {

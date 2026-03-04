@@ -250,7 +250,7 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 }
 
 func (v *View) View() string {
-	return "\n" + v.viewport.View()
+	return v.viewport.View()
 }
 
 func (v *View) Breadcrumb() string {

@@ -539,7 +539,9 @@ func (m Model) renderBody() string {
 
 func (m Model) renderMain() string {
 	header := m.renderHeader()
+	headerSep := style.SeparatorLine(m.width)
 	body := m.renderBody()
+	footerSep := style.SeparatorLine(m.width)
 	footer := m.top().Footer()
 	if m.cmdBar != nil {
 		footer = m.cmdBar.View(m.commandSuggestion())
@@ -558,10 +560,11 @@ func (m Model) renderMain() string {
 		footer = m.decorateFooterWithStoreFreshness(footer)
 	}
 
-	sections := []string{header}
+	sections := []string{header, headerSep}
 	if body != "" {
 		sections = append(sections, body)
 	}
+	sections = append(sections, footerSep)
 	sections = append(sections, footer)
 
 	return strings.Join(sections, "\n")
@@ -795,7 +798,7 @@ func formatCrumb(crumb string) string {
 
 // headerLineCount returns the number of lines consumed by the header section.
 func (m Model) headerLineCount() int {
-	return 2
+	return 3
 }
 
 func (m Model) availableHeight() int {
@@ -806,7 +809,7 @@ func (m Model) availableHeight() int {
 	if m.cmdBar != nil {
 		footerLines = 1
 	}
-	height := m.height - m.headerLineCount() - footerLines
+	height := m.height - m.headerLineCount() - footerLines - 1
 	if height < 1 {
 		return 1
 	}
@@ -821,7 +824,7 @@ func (m Model) bodyHeightLimit() int {
 	if m.cmdBar != nil {
 		footerLines = 1
 	}
-	limit := m.height - m.headerLineCount() - footerLines
+	limit := m.height - m.headerLineCount() - footerLines - 1
 	if limit < 0 {
 		return 0
 	}

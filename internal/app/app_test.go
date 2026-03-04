@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bubbletea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/data"
 	"github.com/dloss/podji/internal/resources"
 	"github.com/dloss/podji/internal/ui/commandbar"
@@ -180,6 +181,41 @@ func TestViewPadsBodyToKeepFooterAtBottom(t *testing.T) {
 	}
 	if lines[len(lines)-1] != "q quit" {
 		t.Fatalf("expected footer action on last line, got %q", lines[len(lines)-1])
+	}
+}
+
+func TestViewAddsSeparatorLinesWhenSized(t *testing.T) {
+	m := Model{
+		stack:     []viewstate.View{shortView{}},
+		crumbs:    []string{"workloads"},
+		context:   "default",
+		namespace: "default",
+		width:     40,
+		height:    8,
+	}
+
+	rendered := m.View()
+	lines := strings.Split(rendered, "\n")
+	if len(lines) != m.height {
+		t.Fatalf("expected %d lines, got %d", m.height, len(lines))
+	}
+	if got := ansi.StringWidth(lines[2]); got != m.width {
+		t.Fatalf("expected header separator width %d, got %d", m.width, got)
+	}
+	if got := ansi.StringWidth(lines[len(lines)-3]); got != m.width {
+		t.Fatalf("expected footer separator width %d, got %d", m.width, got)
+	}
+	if !strings.Contains(lines[2], "─") {
+		t.Fatalf("expected header separator line, got %q", lines[2])
+	}
+	if !strings.Contains(lines[len(lines)-3], "─") {
+		t.Fatalf("expected footer separator line, got %q", lines[len(lines)-3])
+	}
+	if got := strings.TrimRight(ansi.Strip(lines[len(lines)-2]), " "); got != "status" {
+		t.Fatalf("expected footer status content, got %q", got)
+	}
+	if got := strings.TrimRight(ansi.Strip(lines[len(lines)-1]), " "); got != "q quit" {
+		t.Fatalf("expected footer action content, got %q", got)
 	}
 }
 
