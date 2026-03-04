@@ -418,30 +418,13 @@ func tailForWindow(window string) int {
 }
 
 func applySinceWindow(lines []string, window string) []string {
-	if window == "all" {
-		out := make([]string, len(lines))
-		copy(out, lines)
-		return out
-	}
-	// Stub data doesn't track full timestamps per queryable window. Keep the
-	// newest subset for smaller windows so cycling still provides useful context.
 	if len(lines) == 0 {
 		return nil
 	}
-	keep := len(lines)
-	switch window {
-	case "1m":
-		keep = minInt(2, len(lines))
-	case "5m":
-		keep = minInt(4, len(lines))
-	case "15m":
-		keep = minInt(6, len(lines))
-	case "1h":
-		keep = minInt(8, len(lines))
-	}
-	start := len(lines) - keep
-	out := make([]string, keep)
-	copy(out, lines[start:])
+	// Windowing is handled at fetch time via tailForWindow(). Avoid additional
+	// client-side slicing here so live logs are not reduced to tiny subsets.
+	out := make([]string, len(lines))
+	copy(out, lines)
 	return out
 }
 
@@ -490,13 +473,6 @@ func matchSummary(index, total int) string {
 		return "0/0"
 	}
 	return strconv.Itoa(index+1) + "/" + strconv.Itoa(total)
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func pageStep(height int) int {
