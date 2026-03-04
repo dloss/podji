@@ -63,12 +63,17 @@ func StatusFooter(indicators []Binding, pagination string, width int) string {
 	return FormatFooter(indicators, pagination, width)
 }
 
-// ActionFooter renders view-specific action bindings, then nav keys, then "? help".
+// ActionFooter renders view-specific action bindings, global scope bindings,
+// resource nav keys, then "? help".
 func ActionFooter(actions []Binding, width int) string {
 	parts := []string{}
 	if len(actions) > 0 {
 		parts = append(parts, FormatBindings(actions))
 	}
+	parts = append(parts, FormatBindings([]Binding{
+		B("X", "context"),
+		B("N", "namespace"),
+	}))
 	parts = append(parts, FormatKeys(NavKeys)+" "+FooterLabel.Render("nav"))
 	parts = append(parts, FormatBindings([]Binding{B("?", "help")}))
 	line := strings.Join(parts, "  ")
