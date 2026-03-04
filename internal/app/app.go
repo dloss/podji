@@ -394,6 +394,27 @@ func (m *Model) handleGlobalKeyMsg(msg bubbletea.KeyMsg) (bubbletea.Msg, bool, b
 			return msg, false, nil
 		}
 		key := runes[0]
+		if key == '0' {
+			m.namespace = resources.AllNamespaces
+			if m.store != nil {
+				scope := m.store.Scope()
+				scope.Namespace = resources.AllNamespaces
+				m.store.SetScope(scope)
+				m.context = scope.Context
+			} else {
+				m.registry.SetNamespace(resources.AllNamespaces)
+			}
+			m.syncStoreStatus()
+			if res := m.bestResourceForScope(); res != nil {
+				view := listview.New(m.adaptResource(res), m.registry)
+				view.SetSize(m.width, m.availableHeight())
+				m.disposeStack(m.stack)
+				m.stack = []viewstate.View{view}
+				m.crumbs = []string{normalizeBreadcrumbPart(view.Breadcrumb())}
+				m.activeResourceKey = res.Key()
+			}
+			return msg, true, nil
+		}
 		if key >= '1' && key <= '9' {
 			slot := int(key - '1')
 			if m.bookmarks[slot] == nil {

@@ -18,6 +18,7 @@ GLOBAL (app navigation)
   X                    Context
   m <1-9>              Set bookmark (context + namespace + resource type)
   1-9                  Jump to bookmark
+  0                    All namespaces
   A                    All resource types (built-ins + CRDs)
   W                    Workloads
   P                    Pods

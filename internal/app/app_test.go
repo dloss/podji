@@ -684,6 +684,27 @@ func TestBookmarkSetAndJump(t *testing.T) {
 	}
 }
 
+func TestZeroKeySwitchesToAllNamespaces(t *testing.T) {
+	m := New()
+
+	updated, _ := m.Update(bubbletea.KeyMsg{Type: bubbletea.KeyRunes, Runes: []rune{'0'}})
+	got := updated.(Model)
+
+	if got.namespace != resources.AllNamespaces {
+		t.Fatalf("expected namespace=%q, got %q", resources.AllNamespaces, got.namespace)
+	}
+	if got.registry.Namespace() != resources.AllNamespaces {
+		t.Fatalf("expected registry namespace=%q, got %q", resources.AllNamespaces, got.registry.Namespace())
+	}
+	lv, ok := got.top().(*listview.View)
+	if !ok {
+		t.Fatal("expected top view to be listview after pressing 0")
+	}
+	if lv.Resource().Name() != "workloads" {
+		t.Fatalf("expected workloads list after pressing 0, got %q", lv.Resource().Name())
+	}
+}
+
 func TestMergeLinePadsToAnchorWhenBackgroundIsShort(t *testing.T) {
 	got := mergeLine("short", "BOX", 10)
 	if got != "short     BOX" {
