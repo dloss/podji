@@ -337,7 +337,7 @@ func (v *View) Footer() string {
 	line1 := style.FormatBindings(indicators)
 
 	actions := []style.Binding{
-		style.B("p", "mode"), style.B("f", "pause/resume"), style.B("w", "wrap"),
+		style.B("p", "mode"), style.B("f", "follow"), style.B("w", "wrap"),
 		style.B("t", "timestamps"),
 		style.B("/", "search"), style.B("&", "filter"),
 	}
