@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"strings"
+	"time"
 )
 
 type Pods struct {
@@ -238,9 +239,39 @@ func (p *Pods) LogsStream(ctx context.Context, item ResourceItem, opts LogOption
 		return err
 	}
 	for _, line := range lines {
-		onLine(line)
+		if onLine != nil {
+			onLine(line)
+		}
 	}
-	return nil
+	if !opts.Follow || p.liveLogsFetcher != nil {
+		return nil
+	}
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for i := 0; ; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ts := <-ticker.C:
+			if onLine != nil {
+				onLine(mockFollowLogLine(ts, opts.Timestamps, i))
+			}
+		}
+	}
+}
+
+func mockFollowLogLine(ts time.Time, timestamps bool, idx int) string {
+	msgs := []string{
+		`{"level":"info","service":"api","path":"/healthz","status":200,"latency_ms":18}`,
+		`{"level":"warn","service":"worker","path":"/metrics","status":429,"latency_ms":411}`,
+		`{"level":"error","service":"scheduler","path":"/readyz","status":503,"latency_ms":733}`,
+	}
+	msg := msgs[idx%len(msgs)]
+	if !timestamps {
+		return msg
+	}
+	return ts.UTC().Format(time.RFC3339) + "  " + msg
 }
 
 func (p *Pods) Events(item ResourceItem) []string {
