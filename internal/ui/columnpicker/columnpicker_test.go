@@ -71,3 +71,59 @@ func TestViewShowsDiscoverableDefaultHintAndBuiltInSection(t *testing.T) {
 		t.Fatalf("expected default hint in footer, got %q", view)
 	}
 }
+
+func TestAllowsTogglingNameAndNamespace(t *testing.T) {
+	pool := []resources.TableColumn{
+		{ID: "name", Name: "NAME", Default: true},
+		{ID: "namespace", Name: "NAMESPACE", Default: true},
+		{ID: "age", Name: "AGE", Default: true},
+	}
+	p := New("pods", pool, nil, []string{"name", "namespace", "age"})
+
+	// Cursor starts on NAME (first selectable built-in column).
+	p.Update(keyRunes(' '))
+	p.Update(keyRunes('j'))
+	p.Update(keyRunes(' '))
+
+	got := p.visibleIDs()
+	want := []string{"age"}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d visible columns, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected visible[%d]=%q, got %q (%v)", i, want[i], got[i], got)
+		}
+	}
+}
+
+func TestAllAndNoneShortcutsApplyToAllColumns(t *testing.T) {
+	pool := []resources.TableColumn{
+		{ID: "name", Name: "NAME", Default: true},
+		{ID: "namespace", Name: "NAMESPACE", Default: true},
+		{ID: "age", Name: "AGE", Default: true},
+	}
+	labelPool := []resources.TableColumn{
+		{ID: "label:app", Name: "APP", Default: false},
+	}
+	p := New("pods", pool, labelPool, nil)
+
+	p.Update(keyRunes('a'))
+	gotAll := p.visibleIDs()
+	wantAll := []string{"name", "namespace", "age", "label:app"}
+	if len(gotAll) != len(wantAll) {
+		t.Fatalf("expected %d visible columns after all, got %d (%v)", len(wantAll), len(gotAll), gotAll)
+	}
+	for i := range wantAll {
+		if gotAll[i] != wantAll[i] {
+			t.Fatalf("expected visible after all[%d]=%q, got %q (%v)", i, wantAll[i], gotAll[i], gotAll)
+		}
+	}
+
+	p.Update(keyRunes('A'))
+	gotNone := p.visibleIDs()
+	if len(gotNone) != 0 {
+		t.Fatalf("expected no visible columns after none, got %v", gotNone)
+	}
+}

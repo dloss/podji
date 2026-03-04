@@ -27,7 +27,6 @@ type pickerRow struct {
 	headerText string
 	col        resources.TableColumn
 	checked    bool
-	locked     bool // cannot be toggled (NAME, NAMESPACE)
 	isWide     bool // wide-only column, shown with [wide] tag
 }
 
@@ -65,14 +64,12 @@ func New(resourceName string, pool, labelPool []resources.TableColumn, current [
 	// Built-in resource columns section (regular + wide-only extras).
 	rows = append(rows, pickerRow{kind: rowHeader, headerText: "built-in"})
 	for _, col := range pool {
-		locked := col.ID == "name" || col.ID == "namespace"
-		wide := !defaultIDs[col.ID] && col.ID != "name" && col.ID != "namespace"
-		checked := currentSet[col.ID] || locked
+		wide := !defaultIDs[col.ID]
+		checked := currentSet[col.ID]
 		rows = append(rows, pickerRow{
 			kind:    rowColumn,
 			col:     col,
 			checked: checked,
-			locked:  locked,
 			isWide:  wide,
 		})
 	}
@@ -126,7 +123,7 @@ func (p *Picker) boxWidth() int {
 
 func (p *Picker) firstSelectable() int {
 	for i, row := range p.rows {
-		if row.kind == rowColumn && !row.locked {
+		if row.kind == rowColumn {
 			return i
 		}
 	}
@@ -137,7 +134,7 @@ func (p *Picker) isSelectable(i int) bool {
 	if i < 0 || i >= len(p.rows) {
 		return false
 	}
-	return p.rows[i].kind == rowColumn && !p.rows[i].locked
+	return p.rows[i].kind == rowColumn
 }
 
 func (p *Picker) moveCursor(delta int) {
@@ -173,7 +170,15 @@ func (p *Picker) visibleIDs() []string {
 func (p *Picker) resetToDefault() {
 	for i := range p.rows {
 		if p.rows[i].kind == rowColumn {
-			p.rows[i].checked = p.defaults[p.rows[i].col.ID] || p.rows[i].locked
+			p.rows[i].checked = p.defaults[p.rows[i].col.ID]
+		}
+	}
+}
+
+func (p *Picker) setAll(checked bool) {
+	for i := range p.rows {
+		if p.rows[i].kind == rowColumn {
+			p.rows[i].checked = checked
 		}
 	}
 }
@@ -202,6 +207,10 @@ func (p *Picker) Update(msg bubbletea.Msg) viewstate.Update {
 
 	case "d":
 		p.resetToDefault()
+	case "a":
+		p.setAll(true)
+	case "A":
+		p.setAll(false)
 
 	case "up", "k":
 		p.moveCursor(-1)
@@ -231,7 +240,6 @@ func (p *Picker) View() string {
 		Foreground(lipgloss.Color("0")).
 		Background(lipgloss.Color("250")).
 		Bold(true)
-	lockedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	wideTag := muted.Render(" [wide]")
 
 	maxItems := p.height - 8 // reserve space for border, title, sep, footer
@@ -261,9 +269,7 @@ func (p *Picker) View() string {
 
 		case rowColumn:
 			var checkbox string
-			if row.locked {
-				checkbox = "•"
-			} else if row.checked {
+			if row.checked {
 				checkbox = "✓"
 			} else {
 				checkbox = "○"
@@ -275,13 +281,9 @@ func (p *Picker) View() string {
 			}
 
 			var line string
-			if row.locked {
-				line = "  " + checkbox + " " + lockedStyle.Render(name)
-			} else {
-				line = "  " + checkbox + " " + name
-				if row.isWide {
-					line += wideTag
-				}
+			line = "  " + checkbox + " " + name
+			if row.isWide {
+				line += wideTag
 			}
 
 			if i == p.cursor {
@@ -299,8 +301,8 @@ func (p *Picker) View() string {
 	}
 
 	lines = append(lines, strings.Repeat("─", innerWidth))
-	footerPrimary := muted.Render("spc toggle  enter apply")
-	footerSecondary := muted.Render("d default  esc cancel")
+	footerPrimary := muted.Render("spc toggle  a all  A none")
+	footerSecondary := muted.Render("d default  enter apply  esc cancel")
 	lines = append(lines, footerPrimary)
 	lines = append(lines, footerSecondary)
 

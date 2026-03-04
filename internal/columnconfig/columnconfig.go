@@ -71,31 +71,11 @@ func (s *Store) Get(resourceName string, pool []resources.TableColumn) []resourc
 		}
 	}
 
-	// Always ensure "name" is first; add it if the stored config omitted it.
-	if len(result) == 0 || result[0].ID != "name" {
-		if _, ok := poolByID["name"]; ok {
-			result = append([]resources.TableColumn{poolByID["name"]}, result...)
-		}
-	}
-
 	return result
 }
 
 // Set stores user-chosen visible column IDs for a resource.
-// "name" is always prepended (NAME must always be visible).
 func (s *Store) Set(resourceName string, visible []string) {
-	// Ensure "name" is always first.
-	hasName := false
-	for _, id := range visible {
-		if id == "name" {
-			hasName = true
-			break
-		}
-	}
-	if !hasName {
-		visible = append([]string{"name"}, visible...)
-	}
-
 	s.mu.Lock()
 	s.configs[resourceName] = ColumnConfig{Visible: visible}
 	s.mu.Unlock()
