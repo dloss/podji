@@ -12,6 +12,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
+	"github.com/charmbracelet/bubbles/textinput"
 	bubbletea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dloss/podji/internal/columnconfig"
@@ -134,6 +135,7 @@ type View struct {
 	findTargets  map[int]bool
 	searchActive bool
 	searchQuery  string
+	searchInput  textinput.Model
 	matchRows    []int
 	matchIndex   int
 	copyMode     bool
@@ -172,6 +174,10 @@ func New(resource resources.ResourceType, registry *resources.Registry) *View {
 	filterbar.Setup(&model)
 	model.Paginator.Type = paginator.Arabic
 	v.list = model
+	v.searchInput = model.FilterInput
+	v.searchInput.Prompt = "/ "
+	v.searchInput.SetValue("")
+	v.searchInput.Blur()
 	return v
 }
 
@@ -211,11 +217,15 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: clearExecResultCmd()}
 	}
 
-	if key, ok := msg.(bubbletea.KeyMsg); ok {
-		if v.searchActive {
+	if v.searchActive {
+		updated, cmd := v.searchInput.Update(msg)
+		v.searchInput = updated
+		v.searchQuery = v.searchInput.Value()
+		if key, ok := msg.(bubbletea.KeyMsg); ok {
 			switch key.String() {
 			case "enter":
 				v.searchActive = false
+				v.searchInput.Blur()
 				v.recomputeMatches()
 				if len(v.matchRows) > 0 {
 					v.matchIndex = 0
@@ -223,26 +233,17 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 				}
 			case "esc":
 				v.searchActive = false
+				v.searchInput.Blur()
+				v.searchInput.SetValue("")
 				v.searchQuery = ""
 				v.matchRows = nil
 				v.matchIndex = 0
-			case "backspace", "ctrl+h":
-				r := []rune(v.searchQuery)
-				if len(r) > 0 {
-					v.searchQuery = string(r[:len(r)-1])
-				}
-			default:
-				if key.Type == bubbletea.KeyRunes && len(key.Runes) > 0 {
-					for _, r := range key.Runes {
-						if r >= 32 {
-							v.searchQuery += string(r)
-						}
-					}
-				}
 			}
-			return viewstate.Update{Action: viewstate.None, Next: v}
 		}
+		return viewstate.Update{Action: viewstate.None, Next: v, Cmd: cmd}
+	}
 
+	if key, ok := msg.(bubbletea.KeyMsg); ok {
 		if v.list.SettingFilter() && key.String() != "esc" {
 			updated, cmd := v.list.Update(msg)
 			v.list = updated
@@ -436,9 +437,10 @@ func (v *View) Update(msg bubbletea.Msg) viewstate.Update {
 		case "/":
 			v.searchActive = true
 			v.searchQuery = ""
+			v.searchInput.SetValue("")
 			v.matchRows = nil
 			v.matchIndex = 0
-			return viewstate.Update{Action: viewstate.None, Next: v}
+			return viewstate.Update{Action: viewstate.None, Next: v, Cmd: v.searchInput.Focus()}
 		case "n":
 			if len(v.matchRows) > 0 {
 				v.matchIndex = (v.matchIndex + 1) % len(v.matchRows)
@@ -666,8 +668,7 @@ func (v *View) Footer() string {
 	}
 	if v.searchActive {
 		searchLabel := style.FooterKey.Render("search")
-		searchVal := style.FooterKey.Render("/ " + v.searchQuery + "▌")
-		line1 := searchLabel + "  " + searchVal
+		line1 := searchLabel + "  " + v.searchInput.View()
 		if v.list.Width() > 0 {
 			line1 = ansi.Truncate(line1, v.list.Width()-2, "…")
 		}
