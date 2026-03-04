@@ -15,7 +15,21 @@ go test ./...
 
 ## Interactive UI Testing
 
-The app uses stub data (no real Kubernetes cluster needed). Use `dev/ui.sh` to interact with the running TUI:
+Podji supports both live Kubernetes clusters (`kube` mode) and deterministic mock mode.
+
+For repeatable interactive UI testing, run in mock mode:
+
+```bash
+PODJI_MOCK=1 dev/ui.sh start
+```
+
+For live-cluster exploration, use default `kube` mode:
+
+```bash
+dev/ui.sh start
+```
+
+Use `dev/ui.sh` to interact with the running TUI:
 
 ```bash
 dev/ui.sh start          # Build, launch in tmux (120x40), capture initial screen
