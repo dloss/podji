@@ -117,7 +117,10 @@ func (i item) Description() string {
 }
 
 func (i item) FilterValue() string {
-	return i.data.Name
+	if len(i.row) == 0 {
+		return i.data.Name
+	}
+	return strings.Join(i.row, " ")
 }
 
 type View struct {

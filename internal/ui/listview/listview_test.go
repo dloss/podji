@@ -164,17 +164,28 @@ func TestFilterDownAppliesFilterWithoutOpeningSelection(t *testing.T) {
 	}
 }
 
-func TestItemFilterValueUsesNameOnly(t *testing.T) {
+func TestItemFilterValueUsesVisibleRowContent(t *testing.T) {
 	it := item{
 		data: resources.ResourceItem{
 			Name:   "api",
 			Status: "Degraded",
 			Ready:  "2/3",
 		},
+		row: []string{"default", "api", "degraded", "2/3"},
+	}
+
+	if got := it.FilterValue(); got != "default api degraded 2/3" {
+		t.Fatalf("expected visible row filter value, got %q", got)
+	}
+}
+
+func TestItemFilterValueFallsBackToNameWithoutRow(t *testing.T) {
+	it := item{
+		data: resources.ResourceItem{Name: "api"},
 	}
 
 	if got := it.FilterValue(); got != "api" {
-		t.Fatalf("expected name-only filter value, got %q", got)
+		t.Fatalf("expected name fallback when row missing, got %q", got)
 	}
 }
 

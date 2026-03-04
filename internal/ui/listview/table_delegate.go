@@ -30,8 +30,8 @@ func newTableDelegate(findMode *bool, findTargets *map[int]bool) tableDelegate {
 	return tableDelegate{DefaultDelegate: delegate, findMode: findMode, findTargets: findTargets}
 }
 
-// tableDelegate keeps Bubble's default list behavior while scoping filter and
-// find markers to the row's configured match column (usually NAME).
+// tableDelegate keeps Bubble's default list behavior while scoping find
+// markers to the configured match column (usually NAME).
 type tableDelegate struct {
 	list.DefaultDelegate
 	findMode    *bool
@@ -84,7 +84,7 @@ func renderRowWithNameMatch(
 	if matchColumn < 0 || matchColumn >= len(it.row) {
 		matchColumn = 0
 	}
-	nameRunes := []rune(it.data.Name)
+	columnMatches := splitMatchesByColumn(it.row, matches)
 
 	for idx, value := range it.row {
 		width := it.widths[idx]
@@ -93,16 +93,8 @@ func renderRowWithNameMatch(
 			cellValue = dimPodGeneratedSuffix(cellValue, it.data.Name, it.dimPodName, isSelected, len(matches) > 0)
 		}
 
-		if idx == matchColumn && len(matches) > 0 {
-			nameMatches := make([]int, 0, len(matches))
-			for _, pos := range matches {
-				if pos >= 0 && pos < len(nameRunes) {
-					nameMatches = append(nameMatches, pos)
-				}
-			}
-			if len(nameMatches) > 0 {
-				cellValue = lipgloss.StyleRunes(cellValue, nameMatches, matchStyle, unmatchedStyle)
-			}
+		if localMatches := visibleMatchesForCell(cellValue, columnMatches[idx]); len(localMatches) > 0 {
+			cellValue = lipgloss.StyleRunes(cellValue, localMatches, matchStyle, unmatchedStyle)
 		}
 
 		if idx == matchColumn && findTarget {
@@ -117,6 +109,44 @@ func renderRowWithNameMatch(
 	}
 
 	return strings.Join(cells, columnSeparator)
+}
+
+func splitMatchesByColumn(row []string, matches []int) [][]int {
+	if len(row) == 0 {
+		return nil
+	}
+	perColumn := make([][]int, len(row))
+	if len(matches) == 0 {
+		return perColumn
+	}
+	offset := 0
+	for idx, value := range row {
+		cellLen := len([]rune(value))
+		for _, pos := range matches {
+			if pos >= offset && pos < offset+cellLen {
+				perColumn[idx] = append(perColumn[idx], pos-offset)
+			}
+		}
+		offset += cellLen
+		if idx < len(row)-1 {
+			offset++ // spaces inserted by strings.Join(row, " ")
+		}
+	}
+	return perColumn
+}
+
+func visibleMatchesForCell(cellValue string, matches []int) []int {
+	if len(matches) == 0 {
+		return nil
+	}
+	max := len([]rune(cellValue))
+	out := make([]int, 0, len(matches))
+	for _, pos := range matches {
+		if pos >= 0 && pos < max {
+			out = append(out, pos)
+		}
+	}
+	return out
 }
 
 // underlineFirstChar applies underline + bright foreground to the first

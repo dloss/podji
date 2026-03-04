@@ -45,6 +45,38 @@ func TestRenderRowWithNameMatchUnderlinesNameColumn(t *testing.T) {
 	}
 }
 
+func TestSplitMatchesByColumnMapsGlobalIndicesAcrossColumns(t *testing.T) {
+	row := []string{"default", "api", "running"}
+	// Global positions in "default api running":
+	// 0=d, 2=f (col0), 8=a, 10=i (col1), 12=r, 18=g (col2)
+	got := splitMatchesByColumn(row, []int{0, 2, 8, 10, 12, 18})
+	want := [][]int{
+		{0, 2},
+		{0, 2},
+		{0, 6},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected column count: got %d want %d", len(got), len(want))
+	}
+	for idx := range want {
+		if !slicesEqual(got[idx], want[idx]) {
+			t.Fatalf("column %d matches: got %v want %v", idx, got[idx], want[idx])
+		}
+	}
+}
+
+func slicesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestPodGeneratedSuffixRange(t *testing.T) {
 	tests := []struct {
 		name  string
