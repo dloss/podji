@@ -71,8 +71,7 @@ Mock mode supports deterministic scenarios.
 
 Use:
 
-- `PODJI_MOCK_SCENARIO` (preferred)
-- `PODJI_SCENARIO` (legacy fallback)
+- `PODJI_MOCK_SCENARIO`
 
 Supported values:
 

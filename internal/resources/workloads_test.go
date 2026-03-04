@@ -63,7 +63,7 @@ func TestWorkloadsSortByName(t *testing.T) {
 }
 
 func TestWorkloadsScenarioBanner(t *testing.T) {
-	t.Setenv("PODJI_SCENARIO", "forbidden")
+	t.Setenv("PODJI_MOCK_SCENARIO", "forbidden")
 	w := NewWorkloads()
 	if !strings.Contains(w.Banner(), "Access denied") {
 		t.Fatalf("expected access denied banner, got %q", w.Banner())

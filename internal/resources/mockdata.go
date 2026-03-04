@@ -45,9 +45,6 @@ func mockExpansionEnabled() bool {
 
 func mockScenario() string {
 	scenario := strings.TrimSpace(os.Getenv("PODJI_MOCK_SCENARIO"))
-	if scenario == "" {
-		scenario = strings.TrimSpace(os.Getenv("PODJI_SCENARIO"))
-	}
 	return strings.ToLower(scenario)
 }
 

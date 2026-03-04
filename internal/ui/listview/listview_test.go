@@ -85,7 +85,7 @@ func TestSortPickerHidesDuplicateLeadKeys(t *testing.T) {
 }
 
 func TestWorkloadsViewShowsForbiddenBanner(t *testing.T) {
-	t.Setenv("PODJI_SCENARIO", "forbidden")
+	t.Setenv("PODJI_MOCK_SCENARIO", "forbidden")
 	registry := resources.DefaultRegistry()
 	w := resources.NewWorkloads()
 	view := New(w, registry)
