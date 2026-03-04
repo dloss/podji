@@ -81,11 +81,12 @@ go test ./...
 |---|---|
 | `→` / `Enter` / `l` | Drill down |
 | `←` / `Backspace` / `h` | Back |
-| `o` | Open logs from list |
+| `o` | Context action (open logs or next view) |
 | `r` | Related resources |
 | `N` | Namespace picker |
 | `X` | Context picker |
-| `/` | Filter current list |
+| `/` | Search current list |
+| `&` | Filter current list |
 | `:` | Command bar |
 
 ## Development Helpers
